@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for functions.php.
+ * Tests for block_for_strava_resolve_strava_url().
  *
  * @package BlockForStrava
  */
@@ -8,64 +8,13 @@
 declare( strict_types = 1 );
 
 /**
- * Tests for block_for_strava_parse_activity_id().
- */
-class Test_Parse_Activity_Id extends WP_UnitTestCase {
-
-	/**
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_canonical_url(): void {
-		$this->assertSame(
-			'18233733854',
-			block_for_strava_parse_activity_id( 'https://www.strava.com/activities/18233733854' )
-		);
-	}
-
-	/**
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_canonical_url_with_query_args(): void {
-		$this->assertSame(
-			'18233733854',
-			block_for_strava_parse_activity_id(
-				'https://www.strava.com/activities/18233733854?utm_source=ios_share&utm_medium=social'
-			)
-		);
-	}
-
-	/**
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_short_url_returns_false(): void {
-		$this->assertFalse(
-			block_for_strava_parse_activity_id( 'https://strava.app.link/nTuKEiCsA2b' )
-		);
-	}
-
-	/**
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_unrelated_url_returns_false(): void {
-		$this->assertFalse(
-			block_for_strava_parse_activity_id( 'https://example.com/activities/123' )
-		);
-	}
-
-	/**
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_empty_string_returns_false(): void {
-		$this->assertFalse( block_for_strava_parse_activity_id( '' ) );
-	}
-}
-
-/**
  * Tests for block_for_strava_resolve_strava_url().
  */
 class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 
 	/**
+	 * Tests that a non-short URL returns an error.
+	 *
 	 * @covers ::block_for_strava_resolve_strava_url
 	 */
 	public function test_non_short_url_returns_error(): void {
@@ -75,6 +24,8 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests resolving a short URL via a redirect.
+	 *
 	 * @covers ::block_for_strava_resolve_strava_url
 	 */
 	public function test_resolves_short_url_via_redirect(): void {
@@ -104,6 +55,8 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests that a network failure returns an error.
+	 *
 	 * @covers ::block_for_strava_resolve_strava_url
 	 */
 	public function test_network_failure_returns_error(): void {
