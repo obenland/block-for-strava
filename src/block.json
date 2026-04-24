@@ -1,0 +1,41 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "obenland/strava-activity",
+	"version": "1.0.0",
+	"title": "Strava Activity",
+	"category": "embed",
+	"icon": "chart-area",
+	"description": "Embed a public Strava activity on your site.",
+	"keywords": [
+		"strava",
+		"activity",
+		"embed",
+		"running",
+		"cycling",
+		"fitness"
+	],
+	"textdomain": "block-for-strava",
+	"attributes": {
+		"url": {
+			"type": "string",
+			"default": ""
+		},
+		"activityId": {
+			"type": "string",
+			"default": ""
+		},
+		"style": {
+			"type": "string",
+			"default": "standard",
+			"enum": ["standard", "large"]
+		}
+	},
+	"supports": {
+		"html": false,
+		"align": ["wide", "full"]
+	},
+	"editorScript": "file:./index.js",
+	"editorStyle": "file:./index.css",
+	"style": "file:./style-index.css"
+}

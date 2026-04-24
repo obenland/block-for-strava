@@ -1,0 +1,13 @@
+.wp-block-obenland-strava-activity {
+	.block-for-strava__toolbar {
+		display: flex;
+		justify-content: flex-end;
+		margin-block-end: 4px;
+	}
+
+	.block-for-strava__error {
+		color: var(--wp--preset--color--vivid-red, #cf2e2e);
+		margin-block-start: 8px;
+		font-size: 12px;
+	}
+}

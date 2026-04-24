@@ -1,0 +1,28 @@
+{
+	"require": {
+		"php": ">=8.1"
+	},
+	"require-dev": {
+		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+		"wp-coding-standards/wpcs": "^3.0",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"wp-phpunit/wp-phpunit": "^5.8",
+		"yoast/phpunit-polyfills": "^1.0"
+	},
+	"scripts": {
+		"lint": "phpcs",
+		"lint:fix": "phpcbf",
+		"test": "phpunit -c phpunit.xml --verbose",
+		"test-multisite": "WP_MULTISITE=1 phpunit -c phpunit.xml --verbose"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"BlockForStrava\\Tests\\": "./tests"
+		}
+	}
+}

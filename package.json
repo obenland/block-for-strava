@@ -1,0 +1,59 @@
+{
+	"name": "block-for-strava",
+	"version": "1.0.0",
+	"private": true,
+	"description": "Embed public Strava activities on your WordPress site.",
+	"author": "Konstantin Obenland",
+	"license": "GPL-2.0-or-later",
+	"keywords": [
+		"wordpress",
+		"strava",
+		"block",
+		"embed",
+		"gutenberg"
+	],
+	"homepage": "https://wordpress.org/plugins/block-for-strava/",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/obenland/block-for-strava.git"
+	},
+	"bugs": {
+		"url": "https://github.com/obenland/block-for-strava/issues"
+	},
+	"engines": {
+		"node": ">=24"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.47.0",
+		"@wordpress/env": "11.4.0",
+		"@wordpress/eslint-plugin": "^25.0.0",
+		"@wordpress/scripts": "^32.0.0"
+	},
+	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-env start",
+		"stop": "wp-env stop",
+		"destroy": "wp-env destroy",
+		"dev": "wp-scripts start",
+		"lint": "npm run lint:php && npm run lint:js && npm run lint:css && npm run lint:md && npm run lint:pkg-json",
+		"lint:fix": "npm run lint:php:fix && npm run lint:js:fix && npm run lint:css:fix",
+		"lint:php": "wp-env run cli --env-cwd=wp-content/plugins/block-for-strava ./vendor/bin/phpcs",
+		"lint:php:fix": "wp-env run cli --env-cwd=wp-content/plugins/block-for-strava ./vendor/bin/phpcbf",
+		"lint:js": "wp-scripts lint-js",
+		"lint:js:fix": "wp-scripts lint-js --fix",
+		"lint:css": "wp-scripts lint-style 'src/**/*.scss'",
+		"lint:css:fix": "wp-scripts lint-style 'src/**/*.scss' --fix",
+		"lint:md": "wp-scripts lint-md-docs",
+		"lint:pkg-json": "wp-scripts lint-pkg-json",
+		"format": "wp-scripts format",
+		"check-types": "tsc --noEmit",
+		"test": "npm run test-php",
+		"test-php": "wp-env run tests-cli --env-cwd=/var/www/html/wp-content/plugins/block-for-strava composer test",
+		"test-php-multisite": "wp-env run tests-cli --env-cwd=/var/www/html/wp-content/plugins/block-for-strava composer test-multisite",
+		"test-php-coverage": "wp-env run tests-cli --env-cwd=/var/www/html/wp-content/plugins/block-for-strava composer test-coverage",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui",
+		"test:e2e:install": "playwright install --with-deps chromium",
+		"wp-env": "wp-env"
+	}
+}
