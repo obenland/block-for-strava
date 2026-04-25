@@ -32,6 +32,18 @@
 		"@wordpress/i18n": "^6.17.0",
 		"@wordpress/scripts": "^32.0.0"
 	},
+	"overrides": {
+		"copy-webpack-plugin": {
+			"serialize-javascript": "^7.0.5"
+		},
+		"markdownlint-cli": {
+			"minimatch": "^3.1.5"
+		},
+		"sockjs": {
+			"uuid": "^14.0.0"
+		},
+		"webpack-dev-server": "^5.2.1"
+	},
 	"scripts": {
 		"build": "wp-scripts build",
 		"start": "wp-env start",
