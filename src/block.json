@@ -29,6 +29,10 @@
 			"type": "string",
 			"default": "standard",
 			"enum": ["standard", "large"]
+		},
+		"token": {
+			"type": "string",
+			"default": ""
 		}
 	},
 	"supports": {

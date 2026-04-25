@@ -16,6 +16,7 @@ interface Attributes {
 	url: string;
 	activityId: string;
 	style: string;
+	token: string;
 }
 
 interface EditProps {
@@ -25,6 +26,7 @@ interface EditProps {
 
 interface ResolveResponse {
 	activityId: string;
+	token?: string;
 }
 
 function parseActivityId(url: string): string | null {
@@ -32,12 +34,23 @@ function parseActivityId(url: string): string | null {
 	return match ? match[1] : null;
 }
 
+function parseEmbedCode(
+	input: string
+): { activityId: string; token: string } | null {
+	const idMatch = input.match(/data-embed-id="(\d+)"/);
+	if (!idMatch) {
+		return null;
+	}
+	const tokenMatch = input.match(/data-token="([^"]+)"/);
+	return { activityId: idMatch[1], token: tokenMatch ? tokenMatch[1] : '' };
+}
+
 function isShortUrl(url: string): boolean {
 	return /strava\.app\.link/i.test(url);
 }
 
 export default function Edit({ attributes, setAttributes }: EditProps) {
-	const { activityId, style } = attributes;
+	const { activityId, style, token } = attributes;
 	const blockProps = useBlockProps();
 
 	const [inputUrl, setInputUrl] = useState('');
@@ -73,10 +86,39 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 			return;
 		}
 
+		const embedData = parseEmbedCode(trimmed);
+		if (embedData) {
+			setAttributes({
+				url: trimmed,
+				activityId: embedData.activityId,
+				token: embedData.token,
+			});
+			setIsEditing(false);
+			return;
+		}
+
 		const parsed = parseActivityId(trimmed);
 		if (parsed) {
-			setAttributes({ url: trimmed, activityId: parsed });
-			setIsEditing(false);
+			setIsLoading(true);
+			try {
+				const response = await apiFetch<ResolveResponse>({
+					path: `/block-for-strava/v1/resolve?url=${encodeURIComponent(trimmed)}`,
+				});
+				setAttributes({
+					url: trimmed,
+					activityId: response.activityId,
+					token: response.token ?? '',
+				});
+				setIsEditing(false);
+			} catch (err) {
+				const message =
+					err instanceof Error
+						? err.message
+						: __('Could not resolve URL.', 'block-for-strava');
+				setError(message);
+			} finally {
+				setIsLoading(false);
+			}
 			return;
 		}
 
@@ -89,6 +131,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 				setAttributes({
 					url: trimmed,
 					activityId: response.activityId,
+					token: response.token ?? '',
 				});
 				setIsEditing(false);
 			} catch (err) {
@@ -111,7 +154,8 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 		);
 	}, [inputUrl, setAttributes]);
 
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="${style}"></div><script src="https://strava-embeds.com/embed.js"></script><script>window.addEventListener('message',function(e){if(Array.isArray(e.data)&&e.data[1]==='BROADCAST_IFRAME_HEIGHT'){window.parent.postMessage({stravaEmbedHeight:e.data[2]||650},'*');}});</script></body></html>`;
+	const tokenAttr = token ? ` data-token="${token}"` : '';
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="${style}"${tokenAttr}></div><script src="https://strava-embeds.com/embed.js"></script><script>window.addEventListener('message',function(e){if(Array.isArray(e.data)&&e.data[1]==='BROADCAST_IFRAME_HEIGHT'){window.parent.postMessage({stravaEmbedHeight:e.data[2]||650},'*');}});</script></body></html>`;
 
 	return (
 		<>
@@ -143,7 +187,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 						icon="chart-area"
 						label={__('Strava Activity', 'block-for-strava')}
 						instructions={__(
-							'Paste a public Strava activity URL to embed it.',
+							'Paste a Strava activity URL or the embed code from the Strava share dialog.',
 							'block-for-strava'
 						)}
 					>
