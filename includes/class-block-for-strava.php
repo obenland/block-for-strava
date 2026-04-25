@@ -37,6 +37,7 @@ class Block_For_Strava {
 	 * Constructor.
 	 */
 	private function __construct() {
+		Block_For_Strava_OAuth::get_instance();
 		$this->register_block();
 		add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
 	}
@@ -54,6 +55,15 @@ class Block_For_Strava {
 	}
 
 	/**
+	 * Permission callback for editor-only REST routes.
+	 *
+	 * @return bool
+	 */
+	public function editor_permission(): bool {
+		return current_user_can( 'edit_posts' );
+	}
+
+	/**
 	 * Registers the REST API routes.
 	 */
 	public function register_rest_routes(): void {
@@ -63,9 +73,7 @@ class Block_For_Strava {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'rest_resolve_url' ),
-				'permission_callback' => function () {
-					return current_user_can( 'edit_posts' );
-				},
+				'permission_callback' => array( $this, 'editor_permission' ),
 				'args'                => array(
 					'url' => array(
 						'required'          => true,
@@ -74,6 +82,58 @@ class Block_For_Strava {
 						'validate_callback' => function ( $value ) {
 							return ! empty( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) !== false;
 						},
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'block-for-strava/v1',
+			'/oauth/status',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'rest_oauth_status' ),
+				'permission_callback' => array( $this, 'editor_permission' ),
+			)
+		);
+
+		register_rest_route(
+			'block-for-strava/v1',
+			'/oauth/authorize-url',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'rest_oauth_authorize_url' ),
+				'permission_callback' => array( $this, 'editor_permission' ),
+			)
+		);
+
+		register_rest_route(
+			'block-for-strava/v1',
+			'/oauth/disconnect',
+			array(
+				'methods'             => WP_REST_Server::DELETABLE,
+				'callback'            => array( $this, 'rest_oauth_disconnect' ),
+				'permission_callback' => array( $this, 'editor_permission' ),
+			)
+		);
+
+		register_rest_route(
+			'block-for-strava/v1',
+			'/activities',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'rest_list_activities' ),
+				'permission_callback' => array( $this, 'editor_permission' ),
+				'args'                => array(
+					'per_page' => array(
+						'type'              => 'integer',
+						'default'           => 10,
+						'sanitize_callback' => 'absint',
+					),
+					'page'     => array(
+						'type'              => 'integer',
+						'default'           => 1,
+						'sanitize_callback' => 'absint',
 					),
 				),
 			)
@@ -120,7 +180,111 @@ class Block_For_Strava {
 	}
 
 	/**
+	 * Returns the connection status of the current user.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function rest_oauth_status(): WP_REST_Response {
+		$token = Block_For_Strava_OAuth::get_token( get_current_user_id() );
+		if ( null === $token ) {
+			return new WP_REST_Response( array( 'connected' => false ) );
+		}
+		return new WP_REST_Response(
+			array(
+				'connected'        => true,
+				'athlete'          => isset( $token['athlete'] ) && is_array( $token['athlete'] ) ? $token['athlete'] : array(),
+				'scope'            => isset( $token['scope'] ) ? (string) $token['scope'] : '',
+				'hasActivityScope' => Block_For_Strava_OAuth::has_activity_scope( $token ),
+			)
+		);
+	}
+
+	/**
+	 * Returns the proxy authorize URL for the current user.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function rest_oauth_authorize_url(): WP_REST_Response {
+		$oauth = Block_For_Strava_OAuth::get_instance();
+		return new WP_REST_Response(
+			array( 'url' => $oauth->build_authorize_url( get_current_user_id() ) )
+		);
+	}
+
+	/**
+	 * Disconnects the current user from Strava.
+	 *
+	 * Calls Strava's deauthorize endpoint first so the app is also removed
+	 * from the athlete's Strava → Apps settings page, then deletes the
+	 * locally stored token.
+	 *
+	 * @return WP_REST_Response
+	 */
+	public function rest_oauth_disconnect(): WP_REST_Response {
+		$user_id = get_current_user_id();
+		Block_For_Strava_API::deauthorize( $user_id );
+		Block_For_Strava_OAuth::delete_token( $user_id );
+		return new WP_REST_Response( array( 'connected' => false ) );
+	}
+
+	/**
+	 * Lists activities for the connected user.
+	 *
+	 * @param  WP_REST_Request $request The REST request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function rest_list_activities( WP_REST_Request $request ) {
+		$result = Block_For_Strava_API::get_activities(
+			get_current_user_id(),
+			array(
+				'per_page' => max( 1, min( 30, (int) $request->get_param( 'per_page' ) ) ),
+				'page'     => max( 1, (int) $request->get_param( 'page' ) ),
+			)
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$activities = array();
+		if ( is_array( $result ) ) {
+			foreach ( $result as $activity ) {
+				if ( ! is_array( $activity ) || empty( $activity['id'] ) ) {
+					continue;
+				}
+
+				/*
+				 * Per Strava's API conventions, start_date_local is the UTC
+				 * representation of the local start time of the activity. The
+				 * editor renders it without further timezone conversion so
+				 * the date displayed matches the athlete's actual local day.
+				 */
+				$start_date_local = isset( $activity['start_date_local'] ) ? (string) $activity['start_date_local'] : '';
+				if ( '' === $start_date_local && isset( $activity['start_date'] ) ) {
+					$start_date_local = (string) $activity['start_date'];
+				}
+
+				$activities[] = array(
+					'id'        => (string) $activity['id'],
+					'name'      => isset( $activity['name'] ) ? (string) $activity['name'] : '',
+					'type'      => isset( $activity['type'] ) ? (string) $activity['type'] : '',
+					'distance'  => isset( $activity['distance'] ) ? (float) $activity['distance'] : 0.0,
+					'startDate' => $start_date_local,
+					'private'   => ! empty( $activity['private'] ),
+				);
+			}
+		}
+		return new WP_REST_Response( array( 'activities' => $activities ) );
+	}
+
+	/**
 	 * Renders the block on the frontend.
+	 *
+	 * Only outputs the activity ID + Strava's official embed.js. We must NOT
+	 * render any data fetched via the Strava API here: the API agreement
+	 * restricts displaying API-sourced Strava Data to the connected user, and
+	 * the public-facing post is seen by everyone. The Strava-controlled embed
+	 * script is the only sanctioned way to show activity content on the
+	 * frontend.
 	 *
 	 * @param  array $attributes The block attributes.
 	 * @return string The rendered HTML.

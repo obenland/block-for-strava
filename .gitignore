@@ -5,4 +5,5 @@ build/
 .DS_Store
 playwright-report/
 test-results/
+.phpunit.result.cache
 .wp-env.override.json

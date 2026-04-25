@@ -11,4 +11,130 @@
 		margin-block-start: 8px;
 		font-size: 12px;
 	}
+
+	.block-for-strava__placeholder {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		width: 100%;
+	}
+
+	.block-for-strava__connect {
+		display: flex;
+		justify-content: center;
+		padding: 8px 0;
+	}
+
+	.block-for-strava__activity-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		max-height: 280px;
+		overflow-y: auto;
+	}
+
+	.block-for-strava__activity-button {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		width: 100%;
+		padding: 8px 12px;
+		background: transparent;
+		border: 1px solid var(--wp-admin-theme-color, #ccc);
+		border-radius: 4px;
+		cursor: pointer;
+		text-align: start;
+		font-size: 13px;
+
+		&:hover,
+		&:focus {
+			background: rgba(0, 0, 0, 0.04);
+		}
+	}
+
+	.block-for-strava__activity-name {
+		font-weight: 600;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.block-for-strava__activity-badge {
+		display: inline-block;
+		padding: 1px 6px;
+		border-radius: 8px;
+		font-size: 10px;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		background: rgba(0, 0, 0, 0.08);
+		color: inherit;
+	}
+
+	.block-for-strava__activity-meta {
+		font-size: 11px;
+		opacity: 0.75;
+		margin-block-start: 2px;
+	}
+
+	.block-for-strava__url-fallback {
+
+		summary {
+			cursor: pointer;
+			user-select: none;
+			margin-block-end: 8px;
+		}
+	}
+
+	.block-for-strava__account {
+		margin-block-end: 8px;
+	}
+
+	.block-for-strava__attribution {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-block-start: 12px;
+		font-size: 11px;
+		opacity: 0.75;
+	}
+
+	/*
+	 * Official "Connect with Strava" button. Per Strava's brand guidelines
+	 * the SVG must not be modified — we only wrap it in a transparent
+	 * <button> for a11y and add hover/focus affordances around it.
+	 */
+	.block-for-strava__connect-button {
+		display: inline-block;
+		padding: 0;
+		background: transparent;
+		border: none;
+		border-radius: 6px;
+		cursor: pointer;
+		line-height: 0;
+		max-width: 100%;
+
+		svg {
+			display: block;
+			max-width: 100%;
+			height: auto;
+		}
+
+		&:disabled {
+			opacity: 0.5;
+			cursor: not-allowed;
+		}
+
+		&:focus-visible {
+			outline: 2px solid var(--wp-admin-theme-color, #2271b1);
+			outline-offset: 2px;
+		}
+
+		&:hover:not(:disabled) {
+			opacity: 0.92;
+		}
+	}
 }
