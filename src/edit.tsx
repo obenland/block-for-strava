@@ -112,7 +112,9 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 								value: 'large',
 							},
 						]}
-						onChange={(value) => setAttributes({ style: value })}
+						onChange={(value: string) =>
+							setAttributes({ style: value })
+						}
 					/>
 				</PanelBody>
 			</InspectorControls>

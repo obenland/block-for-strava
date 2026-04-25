@@ -13,6 +13,8 @@ declare( strict_types = 1 );
 class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 
 	/**
+	 * ID of the editor user.
+	 *
 	 * @var int
 	 */
 	protected static int $editor_id;
@@ -34,12 +36,14 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 	}
 
 	/**
+	 * Tests that a canonical URL resolves to the activity ID.
+	 *
 	 * @covers Block_For_Strava::rest_resolve_url
 	 */
 	public function test_resolves_canonical_url(): void {
 		wp_set_current_user( self::$editor_id );
 
-		$request  = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
 		$request->set_param( 'url', 'https://www.strava.com/activities/18233733854' );
 		$response = rest_get_server()->dispatch( $request );
 
@@ -48,12 +52,14 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 	}
 
 	/**
+	 * Tests that a non-Strava URL returns a 400 error.
+	 *
 	 * @covers Block_For_Strava::rest_resolve_url
 	 */
 	public function test_rejects_non_strava_url(): void {
 		wp_set_current_user( self::$editor_id );
 
-		$request  = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
 		$request->set_param( 'url', 'https://example.com/activities/123' );
 		$response = rest_get_server()->dispatch( $request );
 
@@ -61,6 +67,8 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 	}
 
 	/**
+	 * Tests resolving a short Strava URL to an activity ID.
+	 *
 	 * @covers Block_For_Strava::rest_resolve_url
 	 */
 	public function test_resolves_short_url(): void {
@@ -86,7 +94,7 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 
 		add_filter( 'pre_http_request', $callback, 10, 3 );
 
-		$request  = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
 		$request->set_param( 'url', 'https://strava.app.link/nTuKEiCsA2b' );
 		$response = rest_get_server()->dispatch( $request );
 
@@ -97,12 +105,14 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 	}
 
 	/**
+	 * Tests that unauthenticated requests are rejected.
+	 *
 	 * @covers Block_For_Strava::rest_resolve_url
 	 */
 	public function test_requires_authentication(): void {
 		wp_set_current_user( 0 );
 
-		$request  = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
 		$request->set_param( 'url', 'https://www.strava.com/activities/123' );
 		$response = rest_get_server()->dispatch( $request );
 
