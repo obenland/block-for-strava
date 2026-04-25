@@ -1,5 +1,5 @@
 import './editor.scss';
-import { useState, useCallback } from '@wordpress/element';
+import { useState, useCallback, useEffect } from '@wordpress/element';
 import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import {
 	PanelBody,
@@ -44,6 +44,25 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [isEditing, setIsEditing] = useState(!activityId);
+	const [previewHeight, setPreviewHeight] = useState(650);
+
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			if (
+				event.data &&
+				typeof event.data === 'object' &&
+				typeof event.data.stravaEmbedHeight === 'number'
+			) {
+				setPreviewHeight(event.data.stravaEmbedHeight);
+			}
+		};
+		window.addEventListener('message', handler);
+		return () => window.removeEventListener('message', handler);
+	}, []);
+
+	useEffect(() => {
+		setPreviewHeight(650);
+	}, [activityId, style]);
 
 	const handleSubmit = useCallback(async () => {
 		setError(null);
@@ -92,8 +111,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 		);
 	}, [inputUrl, setAttributes]);
 
-	const iframeHeight = style === 'large' ? 360 : 160;
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;overflow:hidden;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="${style}"></div><script src="https://strava-embeds.com/embed.js"></script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>body{margin:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="${style}"></div><script src="https://strava-embeds.com/embed.js"></script><script>window.addEventListener('message',function(e){if(Array.isArray(e.data)&&e.data[1]==='BROADCAST_IFRAME_HEIGHT'){window.parent.postMessage({stravaEmbedHeight:e.data[2]||650},'*');}});</script></body></html>`;
 
 	return (
 		<>
@@ -179,7 +197,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 							srcDoc={iframeSrcDoc}
 							style={{
 								width: '100%',
-								height: `${iframeHeight}px`,
+								height: `${previewHeight}px`,
 								border: 'none',
 								display: 'block',
 							}}
