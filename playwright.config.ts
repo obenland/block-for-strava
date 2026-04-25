@@ -8,7 +8,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: 'html',
 	use: {
-		baseURL: 'http://localhost:8891',
+		baseURL: `http://localhost:${process.env.WP_ENV_PORT ?? '8888'}`,
 		trace: 'on-first-retry',
 	},
 	projects: [

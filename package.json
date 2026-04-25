@@ -25,9 +25,11 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.47.0",
-		"@wordpress/element": "*",
+		"@wordpress/api-fetch": "^7.44.0",
+		"@wordpress/element": "^6.44.0",
 		"@wordpress/env": "11.4.0",
 		"@wordpress/eslint-plugin": "^25.0.0",
+		"@wordpress/i18n": "^6.17.0",
 		"@wordpress/scripts": "^32.0.0"
 	},
 	"scripts": {

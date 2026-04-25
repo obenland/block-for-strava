@@ -42,7 +42,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 
 	const [inputUrl, setInputUrl] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState(null as string | null);
+	const [error, setError] = useState<string | null>(null);
 	const [isEditing, setIsEditing] = useState(!activityId);
 
 	const handleSubmit = useCallback(async () => {
@@ -64,9 +64,9 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 		if (isShortUrl(trimmed)) {
 			setIsLoading(true);
 			try {
-				const response = (await apiFetch({
+				const response = await apiFetch<ResolveResponse>({
 					path: `/block-for-strava/v1/resolve?url=${encodeURIComponent(trimmed)}`,
-				})) as ResolveResponse;
+				});
 				setAttributes({
 					url: trimmed,
 					activityId: response.activityId,
