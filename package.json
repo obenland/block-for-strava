@@ -70,5 +70,8 @@
 		"test:e2e:ui": "playwright test --ui",
 		"test:e2e:install": "playwright install --with-deps chromium",
 		"wp-env": "wp-env"
+	},
+	"dependencies": {
+		"@wordpress/icons": "^12.2.0"
 	}
 }

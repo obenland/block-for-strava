@@ -1,6 +1,7 @@
 import './style.scss';
 import { registerBlockType } from '@wordpress/blocks';
 import { __ } from '@wordpress/i18n';
+import { chartBar as activityIcon } from '@wordpress/icons';
 
 import Edit from './edit';
 import Save from './save';
@@ -13,6 +14,7 @@ registerBlockType(metadata.name, {
 		'Embed a public Strava activity on your site.',
 		'block-for-strava'
 	),
+	icon: activityIcon,
 	edit: Edit,
 	save: Save,
 });
