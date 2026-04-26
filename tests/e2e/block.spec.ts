@@ -70,6 +70,26 @@ test.describe.serial('Strava Activity block', () => {
 		);
 	});
 
+	test('frontend render: caption is wrapped in figcaption', async ({
+		page,
+	}) => {
+		postId = wp(
+			'post create --post_title="Strava E2E Caption" --post_status=publish --porcelain'
+		);
+		wp(
+			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity {"activityId":"18233733854","url":"https://www.strava.com/activities/18233733854","caption":"Morning ride"} /-->'`
+		);
+
+		await page.route(/strava-embeds\.com/, (route) => route.abort());
+		await page.goto(`/?p=${postId}`);
+
+		const figure = page.locator('figure.wp-block-obenland-strava-activity');
+		await expect(figure).toBeAttached();
+
+		const caption = figure.locator('figcaption.wp-element-caption');
+		await expect(caption).toHaveText('Morning ride');
+	});
+
 	test('editor: block inserts and shows placeholder', async ({ page }) => {
 		await loginAsAdmin(page);
 		await page.goto('/wp-admin/post-new.php');

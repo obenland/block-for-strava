@@ -250,6 +250,14 @@ export default function Edit({
 								display: 'block',
 							}}
 							scrolling="no"
+							/*
+							 * Sandbox isolates Strava's third-party embed.js:
+							 * scripts run in an opaque origin, so they cannot
+							 * reach wp-admin cookies/storage or navigate the
+							 * top frame. postMessage works from sandboxed
+							 * frames, so the height relay is unaffected.
+							 */
+							sandbox="allow-scripts"
 							title={__('Strava Activity', 'block-for-strava')}
 						/>
 					</Disabled>
