@@ -87,6 +87,15 @@ export default function Edit({
 	 */
 	const embedId = useMemo(() => crypto.randomUUID(), [activityId, token]);
 
+	/*
+	 * Each new iframe should start at the default height. Without this reset,
+	 * a tall previous embed could leave the height stuck if the relay message
+	 * for the new activity is delayed, blocked, or never arrives.
+	 */
+	useEffect(() => {
+		setPreviewHeight(DEFAULT_HEIGHT);
+	}, [embedId]);
+
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			const data = event.data;
