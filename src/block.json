@@ -29,10 +29,6 @@
 			"type": "string",
 			"default": ""
 		},
-		"style": {
-			"type": "string",
-			"default": "standard"
-		},
 		"caption": {
 			"type": "string",
 			"source": "html",

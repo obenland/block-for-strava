@@ -79,19 +79,13 @@ export default function Edit({
 	const [previewHeight, setPreviewHeight] = useState(DEFAULT_HEIGHT);
 
 	/*
-	 * Each render of the iframe gets a unique nonce embedded in its srcDoc. The
-	 * srcDoc relay includes that nonce in every postMessage, so the React
-	 * listener only reacts to messages from this block's own iframe.
+	 * Each iframe gets a unique embedId in its srcDoc, which the relay echoes
+	 * in every postMessage. The React listener only acts on matching ids, so
+	 * multiple Strava blocks on the same page never cross-update each other.
+	 * Listing activityId/token as deps regenerates the id (and remounts the
+	 * iframe) when the underlying activity changes; neither is read inside.
 	 */
-	/*
-	 * Listing activityId/token as deps regenerates the nonce (and forces an
-	 * iframe remount) whenever the underlying activity changes, even though
-	 * neither value is read inside the factory.
-	 */
-	const nonce = useMemo(
-		() => `bfs_${Math.random().toString(36).slice(2)}`,
-		[activityId, token]
-	);
+	const embedId = useMemo(() => crypto.randomUUID(), [activityId, token]);
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
@@ -99,7 +93,7 @@ export default function Edit({
 			if (
 				data &&
 				typeof data === 'object' &&
-				data.stravaEmbedNonce === nonce &&
+				data.stravaEmbedId === embedId &&
 				Number.isFinite(data.stravaEmbedHeight)
 			) {
 				const next = Math.min(
@@ -111,7 +105,7 @@ export default function Edit({
 		};
 		window.addEventListener('message', handler);
 		return () => window.removeEventListener('message', handler);
-	}, [nonce]);
+	}, [embedId]);
 
 	const handleSubmit = useCallback(async () => {
 		setError(null);
@@ -167,7 +161,7 @@ export default function Edit({
 	}, [inputUrl, setAttributes]);
 
 	const tokenAttr = token ? ` data-token="${token}"` : '';
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="standard"${tokenAttr}></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${nonce}";function send(h){window.parent.postMessage({stravaEmbedNonce:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="standard"${tokenAttr}></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
 
 	return (
 		<>
@@ -238,7 +232,7 @@ export default function Edit({
 				<figure {...blockProps}>
 					<Disabled>
 						<iframe
-							key={nonce}
+							key={embedId}
 							srcDoc={iframeSrcDoc}
 							style={{
 								width: '100%',
