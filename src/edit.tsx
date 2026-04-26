@@ -70,7 +70,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 			if (
 				event.data &&
 				typeof event.data === 'object' &&
-				typeof event.data.stravaEmbedHeight === 'number'
+				Number.isFinite(event.data.stravaEmbedHeight)
 			) {
 				const rawHeight = event.data.stravaEmbedHeight;
 				setPreviewHeight(Math.min(Math.max(rawHeight, 100), 5000));
