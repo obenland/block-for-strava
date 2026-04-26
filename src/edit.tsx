@@ -1,5 +1,5 @@
 import './editor.scss';
-import { useState, useCallback, useEffect } from '@wordpress/element';
+import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
 import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import {
 	PanelBody,
@@ -58,15 +58,22 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [isEditing, setIsEditing] = useState(!activityId);
 	const [previewHeight, setPreviewHeight] = useState(650);
+	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
+			// srcdoc iframes have a null origin, so origin checks don't work;
+			// compare event.source to the iframe's contentWindow instead.
+			if (event.source !== iframeRef.current?.contentWindow) {
+				return;
+			}
 			if (
 				event.data &&
 				typeof event.data === 'object' &&
-				typeof event.data.stravaEmbedHeight === 'number'
+				Number.isFinite(event.data.stravaEmbedHeight)
 			) {
-				setPreviewHeight(event.data.stravaEmbedHeight);
+				const rawHeight = event.data.stravaEmbedHeight;
+				setPreviewHeight(Math.min(Math.max(rawHeight, 100), 5000));
 			}
 		};
 		window.addEventListener('message', handler);
@@ -238,6 +245,7 @@ export default function Edit({ attributes, setAttributes }: EditProps) {
 						</div>
 						<iframe
 							key={`${activityId}-${style}`}
+							ref={iframeRef}
 							srcDoc={iframeSrcDoc}
 							style={{
 								width: '100%',
