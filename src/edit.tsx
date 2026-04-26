@@ -1,5 +1,11 @@
 import './editor.scss';
-import { useState, useCallback, useEffect, useMemo } from '@wordpress/element';
+import {
+	useState,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+} from '@wordpress/element';
 import {
 	useBlockProps,
 	BlockControls,
@@ -77,6 +83,7 @@ export default function Edit({
 	const [error, setError] = useState<string | null>(null);
 	const [isEditing, setIsEditing] = useState(!activityId);
 	const [previewHeight, setPreviewHeight] = useState(DEFAULT_HEIGHT);
+	const iframeRef = useRef<HTMLIFrameElement>(null);
 
 	/*
 	 * Each iframe gets a unique embedId in its srcDoc, which the relay echoes
@@ -98,6 +105,15 @@ export default function Edit({
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
+			/*
+			 * Defense in depth: the embedId is a UUID and effectively
+			 * unguessable, but also require the message to originate from
+			 * this block's own iframe so other frames on the page cannot
+			 * spoof height updates even if they obtain the id.
+			 */
+			if (event.source !== iframeRef.current?.contentWindow) {
+				return;
+			}
 			const data = event.data;
 			if (
 				data &&
@@ -242,6 +258,7 @@ export default function Edit({
 					<Disabled>
 						<iframe
 							key={embedId}
+							ref={iframeRef}
 							srcDoc={iframeSrcDoc}
 							style={{
 								width: '100%',
