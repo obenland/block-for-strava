@@ -1,6 +1,6 @@
 /**
  * Dynamic block — PHP renders the frontend output.
  */
-export default function Save(): null {
-	return null;
-}
+const Save = (): null => null;
+
+export default Save;

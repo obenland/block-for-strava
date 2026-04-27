@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from 'react';
+import { createElement, type ChangeEvent, type ReactNode } from 'react';
 
 interface PlaceholderProps {
 	icon?: ReactNode;
@@ -70,7 +70,7 @@ export function TextControl({
 			placeholder,
 			disabled,
 			'aria-label': label,
-			onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+			onChange: (event: ChangeEvent<HTMLInputElement>) =>
 				onChange(event.target.value),
 		})
 	);

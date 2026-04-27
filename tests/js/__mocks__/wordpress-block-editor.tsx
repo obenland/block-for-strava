@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from 'react';
+import { createElement, type FormEvent, type ReactNode } from 'react';
 
 export const useBlockProps = jest.fn(() => ({
 	className: 'wp-block',
@@ -36,7 +36,7 @@ export function RichText({
 		contentEditable: true,
 		suppressContentEditableWarning: true,
 		children: value || placeholder,
-		onInput: (event: React.FormEvent<HTMLElement>) =>
+		onInput: (event: FormEvent<HTMLElement>) =>
 			onChange(event.currentTarget.textContent || ''),
 	});
 }
