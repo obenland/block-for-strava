@@ -50,6 +50,18 @@ const DEFAULT_HEIGHT = 730;
 const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 5000;
 
+/*
+ * crypto.randomUUID is available in all WP-supported browsers in secure
+ * contexts, but fall back to a random string if it's missing so the Edit
+ * component never throws at render time.
+ */
+function generateEmbedId(): string {
+	if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+		return crypto.randomUUID();
+	}
+	return `bfs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 function parseActivityId(url: string): string | null {
 	const match = url.match(/strava\.com\/activities\/(\d+)/i);
 	return match ? match[1] : null;
@@ -92,7 +104,7 @@ export default function Edit({
 	 * Listing activityId/token as deps regenerates the id (and remounts the
 	 * iframe) when the underlying activity changes; neither is read inside.
 	 */
-	const embedId = useMemo(() => crypto.randomUUID(), [activityId, token]);
+	const embedId = useMemo(() => generateEmbedId(), [activityId, token]);
 
 	/*
 	 * Each new iframe should start at the default height. Without this reset,
