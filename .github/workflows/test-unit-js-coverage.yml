@@ -1,0 +1,99 @@
+name: JS Unit Test Coverage
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+        paths-ignore:
+            - '**/*.md'
+            - 'readme.txt'
+            - '.wordpress-org/**'
+            - '.distignore'
+            - '.editorconfig'
+            - '.gitignore'
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    js-coverage:
+        name: 'JS Coverage Analysis'
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js (.nvmrc)
+              uses: actions/setup-node@v4
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: npm
+
+            - name: npm install
+              run: npm ci
+
+            - name: Run JS unit tests with coverage
+              id: jest
+              run: npm run test-unit-js:coverage
+
+            - name: Build coverage table from json-summary
+              id: summary
+              if: success()
+              run: |
+                  # Render coverage/js/coverage-summary.json (emitted by Jest's
+                  # json-summary reporter) into a Markdown table, then stash it
+                  # in $GITHUB_ENV with a randomized delimiter so any future
+                  # output cannot collide with the heredoc terminator.
+                  if [ ! -f coverage/js/coverage-summary.json ]; then
+                      echo "::error::coverage/js/coverage-summary.json not found — Jest did not emit json-summary."
+                      exit 1
+                  fi
+                  table=$(node --input-type=module -e '
+                      import { readFileSync } from "node:fs";
+                      const summary = JSON.parse(readFileSync("coverage/js/coverage-summary.json", "utf8"));
+                      const cwd = process.cwd() + "/";
+                      const fmt = (m) => `${m.pct.toFixed(2)}% (${m.covered}/${m.total})`;
+                      const header = "| File | % Stmts | % Branch | % Funcs | % Lines |";
+                      const sep = "| --- | --- | --- | --- | --- |";
+                      const rows = [];
+                      const total = summary.total;
+                      rows.push(`| **All files** | ${fmt(total.statements)} | ${fmt(total.branches)} | ${fmt(total.functions)} | ${fmt(total.lines)} |`);
+                      for (const path of Object.keys(summary).filter((k) => k !== "total").sort()) {
+                          const m = summary[path];
+                          const rel = path.startsWith(cwd) ? path.slice(cwd.length) : path;
+                          rows.push(`| ${rel} | ${fmt(m.statements)} | ${fmt(m.branches)} | ${fmt(m.functions)} | ${fmt(m.lines)} |`);
+                      }
+                      console.log([header, sep, ...rows].join("\n"));
+                  ')
+                  if [ -z "$table" ]; then
+                      echo "::error::Coverage table is empty after parsing."
+                      exit 1
+                  fi
+                  delim="EOF_$(openssl rand -hex 8)"
+                  {
+                      echo "coverage_table<<${delim}"
+                      echo "$table"
+                      echo "${delim}"
+                  } >> "$GITHUB_ENV"
+
+            - name: Find Comment
+              if: success()
+              uses: peter-evans/find-comment@v3
+              id: fc
+              with:
+                  issue-number: ${{ github.event.pull_request.number }}
+                  comment-author: 'github-actions[bot]'
+                  body-includes: JS Unit Test Coverage Report
+
+            - name: Create or Update Comment
+              if: success() && env.coverage_table != ''
+              uses: peter-evans/create-or-update-comment@v4
+              with:
+                  comment-id: ${{ steps.fc.outputs.comment-id }}
+                  issue-number: ${{ github.event.pull_request.number }}
+                  body: |
+                      ## JS Unit Test Coverage Report
+
+                      ${{ env.coverage_table }}
+                  edit-mode: replace

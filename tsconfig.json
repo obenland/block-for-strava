@@ -15,5 +15,5 @@
 			"@wordpress/*": ["./node_modules/@wordpress/*"]
 		}
 	},
-	"include": ["src/**/*", "tests/e2e/**/*"]
+	"include": ["src/**/*", "tests/e2e/**/*", "tests/js/**/*"]
 }

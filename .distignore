@@ -7,7 +7,9 @@
 .wp-env.override.json
 composer.json
 composer.lock
+coverage/
 docs/
+jest.config.js
 node_modules/
 package.json
 package-lock.json

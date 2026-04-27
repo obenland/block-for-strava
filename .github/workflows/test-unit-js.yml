@@ -1,0 +1,45 @@
+name: JS Unit Tests
+
+on:
+    push:
+        branches: [trunk]
+        paths-ignore:
+            - '**/*.md'
+            - 'readme.txt'
+            - '.wordpress-org/**'
+            - '.distignore'
+            - '.editorconfig'
+            - '.gitignore'
+    pull_request:
+        branches: [trunk]
+        paths-ignore:
+            - '**/*.md'
+            - 'readme.txt'
+            - '.wordpress-org/**'
+            - '.distignore'
+            - '.editorconfig'
+            - '.gitignore'
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    js-test:
+        name: 'JS Unit Tests'
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js (.nvmrc)
+              uses: actions/setup-node@v4
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: npm
+
+            - name: npm install
+              run: npm ci
+
+            - name: Run JS unit tests
+              run: npm run test-unit-js

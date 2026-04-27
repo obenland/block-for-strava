@@ -5,4 +5,5 @@ build/
 .DS_Store
 playwright-report/
 test-results/
+coverage/
 .wp-env.override.json
