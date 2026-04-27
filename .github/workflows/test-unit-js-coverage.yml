@@ -15,6 +15,10 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
     cancel-in-progress: true
 
+permissions:
+    contents: read
+    pull-requests: write
+
 jobs:
     js-coverage:
         name: 'JS Coverage Analysis'
@@ -78,7 +82,9 @@ jobs:
                   } >> "$GITHUB_ENV"
 
             - name: Find Comment
-              if: success()
+              # GITHUB_TOKEN is read-only on pull_request events from forks,
+              # so skip the comment steps there to avoid permission errors.
+              if: success() && github.event.pull_request.head.repo.fork == false
               uses: peter-evans/find-comment@v3
               id: fc
               with:
@@ -87,7 +93,7 @@ jobs:
                   body-includes: JS Unit Test Coverage Report
 
             - name: Create or Update Comment
-              if: success() && env.coverage_table != ''
+              if: success() && env.coverage_table != '' && github.event.pull_request.head.repo.fork == false
               uses: peter-evans/create-or-update-comment@v4
               with:
                   comment-id: ${{ steps.fc.outputs.comment-id }}
