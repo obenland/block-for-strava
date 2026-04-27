@@ -1,14 +1,13 @@
 import { registerBlockType } from '@wordpress/blocks';
 import metadata from '../../src/block.json';
 import Edit from '../../src/edit';
-import Save from '../../src/save';
 
 describe('block registration', () => {
 	beforeEach(() => {
 		(registerBlockType as jest.Mock).mockClear();
 	});
 
-	it('registers the block with metadata, translated strings, an icon, edit, and save', () => {
+	it('registers the block with metadata, translated strings, an icon, edit, and a noop save', () => {
 		require('../../src/index');
 
 		expect(registerBlockType).toHaveBeenCalledTimes(1);
@@ -21,10 +20,12 @@ describe('block registration', () => {
 			title: 'Strava Activity',
 			description: 'Embed a public Strava activity on your site.',
 			edit: Edit,
-			save: Save,
 		});
-		// Index.tsx overrides the JSON icon with the activity SVG icon.
+		/* Index.tsx overrides the JSON icon with the activity SVG icon. */
 		expect(settings.icon).toBeDefined();
 		expect(settings.icon).not.toBe(metadata.icon);
+		/* save is a dynamic-block noop returning null. */
+		expect(typeof settings.save).toBe('function');
+		expect(settings.save()).toBeNull();
 	});
 });

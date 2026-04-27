@@ -4,8 +4,10 @@ import { __ } from '@wordpress/i18n';
 import { chartBar as activityIcon } from '@wordpress/icons';
 
 import Edit from './edit';
-import Save from './save';
 import metadata from './block.json';
+
+/* Dynamic block — PHP renders the frontend output. */
+const save = (): null => null;
 
 registerBlockType(metadata.name, {
 	...metadata,
@@ -16,5 +18,5 @@ registerBlockType(metadata.name, {
 	),
 	icon: activityIcon,
 	edit: Edit,
-	save: Save,
+	save,
 });
