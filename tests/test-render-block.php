@@ -193,7 +193,15 @@ class Test_Render_Block extends WP_UnitTestCase {
 	 * @covers Block_For_Strava::render_block
 	 */
 	public function test_non_boolean_values_fall_back_to_defaults(): void {
-		foreach ( array( 'false', 'true', 1, 0, 'maybe', null ) as $value ) {
+		$cases = array(
+			'string false' => 'false',
+			'string true'  => 'true',
+			'int one'      => 1,
+			'int zero'     => 0,
+			'unknown word' => 'maybe',
+			'null'         => null,
+		);
+		foreach ( $cases as $context => $value ) {
 			$html = $this->render(
 				array(
 					'routeShowElevation' => $value,
@@ -201,7 +209,6 @@ class Test_Render_Block extends WP_UnitTestCase {
 					'routeShowDirt'      => $value,
 				)
 			);
-			$context = sprintf( 'value=%s', var_export( $value, true ) );
 			$this->assertStringNotContainsString(
 				'data-hide-elevation',
 				$html,
