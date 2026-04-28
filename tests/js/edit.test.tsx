@@ -26,8 +26,11 @@ function parseEmbedSrc( iframe: HTMLIFrameElement ): {
 	url: URL;
 	hashParams: URLSearchParams;
 } {
-	const src = iframe.getAttribute( 'src' ) ?? '';
-	const url = new URL( src );
+	const src = iframe.getAttribute( 'src' );
+	// Fail loudly on a missing src instead of letting `new URL('')` throw
+	// an opaque "Invalid URL" that masks the real regression.
+	expect( src ).toBeTruthy();
+	const url = new URL( src as string );
 	const hashParams = new URLSearchParams( url.hash.replace( /^#/, '' ) );
 	return { url, hashParams };
 }

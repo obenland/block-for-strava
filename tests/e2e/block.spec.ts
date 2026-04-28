@@ -366,7 +366,7 @@ test.describe.serial( 'Strava Activity block', () => {
 		 * when verifying the embed pipeline end-to-end.
 		 */
 		test.skip(
-			! process.env.RUN_LIVE_INTEGRATION,
+			process.env.RUN_LIVE_INTEGRATION !== '1',
 			'Live Strava integration test; opt in with RUN_LIVE_INTEGRATION=1'
 		);
 		const routeId = '3379104463896442748';
