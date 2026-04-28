@@ -1,4 +1,5 @@
 import { createBlock } from '@wordpress/blocks';
+import { escapeAttribute, escapeHTML } from '@wordpress/escape-html';
 
 import metadata from './block.json';
 
@@ -14,6 +15,7 @@ const STRAVA_BLOCK = metadata.name;
 const CANONICAL_URL_RE =
 	/^https?:\/\/(?:www\.)?strava\.com\/activities\/(\d+)(?:[/?#].*)?$/i;
 const SHORT_URL_RE = /^https?:\/\/strava\.app\.link\/[^\s]+$/i;
+const SAFE_URL_RE = /^https?:\/\//i;
 
 /**
  * Returns the activity id when the trimmed input is a canonical Strava
@@ -64,9 +66,18 @@ const transforms = {
 			blocks: ['core/paragraph'],
 			isMatch: ({ url }: StravaAttributes) => !!url,
 			transform: ({ url, caption }: StravaAttributes) => {
-				let value = `<a href="${url}">${url}</a>`;
+				/*
+				 * `url` is a user-controlled attribute. Only emit an anchor
+				 * when the protocol is http(s); otherwise fall back to safe
+				 * text so attributes like `javascript:` or quote-injecting
+				 * values cannot escape into executable markup.
+				 */
+				const escapedText = escapeHTML(url);
+				let value = SAFE_URL_RE.test(url)
+					? `<a href="${escapeAttribute(url)}">${escapedText}</a>`
+					: escapedText;
 				if (caption && caption.trim()) {
-					value += `<br />${caption}`;
+					value += `<br />${escapeHTML(caption)}`;
 				}
 				return createBlock('core/paragraph', {
 					content: value,

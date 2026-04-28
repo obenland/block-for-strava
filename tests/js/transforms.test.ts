@@ -143,4 +143,36 @@ describe('transforms.to strava block → paragraph (link fallback)', () => {
 				'<a href="https://www.strava.com/activities/789">https://www.strava.com/activities/789</a>',
 		});
 	});
+
+	it('renders non-http(s) URLs as escaped text instead of a link', () => {
+		toParagraph.transform({
+			...baseAttrs,
+			url: 'javascript:alert(1)',
+		});
+		expect(mockedCreateBlock).toHaveBeenCalledWith('core/paragraph', {
+			content: 'javascript:alert(1)',
+		});
+	});
+
+	it('escapes HTML-significant characters in the URL', () => {
+		toParagraph.transform({
+			...baseAttrs,
+			url: 'https://www.strava.com/activities/789?x="><script>alert(1)</script>',
+		});
+		expect(mockedCreateBlock).toHaveBeenCalledWith('core/paragraph', {
+			content:
+				'<a href="https://www.strava.com/activities/789?x=&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;">https://www.strava.com/activities/789?x=">&lt;script>alert(1)&lt;/script></a>',
+		});
+	});
+
+	it('escapes HTML-significant characters in the caption', () => {
+		toParagraph.transform({
+			...baseAttrs,
+			caption: '<img src=x onerror=alert(1)>',
+		});
+		expect(mockedCreateBlock).toHaveBeenCalledWith('core/paragraph', {
+			content:
+				'<a href="https://www.strava.com/activities/789">https://www.strava.com/activities/789</a><br />&lt;img src=x onerror=alert(1)>',
+		});
+	});
 });
