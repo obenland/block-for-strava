@@ -415,9 +415,31 @@ describe( 'Edit – preview (rendered) mode', () => {
 	it( 'renders a sandboxed iframe with the embed snippet for the activity', () => {
 		const { container } = renderEdit( { activityId: '42' } );
 		const iframe = getIframe( container );
-		expect( iframe.getAttribute( 'sandbox' ) ).toBe( 'allow-scripts' );
+		expect( iframe.getAttribute( 'sandbox' ) ).toBe(
+			'allow-scripts allow-same-origin'
+		);
 		const srcDoc = iframe.getAttribute( 'srcdoc' ) ?? '';
 		expect( srcDoc ).toContain( 'data-embed-id="42"' );
+	} );
+
+	it( 'keeps allow-same-origin in the sandbox so route maps can load', () => {
+		/*
+		 * Regression guard. Sandbox flags inherit into the nested
+		 * strava-embeds.com iframe; without allow-same-origin its requests
+		 * for /map-style/* and Snowplow analytics go out as origin "null",
+		 * which Strava's CORS rejects and the route map silently never
+		 * renders in the editor preview. If someone trims the sandbox back
+		 * to "allow-scripts" for "tighter isolation", this test fails — do
+		 * not "fix" it by relaxing the assertion.
+		 */
+		const { container } = renderEdit( {
+			activityId: '42',
+			embedType: 'route',
+		} );
+		const sandbox = getIframe( container ).getAttribute( 'sandbox' ) ?? '';
+		const flags = sandbox.split( /\s+/ ).filter( Boolean );
+		expect( flags ).toContain( 'allow-scripts' );
+		expect( flags ).toContain( 'allow-same-origin' );
 	} );
 
 	it( 'wires the BROADCAST_IFRAME_HEIGHT relay and default-height fallback into the srcdoc', () => {
@@ -445,8 +467,9 @@ describe( 'Edit – preview (rendered) mode', () => {
 	it( 'clamps an unknown embedType to "activity" before interpolating into the srcdoc', () => {
 		/*
 		 * block.json declares an enum for embedType, but a hand-edited post
-		 * could persist anything; the iframe is sandboxed so this is defense
-		 * in depth, not the primary boundary.
+		 * could persist anything; the iframe runs with allow-same-origin
+		 * (the map otherwise won't load), so clamping is the boundary that
+		 * keeps unknown values out of the srcdoc HTML.
 		 */
 		const { container } = renderEdit( {
 			activityId: '42',

@@ -374,8 +374,9 @@ export default function Edit( {
 	/*
 	 * Clamp before interpolating into the iframe HTML. The block.json enum
 	 * and TypeScript types should keep these in shape, but a hand-edited
-	 * post could persist arbitrary values; the iframe is sandboxed so this
-	 * is defense in depth rather than the primary boundary.
+	 * post could persist arbitrary values, and the iframe runs with
+	 * allow-same-origin (see sandbox comment below), so this clamping is a
+	 * primary boundary against injecting attribute strings into the srcdoc.
 	 */
 	const safeEmbedType: EmbedType =
 		embedType === 'route' || embedType === 'segment'
@@ -668,13 +669,18 @@ export default function Edit( {
 							} }
 							scrolling="no"
 							/*
-							 * Sandbox isolates Strava's third-party embed.js:
-							 * scripts run in an opaque origin, so they cannot
-							 * reach wp-admin cookies/storage or navigate the
-							 * top frame. postMessage works from sandboxed
-							 * frames, so the height relay is unaffected.
+							 * allow-same-origin is required for route embeds:
+							 * sandbox flags inherit into the nested
+							 * strava-embeds.com iframe, and without
+							 * allow-same-origin its requests for map-style
+							 * JSON go out as origin "null", which Strava's
+							 * CORS rejects (Access-Control-Allow-Origin: *
+							 * vs. credentialed fetch). With both flags the
+							 * embed gets its real origin and the map renders.
+							 * The frontend already loads embed.js unsandboxed,
+							 * so the editor isn't a tighter trust boundary.
 							 */
-							sandbox="allow-scripts"
+							sandbox="allow-scripts allow-same-origin"
 							title={ __(
 								'Strava Activity',
 								'block-for-strava'
