@@ -22,11 +22,20 @@ function getIframe( container: HTMLElement ): HTMLIFrameElement {
 	return iframe as HTMLIFrameElement;
 }
 
+function parseEmbedSrc( iframe: HTMLIFrameElement ): {
+	url: URL;
+	hashParams: URLSearchParams;
+} {
+	const src = iframe.getAttribute( 'src' ) ?? '';
+	const url = new URL( src );
+	const hashParams = new URLSearchParams( url.hash.replace( /^#/, '' ) );
+	return { url, hashParams };
+}
+
 function extractEmbedId( iframe: HTMLIFrameElement ): string {
-	const srcDoc = iframe.getAttribute( 'srcdoc' ) ?? '';
-	const idMatch = srcDoc.match( /var n="([^"]+)"/ );
-	expect( idMatch ).not.toBeNull();
-	return idMatch![ 1 ];
+	const ns = parseEmbedSrc( iframe ).hashParams.get( 'ns' );
+	expect( ns ).not.toBeNull();
+	return ns as string;
 }
 
 type EmbedType = 'activity' | 'route' | 'segment';
@@ -412,90 +421,70 @@ describe( 'Edit – placeholder (editing) mode', () => {
 } );
 
 describe( 'Edit – preview (rendered) mode', () => {
-	it( 'renders a tightly sandboxed iframe with the embed snippet for the activity', () => {
+	it( 'points the iframe directly at strava-embeds.com so it runs on a non-wp-admin origin', () => {
 		/*
-		 * Activities use a static map and work with the strict sandbox.
-		 * Asserting exactly one flag pins the trust surface: if someone
-		 * adds allow-same-origin to all embeds again (e.g., to silence
-		 * Snowplow CORS noise), this test fails and forces the change to
-		 * be deliberate.
+		 * Regression guard for the trust-boundary fix. If the editor ever
+		 * goes back to wrapping the embed in our own srcdoc, the iframe's
+		 * origin would inherit wp-admin's and Strava's embed.js would gain
+		 * cookie/localStorage/parent-DOM access. Pinning the URL origin
+		 * makes that change fail loudly here.
 		 */
-		const { container } = renderEdit( { activityId: '42' } );
+		const { container } = renderEdit( {
+			activityId: '42',
+			embedType: 'activity',
+		} );
 		const iframe = getIframe( container );
-		const sandbox = iframe.getAttribute( 'sandbox' ) ?? '';
-		const flags = sandbox.split( /\s+/ ).filter( Boolean );
-		expect( flags ).toContain( 'allow-scripts' );
-		expect( flags ).toHaveLength( 1 );
-		const srcDoc = iframe.getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toContain( 'data-embed-id="42"' );
+		expect( iframe.getAttribute( 'srcdoc' ) ).toBeNull();
+		expect( iframe.getAttribute( 'sandbox' ) ).toBeNull();
+		const { url } = parseEmbedSrc( iframe );
+		expect( url.origin ).toBe( 'https://strava-embeds.com' );
+		expect( url.pathname ).toBe( '/activity/42' );
 	} );
 
-	it( 'keeps allow-same-origin in the sandbox so route maps can load', () => {
-		/*
-		 * Regression guard. Sandbox flags inherit into the nested
-		 * strava-embeds.com iframe; without allow-same-origin its requests
-		 * for /map-style/* and Snowplow analytics go out as origin "null",
-		 * which Strava's CORS rejects and the route map silently never
-		 * renders in the editor preview. If someone trims the sandbox back
-		 * to "allow-scripts" for "tighter isolation", this test fails — do
-		 * not "fix" it by relaxing the assertion.
-		 */
-		const { container } = renderEdit( {
-			activityId: '42',
-			embedType: 'route',
-		} );
-		const sandbox = getIframe( container ).getAttribute( 'sandbox' ) ?? '';
-		const flags = sandbox.split( /\s+/ ).filter( Boolean );
-		expect( flags ).toContain( 'allow-scripts' );
-		expect( flags ).toContain( 'allow-same-origin' );
-		expect( flags ).toHaveLength( 2 );
-	} );
-
-	it( 'wires the BROADCAST_IFRAME_HEIGHT relay and default-height fallback into the srcdoc', () => {
+	it( 'puts the random embed id into the URL hash as ns for the postMessage prefix', () => {
 		const { container } = renderEdit( { activityId: '42' } );
-		const srcDoc = getIframe( container ).getAttribute( 'srcdoc' ) ?? '';
-		/*
-		 * If these literals drift, Strava's embed.js never sees the relay and
-		 * the editor preview never resizes — but no other unit test would
-		 * notice. The DEFAULT_HEIGHT (730) is the fallback the relay sends
-		 * when the embed reports no explicit height.
-		 */
-		expect( srcDoc ).toContain( 'BROADCAST_IFRAME_HEIGHT' );
-		expect( srcDoc ).toContain( '||730' );
+		const { hashParams } = parseEmbedSrc( getIframe( container ) );
+		const ns = hashParams.get( 'ns' );
+		expect( ns ).toBeTruthy();
+		/* The ns must be unguessable — a UUID or a sufficiently-random fallback. */
+		expect( ns!.length ).toBeGreaterThanOrEqual( 16 );
 	} );
 
-	it( 'reflects the saved embedType in the srcdoc data-embed-type attribute', () => {
+	it( 'reflects the saved embedType in the URL path', () => {
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'route',
 		} );
-		const srcDoc = getIframe( container ).getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toContain( 'data-embed-type="route"' );
+		const { url } = parseEmbedSrc( getIframe( container ) );
+		expect( url.pathname ).toBe( '/route/42' );
 	} );
 
-	it( 'clamps an unknown embedType to "activity" before interpolating into the srcdoc', () => {
+	it( 'clamps an unknown embedType to "activity" before interpolating into the URL', () => {
 		/*
 		 * block.json declares an enum for embedType, but a hand-edited post
-		 * could persist anything; route embeds run with allow-same-origin
-		 * (the map otherwise won't load), so clamping is the boundary that
-		 * keeps unknown values out of the srcdoc HTML on routes.
+		 * could persist anything. The embedType becomes a path segment on
+		 * strava-embeds.com, so unsafe values would let the post point the
+		 * editor preview at an arbitrary path — clamp is the boundary.
 		 */
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'bogus' as 'activity',
 		} );
-		const srcDoc = getIframe( container ).getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toContain( 'data-embed-type="activity"' );
-		expect( srcDoc ).not.toContain( 'data-embed-type="bogus"' );
+		const { url } = parseEmbedSrc( getIframe( container ) );
+		expect( url.pathname ).toBe( '/activity/42' );
+		expect( url.pathname ).not.toContain( 'bogus' );
 	} );
 
-	it( 'drops a non-numeric activityId from the srcdoc data-embed-id attribute', () => {
+	it( 'drops a non-numeric activityId from the URL path', () => {
 		const { container } = renderEdit( {
 			activityId: '"><script>alert(1)</script>',
 		} );
-		const srcDoc = getIframe( container ).getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toContain( 'data-embed-id=""' );
-		expect( srcDoc ).not.toContain( '<script>alert(1)</script>"' );
+		const src = getIframe( container ).getAttribute( 'src' ) ?? '';
+		expect( src ).not.toContain( '<script>' );
+		expect( src ).not.toContain( 'alert(1)' );
+		const { url } = parseEmbedSrc( getIframe( container ) );
+		/* With the id clamped to '' the path collapses to /{type}/. */
+		expect( url.pathname ).toBe( '/activity/' );
 	} );
 
 	it( 'regenerates the embedId when embedType changes for the same activityId', () => {
@@ -608,15 +597,19 @@ describe( 'Edit – preview (rendered) mode', () => {
 			} );
 		}
 
+		function heightMessage( ns: string, height: unknown ): unknown {
+			return [ ns, 'BROADCAST_IFRAME_HEIGHT', height ];
+		}
+
 		it( 'ignores messages from other windows', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
 			const initialHeight = iframe.style.height;
 
-			dispatchMessage( window, {
-				stravaEmbedId: 'whatever',
-				stravaEmbedHeight: 1234,
-			} );
+			dispatchMessage(
+				window,
+				heightMessage( extractEmbedId( iframe ), 1234 )
+			);
 
 			expect( iframe.style.height ).toBe( initialHeight );
 		} );
@@ -629,22 +622,37 @@ describe( 'Edit – preview (rendered) mode', () => {
 			expect( iframe.style.height ).toBe( before );
 		} );
 
-		it( 'ignores messages whose payload is not an object', () => {
-			const { container } = renderEdit( { activityId: '42' } );
-			const iframe = getIframe( container );
-			const before = iframe.style.height;
-			dispatchMessage( iframe.contentWindow, 'not-an-object' );
-			expect( iframe.style.height ).toBe( before );
-		} );
-
-		it( 'ignores messages from this iframe with a mismatched embed id', () => {
+		it( 'ignores messages whose payload is not an array', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
 			const before = iframe.style.height;
 			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: 'mismatched',
+				stravaEmbedId: extractEmbedId( iframe ),
 				stravaEmbedHeight: 900,
 			} );
+			expect( iframe.style.height ).toBe( before );
+		} );
+
+		it( 'ignores messages from this iframe with a mismatched ns prefix', () => {
+			const { container } = renderEdit( { activityId: '42' } );
+			const iframe = getIframe( container );
+			const before = iframe.style.height;
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( 'mismatched', 900 )
+			);
+			expect( iframe.style.height ).toBe( before );
+		} );
+
+		it( 'ignores messages with the wrong event name', () => {
+			const { container } = renderEdit( { activityId: '42' } );
+			const iframe = getIframe( container );
+			const before = iframe.style.height;
+			dispatchMessage( iframe.contentWindow, [
+				extractEmbedId( iframe ),
+				'BROADCAST_HOST_FOCUS',
+				900,
+			] );
 			expect( iframe.style.height ).toBe( before );
 		} );
 
@@ -652,23 +660,21 @@ describe( 'Edit – preview (rendered) mode', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
 			const before = iframe.style.height;
-			/* Use the real embedId so the non-finite check is the only branch left to fail. */
-			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: extractEmbedId( iframe ),
-				stravaEmbedHeight: 'tall',
-			} );
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( extractEmbedId( iframe ), 'tall' )
+			);
 			expect( iframe.style.height ).toBe( before );
 		} );
 
 		it( 'sets the iframe height when a valid relay message arrives', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
-			const embedId = extractEmbedId( iframe );
 
-			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: embedId,
-				stravaEmbedHeight: 850,
-			} );
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( extractEmbedId( iframe ), 850 )
+			);
 
 			expect( iframe.style.height ).toBe( '850px' );
 		} );
@@ -676,12 +682,11 @@ describe( 'Edit – preview (rendered) mode', () => {
 		it( 'clamps heights below the minimum to the floor', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
-			const embedId = extractEmbedId( iframe );
 
-			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: embedId,
-				stravaEmbedHeight: 50,
-			} );
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( extractEmbedId( iframe ), 50 )
+			);
 
 			expect( iframe.style.height ).toBe( '100px' );
 		} );
@@ -689,12 +694,11 @@ describe( 'Edit – preview (rendered) mode', () => {
 		it( 'clamps heights above the maximum to the ceiling', () => {
 			const { container } = renderEdit( { activityId: '42' } );
 			const iframe = getIframe( container );
-			const embedId = extractEmbedId( iframe );
 
-			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: embedId,
-				stravaEmbedHeight: 99999,
-			} );
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( extractEmbedId( iframe ), 99999 )
+			);
 
 			expect( iframe.style.height ).toBe( '5000px' );
 		} );
@@ -712,12 +716,11 @@ describe( 'Edit – preview (rendered) mode', () => {
 				/>
 			);
 			const iframe = getIframe( container );
-			const embedId = extractEmbedId( iframe );
 
-			dispatchMessage( iframe.contentWindow, {
-				stravaEmbedId: embedId,
-				stravaEmbedHeight: 850,
-			} );
+			dispatchMessage(
+				iframe.contentWindow,
+				heightMessage( extractEmbedId( iframe ), 850 )
+			);
 			expect( iframe.style.height ).toBe( '850px' );
 
 			rerender(
@@ -754,9 +757,7 @@ describe( 'Edit – embedId generation', () => {
 		} );
 
 		const { container } = renderEdit( { activityId: '42' } );
-		const srcDoc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toContain( `var n="${ uuid }"` );
+		expect( extractEmbedId( getIframe( container ) ) ).toBe( uuid );
 	} );
 
 	it( 'falls back to a random string id when crypto is unavailable', () => {
@@ -766,9 +767,9 @@ describe( 'Edit – embedId generation', () => {
 		} );
 
 		const { container } = renderEdit( { activityId: '42' } );
-		const srcDoc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toMatch( /var n="bfs-[a-z0-9]+-[a-z0-9]+"/ );
+		expect( extractEmbedId( getIframe( container ) ) ).toMatch(
+			/^bfs-[a-z0-9]+-[a-z0-9]+$/
+		);
 	} );
 
 	it( 'falls back when crypto exists but lacks randomUUID', () => {
@@ -778,9 +779,7 @@ describe( 'Edit – embedId generation', () => {
 		} );
 
 		const { container } = renderEdit( { activityId: '42' } );
-		const srcDoc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toMatch( /var n="bfs-/ );
+		expect( extractEmbedId( getIframe( container ) ) ).toMatch( /^bfs-/ );
 	} );
 } );
 
@@ -944,106 +943,101 @@ describe( 'Edit – route options sidebar', () => {
 	} );
 } );
 
-describe( 'Edit – route options srcdoc serialization', () => {
-	function srcDoc( options: RenderEditOptions ): string {
+describe( 'Edit – route options URL serialization', () => {
+	function query( options: RenderEditOptions ): URLSearchParams {
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'route',
 			...options,
 		} );
-		const doc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		// Each test re-renders, but jsdom keeps the previous nodes alive until
-		// teardown — the iframe we want is the one rendered from this call.
-		return doc;
+		const iframe = getIframe( container );
+		return parseEmbedSrc( iframe ).url.searchParams;
 	}
 
-	it( 'emits only the chosen map style at defaults (no extra data-* attrs)', () => {
-		const doc = srcDoc( {} );
-		expect( doc ).toContain( 'data-style="standard"' );
-		expect( doc ).not.toContain( 'data-hide-elevation' );
-		expect( doc ).not.toContain( 'data-units' );
-		expect( doc ).not.toContain( 'data-full-width' );
-		expect( doc ).not.toContain( 'data-terrain' );
-		expect( doc ).not.toContain( 'data-surface-type' );
+	it( 'emits only the chosen map style at defaults (no extra params)', () => {
+		const params = query( {} );
+		expect( params.get( 'style' ) ).toBe( 'standard' );
+		expect( params.has( 'hideElevation' ) ).toBe( false );
+		expect( params.has( 'units' ) ).toBe( false );
+		expect( params.has( 'fullWidth' ) ).toBe( false );
+		expect( params.has( 'terrain' ) ).toBe( false );
+		expect( params.has( 'surfaceType' ) ).toBe( false );
 	} );
 
-	it( 'adds data-hide-elevation only when the user disables the elevation profile', () => {
-		expect( srcDoc( { routeShowElevation: false } ) ).toContain(
-			'data-hide-elevation="true"'
-		);
+	it( 'adds hideElevation only when the user disables the elevation profile', () => {
+		expect(
+			query( { routeShowElevation: false } ).get( 'hideElevation' )
+		).toBe( 'true' );
 	} );
 
-	it( 'omits data-units when on auto and includes it for metric/imperial', () => {
-		expect( srcDoc( { routeUnits: 'auto' } ) ).not.toContain(
-			'data-units'
+	it( 'omits units when on auto and includes it for metric/imperial', () => {
+		expect( query( { routeUnits: 'auto' } ).has( 'units' ) ).toBe( false );
+		expect( query( { routeUnits: 'metric' } ).get( 'units' ) ).toBe(
+			'metric'
 		);
-		expect( srcDoc( { routeUnits: 'metric' } ) ).toContain(
-			'data-units="metric"'
-		);
-		expect( srcDoc( { routeUnits: 'imperial' } ) ).toContain(
-			'data-units="imperial"'
-		);
-	} );
-
-	it( 'adds data-full-width only when the embed is set to responsive', () => {
-		expect( srcDoc( { routeFullWidth: true } ) ).toContain(
-			'data-full-width="true"'
+		expect( query( { routeUnits: 'imperial' } ).get( 'units' ) ).toBe(
+			'imperial'
 		);
 	} );
 
-	it( 'reflects the chosen map style in data-style', () => {
-		expect( srcDoc( { routeMapStyle: 'dark' } ) ).toContain(
-			'data-style="dark"'
+	it( 'adds fullWidth only when the embed is set to responsive', () => {
+		expect(
+			query( { routeFullWidth: true } ).get( 'fullWidth' )
+		).toBe( 'true' );
+	} );
+
+	it( 'reflects the chosen map style in the style param', () => {
+		expect( query( { routeMapStyle: 'dark' } ).get( 'style' ) ).toBe(
+			'dark'
 		);
 	} );
 
-	it( 'omits data-terrain on auto and includes it for 2d/3d', () => {
-		expect( srcDoc( { routeTerrain: 'auto' } ) ).not.toContain(
-			'data-terrain'
+	it( 'omits terrain on auto and includes it for 2d/3d', () => {
+		expect( query( { routeTerrain: 'auto' } ).has( 'terrain' ) ).toBe(
+			false
 		);
-		expect( srcDoc( { routeTerrain: '2d' } ) ).toContain(
-			'data-terrain="2d"'
+		expect( query( { routeTerrain: '2d' } ).get( 'terrain' ) ).toBe(
+			'2d'
 		);
-		expect( srcDoc( { routeTerrain: '3d' } ) ).toContain(
-			'data-terrain="3d"'
-		);
-	} );
-
-	it( 'adds data-surface-type only when unpaved highlighting is enabled', () => {
-		expect( srcDoc( { routeShowDirt: true } ) ).toContain(
-			'data-surface-type="true"'
+		expect( query( { routeTerrain: '3d' } ).get( 'terrain' ) ).toBe(
+			'3d'
 		);
 	} );
 
-	it( 'falls back to data-style="standard" when the persisted route option is bogus', () => {
-		const doc = srcDoc( {
+	it( 'adds surfaceType only when unpaved highlighting is enabled', () => {
+		expect(
+			query( { routeShowDirt: true } ).get( 'surfaceType' )
+		).toBe( 'true' );
+	} );
+
+	it( 'falls back to style=standard when the persisted route option is bogus', () => {
+		const params = query( {
 			routeMapStyle: 'parchment' as RouteMapStyle,
 			routeUnits: 'furlongs' as RouteUnits,
 			routeTerrain: '4d' as RouteTerrain,
 		} );
-		expect( doc ).toContain( 'data-style="standard"' );
-		expect( doc ).not.toContain( 'data-units' );
-		expect( doc ).not.toContain( 'data-terrain' );
+		expect( params.get( 'style' ) ).toBe( 'standard' );
+		expect( params.has( 'units' ) ).toBe( false );
+		expect( params.has( 'terrain' ) ).toBe( false );
 	} );
 
 	it( 'treats string-valued booleans as the block.json defaults', () => {
 		/*
 		 * `if ("false")` is truthy in JS — without strict-type clamping these
-		 * would silently invert the user's intent. Confirm the iframe uses the
+		 * would silently invert the user's intent. Confirm the URL uses the
 		 * defaults when bools come through as strings.
 		 */
-		const doc = srcDoc( {
+		const params = query( {
 			routeShowElevation: 'false' as unknown as boolean,
 			routeFullWidth: 'true' as unknown as boolean,
 			routeShowDirt: 'true' as unknown as boolean,
 		} );
-		expect( doc ).not.toContain( 'data-hide-elevation' );
-		expect( doc ).not.toContain( 'data-full-width' );
-		expect( doc ).not.toContain( 'data-surface-type' );
+		expect( params.has( 'hideElevation' ) ).toBe( false );
+		expect( params.has( 'fullWidth' ) ).toBe( false );
+		expect( params.has( 'surfaceType' ) ).toBe( false );
 	} );
 
-	it( 'keeps data-style="standard" for activity embeds even with route options set', () => {
+	it( 'keeps style=standard for activity embeds even with route options set', () => {
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'activity',
@@ -1051,11 +1045,10 @@ describe( 'Edit – route options srcdoc serialization', () => {
 			routeFullWidth: true,
 			routeShowDirt: true,
 		} );
-		const doc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		expect( doc ).toContain( 'data-style="standard"' );
-		expect( doc ).not.toContain( 'data-style="satellite"' );
-		expect( doc ).not.toContain( 'data-full-width' );
-		expect( doc ).not.toContain( 'data-surface-type' );
+		const params = parseEmbedSrc( getIframe( container ) ).url
+			.searchParams;
+		expect( params.get( 'style' ) ).toBe( 'standard' );
+		expect( params.has( 'fullWidth' ) ).toBe( false );
+		expect( params.has( 'surfaceType' ) ).toBe( false );
 	} );
 } );

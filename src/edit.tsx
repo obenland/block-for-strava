@@ -187,29 +187,66 @@ interface RouteAttrs {
 }
 
 /*
- * Each part is space-prefixed so callers can concatenate directly. Returning
- * a single string (not an array) keeps interpolation into the iframe srcDoc
- * straightforward and avoids accidental whitespace differences between the
- * editor preview and the PHP render output.
+ * Strava's embed.js, used on the published frontend, walks the placeholder
+ * div's dataset and turns each `data-foo-bar` into a `?fooBar=…` query param
+ * on the iframe URL it opens. Build that URL ourselves for the editor
+ * preview so we can point an iframe directly at strava-embeds.com — the
+ * frame then runs on Strava's own origin and never gains any wp-admin
+ * same-origin powers, no sandbox flags required. Param names match what
+ * embed.js produces (camelCase from the dash-case dataset keys), which is
+ * what strava-embeds.com expects to read on the other side.
  */
-function buildRouteDataAttrs( attrs: RouteAttrs ): string {
-	const parts: string[] = [ ` data-style="${ attrs.routeMapStyle }"` ];
-	if ( ! attrs.routeShowElevation ) {
-		parts.push( ' data-hide-elevation="true"' );
+function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
+	const query = new URLSearchParams();
+	if ( ! routeOpts ) {
+		query.set( 'style', 'standard' );
+		return query;
 	}
-	if ( attrs.routeUnits !== 'auto' ) {
-		parts.push( ` data-units="${ attrs.routeUnits }"` );
+	query.set( 'style', routeOpts.routeMapStyle );
+	if ( ! routeOpts.routeShowElevation ) {
+		query.set( 'hideElevation', 'true' );
 	}
-	if ( attrs.routeFullWidth ) {
-		parts.push( ' data-full-width="true"' );
+	if ( routeOpts.routeUnits !== 'auto' ) {
+		query.set( 'units', routeOpts.routeUnits );
 	}
-	if ( attrs.routeTerrain !== 'auto' ) {
-		parts.push( ` data-terrain="${ attrs.routeTerrain }"` );
+	if ( routeOpts.routeFullWidth ) {
+		query.set( 'fullWidth', 'true' );
 	}
-	if ( attrs.routeShowDirt ) {
-		parts.push( ' data-surface-type="true"' );
+	if ( routeOpts.routeTerrain !== 'auto' ) {
+		query.set( 'terrain', routeOpts.routeTerrain );
 	}
-	return parts.join( '' );
+	if ( routeOpts.routeShowDirt ) {
+		query.set( 'surfaceType', 'true' );
+	}
+	return query;
+}
+
+/*
+ * The hash carries identifiers strava-embeds.com reads for analytics and to
+ * route postMessage replies back to the right host. `ns` is our random
+ * embedId, used as the prefix in the [ns, event, args] message envelope.
+ * hostOrigin/hostPath/hostTitle mirror what embed.js sends.
+ */
+function buildEmbedHash( ns: string ): URLSearchParams {
+	return new URLSearchParams( {
+		ns,
+		hostOrigin:
+			typeof window !== 'undefined' ? window.location.origin : '',
+		hostPath:
+			typeof window !== 'undefined' ? window.location.pathname : '',
+		hostTitle: typeof document !== 'undefined' ? document.title : '',
+	} );
+}
+
+function buildStravaEmbedUrl(
+	embedType: EmbedType,
+	embedId: string,
+	routeOpts: RouteAttrs | null,
+	ns: string
+): string {
+	const query = buildEmbedQuery( routeOpts );
+	const hash = buildEmbedHash( ns );
+	return `https://strava-embeds.com/${ embedType }/${ embedId }?${ query.toString() }#${ hash.toString() }`;
 }
 
 export default function Edit( {
@@ -280,23 +317,25 @@ export default function Edit( {
 	useEffect( () => {
 		const handler = ( event: MessageEvent ) => {
 			/*
-			 * Defense in depth: the embedId is a UUID and effectively
-			 * unguessable, but also require the message to originate from
-			 * this block's own iframe so other frames on the page cannot
-			 * spoof height updates even if they obtain the id.
+			 * strava-embeds.com posts back as a [ns, eventName, args] tuple
+			 * — the same envelope embed.js handles on the published
+			 * frontend. We accept BROADCAST_IFRAME_HEIGHT and ignore the
+			 * rest. Verifying the source window in addition to the ns
+			 * (which is unguessable but still public over postMessage) keeps
+			 * other frames on the page from spoofing height updates.
 			 */
 			if ( event.source !== iframeRef.current?.contentWindow ) {
 				return;
 			}
 			const data = event.data;
 			if (
-				data &&
-				typeof data === 'object' &&
-				data.stravaEmbedId === embedId &&
-				Number.isFinite( data.stravaEmbedHeight )
+				Array.isArray( data ) &&
+				data[ 0 ] === embedId &&
+				data[ 1 ] === 'BROADCAST_IFRAME_HEIGHT' &&
+				Number.isFinite( data[ 2 ] )
 			) {
 				const next = Math.min(
-					Math.max( data.stravaEmbedHeight, MIN_HEIGHT ),
+					Math.max( data[ 2 ] as number, MIN_HEIGHT ),
 					MAX_HEIGHT
 				);
 				setPreviewHeight( next );
@@ -372,12 +411,12 @@ export default function Edit( {
 	}, [ inputUrl, setAttributes ] );
 
 	/*
-	 * Clamp before interpolating into the iframe HTML. The block.json enum
-	 * and TypeScript types should keep these in shape, but a hand-edited
-	 * post could persist arbitrary values, and route embeds run with
-	 * allow-same-origin (see sandbox comment below), so this clamping is
-	 * the primary boundary against injecting attribute strings into the
-	 * srcdoc on routes.
+	 * Clamp before interpolating into the iframe URL. block.json declares
+	 * an enum and TypeScript types reinforce it, but a hand-edited post
+	 * could persist anything; the embedType becomes a path segment and
+	 * the activityId becomes the resource id, so unsafe values would let
+	 * a hand-edited post point the editor preview iframe at an arbitrary
+	 * path under strava-embeds.com.
 	 */
 	const safeEmbedType: EmbedType =
 		embedType === 'route' || embedType === 'segment'
@@ -404,24 +443,25 @@ export default function Edit( {
 	const safeRouteShowDirt = clampBool( routeShowDirt, false );
 
 	/*
-	 * For routes, expose the user-chosen options as data-* attrs that
-	 * Strava's embed.js spreads onto the inner iframe URL as query params.
-	 * Activities and segments keep the original "standard" style — those
-	 * embed types don't have these knobs in Strava's share dialog.
+	 * Routes expose the user-chosen options as URL query params; activities
+	 * and segments only carry style=standard since those embed types don't
+	 * have these knobs in Strava's share dialog.
 	 */
-	const routeDataAttrs =
+	const stravaEmbedUrl = buildStravaEmbedUrl(
+		safeEmbedType,
+		safeActivityId,
 		safeEmbedType === 'route'
-			? buildRouteDataAttrs( {
+			? {
 					routeShowElevation: safeRouteShowElevation,
 					routeUnits: safeRouteUnits,
 					routeFullWidth: safeRouteFullWidth,
 					routeMapStyle: safeRouteMapStyle,
 					routeTerrain: safeRouteTerrain,
 					routeShowDirt: safeRouteShowDirt,
-			  } )
-			: ' data-style="standard"';
-
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${ safeEmbedType }" data-embed-id="${ safeActivityId }"${ routeDataAttrs }></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${ embedId }";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${ DEFAULT_HEIGHT });}});})();</script></body></html>`;
+			  }
+			: null,
+		embedId
+	);
 
 	return (
 		<>
@@ -661,7 +701,20 @@ export default function Edit( {
 						<iframe
 							key={ embedId }
 							ref={ iframeRef }
-							srcDoc={ iframeSrcDoc }
+							/*
+							 * Pointing src directly at strava-embeds.com,
+							 * instead of wrapping a placeholder + the
+							 * embed.js loader in our own srcdoc, keeps the
+							 * iframe on Strava's origin. wp-admin cookies,
+							 * localStorage, and the parent DOM stay out of
+							 * reach of any code in the embed, which also
+							 * means no sandbox attribute is needed — the
+							 * cross-origin boundary already isolates the
+							 * frame. The frontend still uses the official
+							 * embed.js placeholder flow, since published
+							 * posts have no admin context to protect.
+							 */
+							src={ stravaEmbedUrl }
 							style={ {
 								width: '100%',
 								height: `${ previewHeight }px`,
@@ -669,23 +722,6 @@ export default function Edit( {
 								display: 'block',
 							} }
 							scrolling="no"
-							/*
-							 * Route embeds need allow-same-origin: sandbox
-							 * flags inherit into the nested strava-embeds.com
-							 * iframe, and without it the map-style/* fetches
-							 * go out as origin "null" and Strava's CORS
-							 * rejects them, so the route map never renders.
-							 * Activities and segments use a static map and
-							 * work fine with the tighter sandbox, so we keep
-							 * allow-same-origin gated to routes only — that
-							 * limits Strava's embed.js access to wp-admin
-							 * same-origin storage to the route case alone.
-							 */
-							sandbox={
-								safeEmbedType === 'route'
-									? 'allow-scripts allow-same-origin'
-									: 'allow-scripts'
-							}
 							title={ __(
 								'Strava Activity',
 								'block-for-strava'
