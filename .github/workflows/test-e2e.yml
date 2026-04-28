@@ -3,8 +3,34 @@ name: E2E Tests
 on:
     push:
         branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/e2e/**'
+            - 'includes/**'
+            - 'block-for-strava.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'playwright.config.ts'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/test-e2e.yml'
     pull_request:
         branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/e2e/**'
+            - 'includes/**'
+            - 'block-for-strava.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'playwright.config.ts'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/test-e2e.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

@@ -3,8 +3,34 @@ name: Coding Standards
 on:
     push:
         branches: [trunk]
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpcs.xml.dist'
+            - 'src/**'
+            - 'tests/**'
+            - 'tsconfig.json'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/wpcs.yml'
     pull_request:
         branches: [trunk]
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpcs.xml.dist'
+            - 'src/**'
+            - 'tests/**'
+            - 'tsconfig.json'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/wpcs.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
