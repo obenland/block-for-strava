@@ -48,6 +48,7 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 		$response = rest_get_server()->dispatch( $request );
 
 		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array( 'activityId' ), array_keys( $response->get_data() ) );
 		$this->assertSame( '18233733854', $response->get_data()['activityId'] );
 	}
 
