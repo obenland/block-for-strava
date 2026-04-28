@@ -213,12 +213,11 @@ function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
 }
 
 // `ns` is the prefix in the [ns, event, args] postMessage envelope.
+// hostPath/hostTitle would leak the draft post URL and title into the iframe.
 function buildEmbedHash( ns: string ): URLSearchParams {
 	return new URLSearchParams( {
 		ns,
 		hostOrigin: window.location.origin,
-		hostPath: window.location.pathname,
-		hostTitle: document.title,
 	} );
 }
 
@@ -667,7 +666,6 @@ export default function Edit( {
 						<iframe
 							key={ embedId }
 							ref={ iframeRef }
-							// Direct src → Strava origin → cross-origin isolation, no sandbox needed.
 							src={ stravaEmbedUrl }
 							style={ {
 								width: '100%',
@@ -676,6 +674,10 @@ export default function Edit( {
 								display: 'block',
 							} }
 							scrolling="no"
+							// Sandbox blocks top navigation and forms; allow-popups keeps "View on Strava" working.
+							sandbox="allow-scripts allow-same-origin allow-popups"
+							// Don't leak the wp-admin URL to Strava via Referer.
+							referrerPolicy="origin"
 							title={ __(
 								'Strava Activity',
 								'block-for-strava'

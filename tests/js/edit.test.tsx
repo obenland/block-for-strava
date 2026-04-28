@@ -429,10 +429,36 @@ describe( 'Edit – preview (rendered) mode', () => {
 		} );
 		const iframe = getIframe( container );
 		expect( iframe.getAttribute( 'srcdoc' ) ).toBeNull();
-		expect( iframe.getAttribute( 'sandbox' ) ).toBeNull();
 		const { url } = parseEmbedSrc( iframe );
 		expect( url.origin ).toBe( 'https://strava-embeds.com' );
 		expect( url.pathname ).toBe( '/activity/42' );
+	} );
+
+	it( 'keeps the iframe sandboxed against top navigation and forms', () => {
+		// allow-top-navigation absent ⇒ Strava iframe can't framebust wp-admin.
+		const { container } = renderEdit( { activityId: '42' } );
+		const sandbox = getIframe( container ).getAttribute( 'sandbox' ) ?? '';
+		const flags = sandbox.split( /\s+/ ).filter( Boolean );
+		expect( flags ).toContain( 'allow-scripts' );
+		expect( flags ).toContain( 'allow-same-origin' );
+		expect( flags ).toContain( 'allow-popups' );
+		expect( flags ).not.toContain( 'allow-top-navigation' );
+		expect( flags ).not.toContain( 'allow-forms' );
+	} );
+
+	it( 'sets referrerPolicy=origin so the wp-admin URL does not leak to Strava', () => {
+		const { container } = renderEdit( { activityId: '42' } );
+		expect( getIframe( container ).getAttribute( 'referrerpolicy' ) ).toBe(
+			'origin'
+		);
+	} );
+
+	it( 'omits the draft post path and title from the URL hash', () => {
+		// hostPath/hostTitle would be readable by Strava's iframe JS.
+		const { container } = renderEdit( { activityId: '42' } );
+		const { hashParams } = parseEmbedSrc( getIframe( container ) );
+		expect( hashParams.has( 'hostPath' ) ).toBe( false );
+		expect( hashParams.has( 'hostTitle' ) ).toBe( false );
 	} );
 
 	it( 'puts the random embed id into the URL hash as ns for the postMessage prefix', () => {
