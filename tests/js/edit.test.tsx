@@ -866,9 +866,9 @@ describe('Edit – route options sidebar', () => {
 		expect(
 			screen.getByRole('radio', { name: 'Units: Auto' })
 		).toBeChecked();
-		expect(
-			screen.getByRole('combobox', { name: 'Map style' })
-		).toHaveValue('standard');
+		expect(screen.getByRole('combobox', { name: 'Map style' })).toHaveValue(
+			'standard'
+		);
 		expect(
 			screen.getByRole('radio', { name: 'Terrain: Auto' })
 		).toBeChecked();
