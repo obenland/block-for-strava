@@ -214,22 +214,22 @@ function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
 
 // `ns` is the prefix in the [ns, event, args] postMessage envelope.
 // hostPath/hostTitle would leak the draft post URL and title into the iframe.
-function buildEmbedHash( ns: string ): URLSearchParams {
+function buildEmbedHash( namespace: string ): URLSearchParams {
 	return new URLSearchParams( {
-		ns,
+		ns: namespace,
 		hostOrigin: window.location.origin,
 	} );
 }
 
 function buildStravaEmbedUrl(
 	embedType: EmbedType,
-	embedId: string,
+	resourceId: string,
 	routeOpts: RouteAttrs | null,
-	ns: string
+	namespace: string
 ): string {
 	const query = buildEmbedQuery( routeOpts );
-	const hash = buildEmbedHash( ns );
-	return `https://strava-embeds.com/${ embedType }/${ embedId }?${ query.toString() }#${ hash.toString() }`;
+	const hash = buildEmbedHash( namespace );
+	return `https://strava-embeds.com/${ embedType }/${ resourceId }?${ query.toString() }#${ hash.toString() }`;
 }
 
 export default function Edit( {
@@ -674,8 +674,8 @@ export default function Edit( {
 								display: 'block',
 							} }
 							scrolling="no"
-							// Sandbox blocks top navigation and forms; allow-popups keeps "View on Strava" working.
-							sandbox="allow-scripts allow-same-origin allow-popups"
+							// Block top navigation and forms; allow popups and let them open as normal Strava tabs.
+							sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
 							// Don't leak the wp-admin URL to Strava via Referer.
 							referrerPolicy="origin"
 							title={ __(

@@ -400,7 +400,7 @@ test.describe.serial( 'Strava Activity block', () => {
 			new RegExp( `^https://strava-embeds\\.com/route/${ routeId }\\?` )
 		);
 		expect( await iframe.getAttribute( 'sandbox' ) ).toBe(
-			'allow-scripts allow-same-origin allow-popups'
+			'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox'
 		);
 		expect( await iframe.getAttribute( 'referrerpolicy' ) ).toBe(
 			'origin'

@@ -442,6 +442,8 @@ describe( 'Edit – preview (rendered) mode', () => {
 		expect( flags ).toContain( 'allow-scripts' );
 		expect( flags ).toContain( 'allow-same-origin' );
 		expect( flags ).toContain( 'allow-popups' );
+		// Without allow-popups-to-escape-sandbox, "View on Strava" opens a sandboxed Strava tab.
+		expect( flags ).toContain( 'allow-popups-to-escape-sandbox' );
 		expect( flags ).not.toContain( 'allow-top-navigation' );
 		expect( flags ).not.toContain( 'allow-forms' );
 	} );
