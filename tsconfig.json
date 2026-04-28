@@ -2,18 +2,18 @@
 	"compilerOptions": {
 		"target": "ES2020",
 		"module": "ESNext",
-		"lib": ["ES2020", "DOM"],
+		"lib": [ "ES2020", "DOM" ],
 		"strict": true,
 		"jsx": "react-jsx",
 		"moduleResolution": "bundler",
-		"types": ["node"],
+		"types": [ "node" ],
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"noEmit": true,
 		"resolveJsonModule": true,
 		"paths": {
-			"@wordpress/*": ["./node_modules/@wordpress/*"]
+			"@wordpress/*": [ "./node_modules/@wordpress/*" ]
 		}
 	},
-	"include": ["src/**/*", "tests/e2e/**/*", "tests/js/**/*"]
+	"include": [ "src/**/*", "tests/e2e/**/*", "tests/js/**/*" ]
 }

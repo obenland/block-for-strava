@@ -6,31 +6,35 @@ import {
 	type Ref,
 } from 'react';
 
-export const useBlockProps = jest.fn(() => ({
+export const useBlockProps = jest.fn( () => ( {
 	className: 'wp-block',
-}));
+} ) );
 
-export function BlockControls({ children }: { children: ReactNode }) {
-	return createElement('div', { 'data-testid': 'block-controls' }, children);
+export function BlockControls( { children }: { children: ReactNode } ) {
+	return createElement(
+		'div',
+		{ 'data-testid': 'block-controls' },
+		children
+	);
 }
 
-export function BlockIcon({ icon }: { icon?: unknown }) {
-	return createElement('span', {
+export function BlockIcon( { icon }: { icon?: unknown } ) {
+	return createElement( 'span', {
 		'data-testid': 'block-icon',
 		'data-has-icon': icon ? 'yes' : 'no',
-	});
+	} );
 }
 
 interface RichTextProps {
 	tagName?: string;
 	value: string;
-	onChange: (value: string) => void;
+	onChange: ( value: string ) => void;
 	placeholder?: string;
 	className?: string;
 	'aria-label'?: string;
 }
 
-export const RichText = forwardRef(function RichText(
+export const RichText = forwardRef( function RichText(
 	{
 		tagName = 'div',
 		value,
@@ -39,9 +43,9 @@ export const RichText = forwardRef(function RichText(
 		className,
 		'aria-label': ariaLabel,
 	}: RichTextProps,
-	ref: Ref<HTMLElement>
+	ref: Ref< HTMLElement >
 ) {
-	return createElement(tagName, {
+	return createElement( tagName, {
 		'data-testid': 'rich-text',
 		className,
 		'aria-label': ariaLabel,
@@ -49,7 +53,7 @@ export const RichText = forwardRef(function RichText(
 		contentEditable: true,
 		suppressContentEditableWarning: true,
 		children: value || placeholder,
-		onInput: (event: FormEvent<HTMLElement>) =>
-			onChange(event.currentTarget.textContent || ''),
-	});
-});
+		onInput: ( event: FormEvent< HTMLElement > ) =>
+			onChange( event.currentTarget.textContent || '' ),
+	} );
+} );

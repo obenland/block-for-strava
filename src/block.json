@@ -30,7 +30,7 @@
 		"embedType": {
 			"type": "string",
 			"default": "activity",
-			"enum": ["activity", "route", "segment"]
+			"enum": [ "activity", "route", "segment" ]
 		},
 		"caption": {
 			"type": "string",

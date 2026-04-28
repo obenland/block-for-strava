@@ -1,10 +1,11 @@
-const defaultConfig = require('@wordpress/scripts/config/jest-unit.config');
+const defaultConfig = require( '@wordpress/scripts/config/jest-unit.config' );
 
 module.exports = {
 	...defaultConfig,
 	moduleNameMapper: {
-		'\\.(scss|css)$':
-			require.resolve('@wordpress/jest-preset-default/scripts/style-mock.js'),
+		'\\.(scss|css)$': require.resolve(
+			'@wordpress/jest-preset-default/scripts/style-mock.js'
+		),
 		'^@wordpress/blocks$':
 			'<rootDir>/tests/js/__mocks__/wordpress-blocks.ts',
 		'^@wordpress/block-editor$':
@@ -12,10 +13,10 @@ module.exports = {
 		'^@wordpress/components$':
 			'<rootDir>/tests/js/__mocks__/wordpress-components.tsx',
 	},
-	setupFilesAfterEnv: ['<rootDir>/tests/js/setup.ts'],
-	collectCoverageFrom: ['src/**/*.tsx'],
+	setupFilesAfterEnv: [ '<rootDir>/tests/js/setup.ts' ],
+	collectCoverageFrom: [ 'src/**/*.tsx' ],
 	coverageDirectory: '<rootDir>/coverage/js',
-	coverageReporters: ['text', 'lcov', 'json-summary'],
+	coverageReporters: [ 'text', 'lcov', 'json-summary' ],
 	coverageThreshold: {
 		global: {
 			branches: 100,

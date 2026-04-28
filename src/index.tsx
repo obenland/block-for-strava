@@ -9,9 +9,9 @@ import metadata from './block.json';
 /* Dynamic block — PHP renders the frontend output. */
 const save = (): null => null;
 
-registerBlockType(metadata.name, {
+registerBlockType( metadata.name, {
 	...metadata,
-	title: __('Strava Activity', 'block-for-strava'),
+	title: __( 'Strava Activity', 'block-for-strava' ),
 	description: __(
 		'Embed a public Strava activity on your site.',
 		'block-for-strava'
@@ -19,4 +19,4 @@ registerBlockType(metadata.name, {
 	icon: activityIcon,
 	edit: Edit,
 	save,
-});
+} );
