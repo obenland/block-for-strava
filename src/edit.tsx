@@ -98,6 +98,21 @@ export default function Edit({
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 
 	/*
+	 * Match core block conventions (image, video, embed): when the caption
+	 * RichText mounts and is still empty, move focus into it so the user can
+	 * start typing immediately. Skip the focus once content exists so we
+	 * don't steal focus on every re-render.
+	 */
+	const captionRef = useCallback(
+		(node: HTMLElement | null) => {
+			if (node && !caption) {
+				node.focus();
+			}
+		},
+		[caption]
+	);
+
+	/*
 	 * Each iframe gets a unique embedId in its srcDoc, which the relay echoes
 	 * in every postMessage. The React listener only acts on matching ids, so
 	 * multiple Strava blocks on the same page never cross-update each other.
@@ -295,6 +310,11 @@ export default function Edit({
 							identifier="caption"
 							tagName="figcaption"
 							className="wp-element-caption"
+							ref={captionRef}
+							aria-label={__(
+								'Strava activity caption text',
+								'block-for-strava'
+							)}
 							placeholder={__('Add caption', 'block-for-strava')}
 							value={caption}
 							onChange={(value: string) =>

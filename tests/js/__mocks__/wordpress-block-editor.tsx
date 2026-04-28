@@ -1,4 +1,10 @@
-import { createElement, type FormEvent, type ReactNode } from 'react';
+import {
+	createElement,
+	forwardRef,
+	type FormEvent,
+	type ReactNode,
+	type Ref,
+} from 'react';
 
 export const useBlockProps = jest.fn(() => ({
 	className: 'wp-block',
@@ -21,22 +27,29 @@ interface RichTextProps {
 	onChange: (value: string) => void;
 	placeholder?: string;
 	className?: string;
+	'aria-label'?: string;
 }
 
-export function RichText({
-	tagName = 'div',
-	value,
-	onChange,
-	placeholder,
-	className,
-}: RichTextProps) {
+export const RichText = forwardRef(function RichText(
+	{
+		tagName = 'div',
+		value,
+		onChange,
+		placeholder,
+		className,
+		'aria-label': ariaLabel,
+	}: RichTextProps,
+	ref: Ref<HTMLElement>
+) {
 	return createElement(tagName, {
 		'data-testid': 'rich-text',
 		className,
+		'aria-label': ariaLabel,
+		ref,
 		contentEditable: true,
 		suppressContentEditableWarning: true,
 		children: value || placeholder,
 		onInput: (event: FormEvent<HTMLElement>) =>
 			onChange(event.currentTarget.textContent || ''),
 	});
-}
+});
