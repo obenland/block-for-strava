@@ -18,6 +18,14 @@ export function BlockControls( { children }: { children: ReactNode } ) {
 	);
 }
 
+export function InspectorControls( { children }: { children: ReactNode } ) {
+	return createElement(
+		'div',
+		{ 'data-testid': 'inspector-controls' },
+		children
+	);
+}
+
 export function BlockIcon( { icon }: { icon?: unknown } ) {
 	return createElement( 'span', {
 		'data-testid': 'block-icon',

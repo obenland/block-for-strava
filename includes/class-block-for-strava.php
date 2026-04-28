@@ -166,12 +166,87 @@ class Block_For_Strava {
 			);
 		}
 
+		$extra_data_attrs = 'route' === $embed_type
+			? $this->build_route_data_attrs( $attributes )
+			: ' data-style="standard"';
+
 		return sprintf(
-			'<figure %s><div class="strava-embed-placeholder" data-embed-type="%s" data-embed-id="%s" data-style="standard"></div>%s</figure>',
+			'<figure %s><div class="strava-embed-placeholder" data-embed-type="%s" data-embed-id="%s"%s></div>%s</figure>',
 			get_block_wrapper_attributes(),
 			esc_attr( $embed_type ),
 			esc_attr( $activity_id ),
+			$extra_data_attrs,
 			$caption_html
 		);
+	}
+
+	/**
+	 * Builds the route-specific data-* attribute string for the placeholder div.
+	 *
+	 * Strava's embed.js spreads these attributes into the inner iframe URL as
+	 * query params, so omitting an attribute lets the embed fall back to its
+	 * own default. Each returned segment is space-prefixed so callers can
+	 * concatenate directly.
+	 *
+	 * @param  array $attributes The block attributes.
+	 * @return string The serialized data-* attribute fragment.
+	 */
+	private function build_route_data_attrs( array $attributes ): string {
+		$map_style = sanitize_text_field( $attributes['routeMapStyle'] ?? '' );
+		if ( ! in_array(
+			$map_style,
+			array( 'standard', 'satellite', 'hybrid', 'dark', 'winter', 'light' ),
+			true
+		) ) {
+			$map_style = 'standard';
+		}
+		$units = sanitize_text_field( $attributes['routeUnits'] ?? '' );
+		if ( ! in_array( $units, array( 'auto', 'metric', 'imperial' ), true ) ) {
+			$units = 'auto';
+		}
+		$terrain = sanitize_text_field( $attributes['routeTerrain'] ?? '' );
+		if ( ! in_array( $terrain, array( 'auto', '2d', '3d' ), true ) ) {
+			$terrain = 'auto';
+		}
+
+		$show_elevation = $this->bool_attr( $attributes, 'routeShowElevation', true );
+		$full_width     = $this->bool_attr( $attributes, 'routeFullWidth', false );
+		$show_dirt      = $this->bool_attr( $attributes, 'routeShowDirt', false );
+
+		$out = sprintf( ' data-style="%s"', esc_attr( $map_style ) );
+		if ( ! $show_elevation ) {
+			$out .= ' data-hide-elevation="true"';
+		}
+		if ( 'auto' !== $units ) {
+			$out .= sprintf( ' data-units="%s"', esc_attr( $units ) );
+		}
+		if ( $full_width ) {
+			$out .= ' data-full-width="true"';
+		}
+		if ( 'auto' !== $terrain ) {
+			$out .= sprintf( ' data-terrain="%s"', esc_attr( $terrain ) );
+		}
+		if ( $show_dirt ) {
+			$out .= ' data-surface-type="true"';
+		}
+		return $out;
+	}
+
+	/**
+	 * Reads a boolean block attribute, falling back to the default for anything
+	 * that isn't a real boolean. A hand-edited block comment can persist these
+	 * as strings, and `(bool) "false"` is `true` — silently inverting the
+	 * user's intent. Strict-type matching here mirrors `clampBool` in edit.tsx
+	 * so the editor preview and the front-end agree.
+	 *
+	 * @param  array  $attributes  The block attributes.
+	 * @param  string $key         The attribute name to read.
+	 * @param  bool   $default_val The value to return when missing or not a bool.
+	 * @return bool
+	 */
+	private function bool_attr( array $attributes, string $key, bool $default_val ): bool {
+		return isset( $attributes[ $key ] ) && is_bool( $attributes[ $key ] )
+			? $attributes[ $key ]
+			: $default_val;
 	}
 }

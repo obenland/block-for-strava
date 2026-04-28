@@ -124,3 +124,134 @@ export function ToolbarButton( { label, onClick }: ToolbarButtonProps ) {
 		label
 	);
 }
+
+interface PanelBodyProps {
+	title?: ReactNode;
+	initialOpen?: boolean;
+	children?: ReactNode;
+}
+
+export function PanelBody( { title, children }: PanelBodyProps ) {
+	return createElement(
+		'section',
+		{
+			'data-testid': 'panel-body',
+			'aria-label': typeof title === 'string' ? title : undefined,
+		},
+		title && createElement( 'h2', null, title ),
+		children
+	);
+}
+
+interface ToggleControlProps {
+	label: string;
+	checked: boolean;
+	onChange: ( value: boolean ) => void;
+	help?: ReactNode;
+}
+
+export function ToggleControl( {
+	label,
+	checked,
+	onChange,
+}: ToggleControlProps ) {
+	return createElement(
+		'label',
+		null,
+		createElement( 'input', {
+			type: 'checkbox',
+			role: 'switch',
+			'aria-label': label,
+			checked,
+			onChange: ( event: ChangeEvent< HTMLInputElement > ) =>
+				onChange( event.target.checked ),
+		} ),
+		label
+	);
+}
+
+interface RadioOption {
+	label: string;
+	value: string;
+}
+
+interface RadioControlProps {
+	label: string;
+	selected: string;
+	options: RadioOption[];
+	onChange: ( value: string ) => void;
+	help?: ReactNode;
+}
+
+export function RadioControl( {
+	label,
+	selected,
+	options,
+	onChange,
+}: RadioControlProps ) {
+	return createElement(
+		'fieldset',
+		{ 'aria-label': label },
+		createElement( 'legend', null, label ),
+		...options.map( ( option ) =>
+			createElement(
+				'label',
+				{ key: option.value },
+				createElement( 'input', {
+					type: 'radio',
+					name: label,
+					value: option.value,
+					checked: selected === option.value,
+					'aria-label': `${ label }: ${ option.label }`,
+					onChange: ( event: ChangeEvent< HTMLInputElement > ) => {
+						if ( event.target.checked ) {
+							onChange( option.value );
+						}
+					},
+				} ),
+				option.label
+			)
+		)
+	);
+}
+
+interface SelectOption {
+	label: string;
+	value: string;
+}
+
+interface SelectControlProps {
+	label: string;
+	value: string;
+	options: SelectOption[];
+	onChange: ( value: string ) => void;
+}
+
+export function SelectControl( {
+	label,
+	value,
+	options,
+	onChange,
+}: SelectControlProps ) {
+	return createElement(
+		'label',
+		null,
+		label,
+		createElement(
+			'select',
+			{
+				value,
+				'aria-label': label,
+				onChange: ( event: ChangeEvent< HTMLSelectElement > ) =>
+					onChange( event.target.value ),
+			},
+			...options.map( ( option ) =>
+				createElement(
+					'option',
+					{ key: option.value, value: option.value },
+					option.label
+				)
+			)
+		)
+	);
+}

@@ -35,6 +35,40 @@
 		"caption": {
 			"type": "string",
 			"default": ""
+		},
+		"routeShowElevation": {
+			"type": "boolean",
+			"default": true
+		},
+		"routeUnits": {
+			"type": "string",
+			"default": "auto",
+			"enum": [ "auto", "metric", "imperial" ]
+		},
+		"routeFullWidth": {
+			"type": "boolean",
+			"default": false
+		},
+		"routeMapStyle": {
+			"type": "string",
+			"default": "standard",
+			"enum": [
+				"standard",
+				"satellite",
+				"hybrid",
+				"dark",
+				"winter",
+				"light"
+			]
+		},
+		"routeTerrain": {
+			"type": "string",
+			"default": "auto",
+			"enum": [ "auto", "2d", "3d" ]
+		},
+		"routeShowDirt": {
+			"type": "boolean",
+			"default": false
 		}
 	},
 	"supports": {
