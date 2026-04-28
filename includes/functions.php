@@ -23,30 +23,6 @@ function block_for_strava_parse_activity_id( string $url ) {
 }
 
 /**
- * Fetches the embed token for a Strava activity by scraping the activity page.
- *
- * @param  string $activity_id The Strava activity ID.
- * @return string The token, or an empty string if unavailable.
- */
-function block_for_strava_fetch_activity_token( string $activity_id ): string {
-	$response = wp_remote_get(
-		'https://www.strava.com/activities/' . rawurlencode( $activity_id ),
-		array( 'timeout' => 10 )
-	);
-
-	if ( is_wp_error( $response ) ) {
-		return '';
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	if ( preg_match( '/data-token="([^"]+)"/', $body, $matches ) ) {
-		return $matches[1];
-	}
-
-	return '';
-}
-
-/**
  * Determines whether a URL uses http(s) and a host on the supplied allowlist
  * (exact match or proper subdomain).
  *
@@ -60,7 +36,7 @@ function block_for_strava_fetch_activity_token( string $activity_id ): string {
  */
 function block_for_strava_is_allowed_strava_url( string $url, array $allowed_hosts ): bool {
 	$parsed = wp_parse_url( $url );
-	if ( empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
+	if ( false === $parsed || empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
 		return false;
 	}
 
