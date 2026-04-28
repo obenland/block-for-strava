@@ -86,6 +86,49 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Tests that a look-alike host (e.g. evilstrava.com) is rejected.
+	 *
+	 * @covers ::block_for_strava_parse_strava_url
+	 */
+	public function test_lookalike_host_returns_false(): void {
+		$this->assertFalse(
+			block_for_strava_parse_strava_url( 'https://evilstrava.com/activities/123' )
+		);
+		$this->assertFalse(
+			block_for_strava_parse_strava_url( 'https://strava.com.evil.example/activities/123' )
+		);
+	}
+
+	/**
+	 * Tests that a Strava subdomain is accepted.
+	 *
+	 * @covers ::block_for_strava_parse_strava_url
+	 */
+	public function test_subdomain_is_accepted(): void {
+		$this->assertSame(
+			array(
+				'type' => 'activity',
+				'id'   => '42',
+			),
+			block_for_strava_parse_strava_url( 'https://www.strava.com/activities/42' )
+		);
+	}
+
+	/**
+	 * Tests that a URL whose path merely contains the literal string
+	 * "strava.com/activities/123" (e.g. as a redirect target) is rejected.
+	 *
+	 * @covers ::block_for_strava_parse_strava_url
+	 */
+	public function test_substring_in_path_returns_false(): void {
+		$this->assertFalse(
+			block_for_strava_parse_strava_url(
+				'https://example.com/redirect?to=strava.com/activities/123'
+			)
+		);
+	}
+
+	/**
 	 * Tests that a short URL returns false (canonical only).
 	 *
 	 * @covers ::block_for_strava_parse_strava_url

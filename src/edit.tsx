@@ -73,8 +73,20 @@ function generateEmbedId(): string {
 function parseStravaUrl(
 	url: string
 ): { activityId: string; embedType: EmbedType } | null {
-	const match = url.match(
-		/strava\.com\/(activities|routes|segments)\/(\d+)/i
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return null;
+	}
+
+	const host = parsed.hostname.toLowerCase();
+	if (host !== 'strava.com' && !host.endsWith('.strava.com')) {
+		return null;
+	}
+
+	const match = parsed.pathname.match(
+		/^\/(activities|routes|segments)\/(\d+)(?:\/|$)/i
 	);
 	if (!match) {
 		return null;
@@ -192,7 +204,17 @@ export default function Edit({
 		}
 
 		const parsed = parseStravaUrl(trimmed);
-		if (parsed || isShortUrl(trimmed)) {
+		if (parsed) {
+			setAttributes({
+				url: trimmed,
+				activityId: parsed.activityId,
+				embedType: parsed.embedType,
+			});
+			setIsEditing(false);
+			return;
+		}
+
+		if (isShortUrl(trimmed)) {
 			setIsLoading(true);
 			try {
 				const response = await apiFetch<ResolveResponse>({

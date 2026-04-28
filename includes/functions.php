@@ -21,7 +21,17 @@ defined( 'ABSPATH' ) || exit;
  * @return array|false ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or false.
  */
 function block_for_strava_parse_strava_url( string $url ) {
-	if ( preg_match( '#strava\.com/(activities|routes|segments)/(\d+)#i', $url, $matches ) ) {
+	$parsed = wp_parse_url( $url );
+	if ( ! is_array( $parsed ) || empty( $parsed['host'] ) || empty( $parsed['path'] ) ) {
+		return false;
+	}
+
+	$host = strtolower( $parsed['host'] );
+	if ( 'strava.com' !== $host && ! str_ends_with( $host, '.strava.com' ) ) {
+		return false;
+	}
+
+	if ( preg_match( '#^/(activities|routes|segments)/(\d+)(?:/|$)#i', $parsed['path'], $matches ) ) {
 		$plural_to_singular = array(
 			'activities' => 'activity',
 			'routes'     => 'route',

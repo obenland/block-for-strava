@@ -1,6 +1,6 @@
 === Block for Strava ===
 Contributors:      obenland
-Tags:              strava, block, embed, route, segment
+Tags:              strava, block, embed, activity, fitness
 Requires at least: 6.0
 Tested up to:      6.9
 Requires PHP:      8.1

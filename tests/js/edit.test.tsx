@@ -156,12 +156,8 @@ describe('Edit – placeholder (editing) mode', () => {
 		});
 	});
 
-	it('resolves a Strava activity URL via apiFetch', async () => {
+	it('parses a canonical activity URL locally without calling the REST endpoint', async () => {
 		const user = userEvent.setup();
-		mockedApiFetch.mockResolvedValueOnce({
-			activityId: '111',
-			embedType: 'activity',
-		});
 		const { setAttributes } = renderEdit();
 
 		await user.type(
@@ -170,24 +166,16 @@ describe('Edit – placeholder (editing) mode', () => {
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
-		await waitFor(() => {
-			expect(setAttributes).toHaveBeenCalledWith({
-				url: 'https://www.strava.com/activities/111',
-				activityId: '111',
-				embedType: 'activity',
-			});
+		expect(setAttributes).toHaveBeenCalledWith({
+			url: 'https://www.strava.com/activities/111',
+			activityId: '111',
+			embedType: 'activity',
 		});
-		expect(mockedApiFetch).toHaveBeenCalledWith({
-			path: '/block-for-strava/v1/resolve?url=https%3A%2F%2Fwww.strava.com%2Factivities%2F111',
-		});
+		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
-	it('resolves a route URL via apiFetch and stores embedType=route', async () => {
+	it('parses a canonical route URL locally with embedType=route', async () => {
 		const user = userEvent.setup();
-		mockedApiFetch.mockResolvedValueOnce({
-			activityId: '777',
-			embedType: 'route',
-		});
 		const { setAttributes } = renderEdit();
 
 		await user.type(
@@ -196,21 +184,16 @@ describe('Edit – placeholder (editing) mode', () => {
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
-		await waitFor(() => {
-			expect(setAttributes).toHaveBeenCalledWith({
-				url: 'https://www.strava.com/routes/777',
-				activityId: '777',
-				embedType: 'route',
-			});
+		expect(setAttributes).toHaveBeenCalledWith({
+			url: 'https://www.strava.com/routes/777',
+			activityId: '777',
+			embedType: 'route',
 		});
+		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
-	it('resolves a segment URL via apiFetch and stores embedType=segment', async () => {
+	it('parses a canonical segment URL locally with embedType=segment', async () => {
 		const user = userEvent.setup();
-		mockedApiFetch.mockResolvedValueOnce({
-			activityId: '888',
-			embedType: 'segment',
-		});
 		const { setAttributes } = renderEdit();
 
 		await user.type(
@@ -219,13 +202,69 @@ describe('Edit – placeholder (editing) mode', () => {
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
-		await waitFor(() => {
-			expect(setAttributes).toHaveBeenCalledWith({
-				url: 'https://www.strava.com/segments/888',
-				activityId: '888',
-				embedType: 'segment',
-			});
+		expect(setAttributes).toHaveBeenCalledWith({
+			url: 'https://www.strava.com/segments/888',
+			activityId: '888',
+			embedType: 'segment',
 		});
+		expect(mockedApiFetch).not.toHaveBeenCalled();
+	});
+
+	it('rejects look-alike hosts like evilstrava.com', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit();
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			'https://evilstrava.com/activities/111'
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		expect(
+			await screen.findByText(
+				/valid Strava activity, route, or segment URL/i
+			)
+		).toBeInTheDocument();
+		expect(setAttributes).not.toHaveBeenCalled();
+		expect(mockedApiFetch).not.toHaveBeenCalled();
+	});
+
+	it('rejects unparseable URLs', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit();
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			'not a url'
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		expect(
+			await screen.findByText(
+				/valid Strava activity, route, or segment URL/i
+			)
+		).toBeInTheDocument();
+		expect(setAttributes).not.toHaveBeenCalled();
+		expect(mockedApiFetch).not.toHaveBeenCalled();
+	});
+
+	it('rejects strava.com URLs whose path is not an activity, route, or segment', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit();
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			'https://www.strava.com/blog/some-post'
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		expect(
+			await screen.findByText(
+				/valid Strava activity, route, or segment URL/i
+			)
+		).toBeInTheDocument();
+		expect(setAttributes).not.toHaveBeenCalled();
+		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
 	it('resolves a short strava.app.link URL via apiFetch and falls back to embedType=activity', async () => {
@@ -255,7 +294,7 @@ describe('Edit – placeholder (editing) mode', () => {
 
 		await user.type(
 			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
-			'https://www.strava.com/activities/999'
+			'https://strava.app.link/xyz'
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
@@ -271,7 +310,7 @@ describe('Edit – placeholder (editing) mode', () => {
 
 		await user.type(
 			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
-			'https://www.strava.com/activities/333'
+			'https://strava.app.link/abc'
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
@@ -296,7 +335,7 @@ describe('Edit – placeholder (editing) mode', () => {
 
 		await user.type(
 			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
-			'https://www.strava.com/activities/444'
+			'https://strava.app.link/spin'
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 
