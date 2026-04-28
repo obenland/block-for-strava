@@ -28,9 +28,12 @@ import {
 } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
+type EmbedType = 'activity' | 'route' | 'segment';
+
 interface Attributes {
 	url: string;
 	activityId: string;
+	embedType: EmbedType;
 	caption: string;
 }
 
@@ -42,7 +45,14 @@ interface EditProps {
 
 interface ResolveResponse {
 	activityId: string;
+	embedType?: EmbedType;
 }
+
+const URL_PATH_TO_TYPE: Record<string, EmbedType> = {
+	activities: 'activity',
+	routes: 'route',
+	segments: 'segment',
+};
 
 const DEFAULT_HEIGHT = 730;
 const MIN_HEIGHT = 100;
@@ -60,14 +70,37 @@ function generateEmbedId(): string {
 	return `bfs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function parseActivityId(url: string): string | null {
-	const match = url.match(/strava\.com\/activities\/(\d+)/i);
-	return match ? match[1] : null;
+function parseStravaUrl(
+	url: string
+): { activityId: string; embedType: EmbedType } | null {
+	const match = url.match(
+		/strava\.com\/(activities|routes|segments)\/(\d+)/i
+	);
+	if (!match) {
+		return null;
+	}
+	return {
+		activityId: match[2],
+		embedType: URL_PATH_TO_TYPE[match[1].toLowerCase()],
+	};
 }
 
-function parseEmbedCode(input: string): string | null {
+function parseEmbedCode(
+	input: string
+): { activityId: string; embedType: EmbedType } | null {
 	const idMatch = input.match(/data-embed-id="(\d+)"/);
-	return idMatch ? idMatch[1] : null;
+	if (!idMatch) {
+		return null;
+	}
+	const typeMatch = input.match(
+		/data-embed-type="(activity|route|segment)"/i
+	);
+	return {
+		activityId: idMatch[1],
+		embedType: typeMatch
+			? (typeMatch[1].toLowerCase() as EmbedType)
+			: 'activity',
+	};
 }
 
 function isShortUrl(url: string): boolean {
@@ -79,7 +112,7 @@ export default function Edit({
 	setAttributes,
 	isSelected,
 }: EditProps) {
-	const { activityId, caption } = attributes;
+	const { activityId, embedType, caption } = attributes;
 	const blockProps = useBlockProps();
 
 	const [inputUrl, setInputUrl] = useState('');
@@ -147,14 +180,18 @@ export default function Edit({
 			return;
 		}
 
-		const embedActivityId = parseEmbedCode(trimmed);
-		if (embedActivityId) {
-			setAttributes({ url: trimmed, activityId: embedActivityId });
+		const embedData = parseEmbedCode(trimmed);
+		if (embedData) {
+			setAttributes({
+				url: trimmed,
+				activityId: embedData.activityId,
+				embedType: embedData.embedType,
+			});
 			setIsEditing(false);
 			return;
 		}
 
-		const parsed = parseActivityId(trimmed);
+		const parsed = parseStravaUrl(trimmed);
 		if (parsed || isShortUrl(trimmed)) {
 			setIsLoading(true);
 			try {
@@ -164,6 +201,7 @@ export default function Edit({
 				setAttributes({
 					url: trimmed,
 					activityId: response.activityId,
+					embedType: response.embedType ?? 'activity',
 				});
 				setIsEditing(false);
 			} catch (err) {
@@ -180,13 +218,13 @@ export default function Edit({
 
 		setError(
 			__(
-				'Please enter a valid Strava activity URL (e.g. https://www.strava.com/activities/…).',
+				'Please enter a valid Strava activity, route, or segment URL.',
 				'block-for-strava'
 			)
 		);
 	}, [inputUrl, setAttributes]);
 
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${embedType}" data-embed-id="${activityId}" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
 
 	return (
 		<>

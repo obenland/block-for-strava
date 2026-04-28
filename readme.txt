@@ -1,6 +1,6 @@
 === Block for Strava ===
 Contributors:      obenland
-Tags:              strava, block, embed, activity, fitness
+Tags:              strava, block, embed, route, segment
 Requires at least: 6.0
 Tested up to:      6.9
 Requires PHP:      8.1
@@ -8,16 +8,16 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-Embed public Strava activities on your WordPress site with a simple block.
+Embed public Strava activities, routes, and segments on your WordPress site with a simple block.
 
 == Description ==
 
-Block for Strava adds a Gutenberg block that lets you embed any public Strava activity on your site. Paste a Strava activity URL and the block renders the official Strava embed — no API keys required.
+Block for Strava adds a Gutenberg block that lets you embed any public Strava activity, route, or segment on your site. Paste a Strava URL and the block renders the official Strava embed — no API keys required.
 
 **Features:**
 
-* Paste any public Strava activity URL
-* Supports both full URLs (`strava.com/activities/…`) and short share links (`strava.app.link/…`)
+* Paste any public Strava activity, route, or segment URL
+* Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`) and short share links (`strava.app.link/…`)
 * Live preview in the block editor
 * No Strava account or API key needed
 

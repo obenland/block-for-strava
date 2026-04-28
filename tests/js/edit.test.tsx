@@ -29,8 +29,11 @@ function extractEmbedId(iframe: HTMLIFrameElement): string {
 	return idMatch![1];
 }
 
+type EmbedType = 'activity' | 'route' | 'segment';
+
 interface RenderEditOptions {
 	activityId?: string;
+	embedType?: EmbedType;
 	caption?: string;
 	url?: string;
 	isSelected?: boolean;
@@ -41,6 +44,7 @@ function renderEdit(options: RenderEditOptions = {}) {
 	const attributes = {
 		url: options.url ?? '',
 		activityId: options.activityId ?? '',
+		embedType: options.embedType ?? ('activity' as EmbedType),
 		caption: options.caption ?? '',
 	};
 	const utils = render(
@@ -87,7 +91,9 @@ describe('Edit – placeholder (editing) mode', () => {
 		);
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
 		expect(
-			await screen.findByText(/valid Strava activity URL/i)
+			await screen.findByText(
+				/valid Strava activity, route, or segment URL/i
+			)
 		).toBeInTheDocument();
 		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
@@ -107,13 +113,55 @@ describe('Edit – placeholder (editing) mode', () => {
 		expect(setAttributes).toHaveBeenCalledWith({
 			url: snippet,
 			activityId: '123456789',
+			embedType: 'activity',
 		});
 		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
+	it('parses a route embed snippet and stores embedType=route', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit();
+		const snippet =
+			'<div class="strava-embed-placeholder" data-embed-type="route" data-embed-id="555"></div>';
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			snippet
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		expect(setAttributes).toHaveBeenCalledWith({
+			url: snippet,
+			activityId: '555',
+			embedType: 'route',
+		});
+	});
+
+	it('defaults to embedType=activity when the snippet has no data-embed-type', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit();
+		const snippet =
+			'<div class="strava-embed-placeholder" data-embed-id="987654321"></div>';
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			snippet
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		expect(setAttributes).toHaveBeenCalledWith({
+			url: snippet,
+			activityId: '987654321',
+			embedType: 'activity',
+		});
+	});
+
 	it('resolves a Strava activity URL via apiFetch', async () => {
 		const user = userEvent.setup();
-		mockedApiFetch.mockResolvedValueOnce({ activityId: '111' });
+		mockedApiFetch.mockResolvedValueOnce({
+			activityId: '111',
+			embedType: 'activity',
+		});
 		const { setAttributes } = renderEdit();
 
 		await user.type(
@@ -126,6 +174,7 @@ describe('Edit – placeholder (editing) mode', () => {
 			expect(setAttributes).toHaveBeenCalledWith({
 				url: 'https://www.strava.com/activities/111',
 				activityId: '111',
+				embedType: 'activity',
 			});
 		});
 		expect(mockedApiFetch).toHaveBeenCalledWith({
@@ -133,7 +182,53 @@ describe('Edit – placeholder (editing) mode', () => {
 		});
 	});
 
-	it('resolves a short strava.app.link URL via apiFetch', async () => {
+	it('resolves a route URL via apiFetch and stores embedType=route', async () => {
+		const user = userEvent.setup();
+		mockedApiFetch.mockResolvedValueOnce({
+			activityId: '777',
+			embedType: 'route',
+		});
+		const { setAttributes } = renderEdit();
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			'https://www.strava.com/routes/777'
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		await waitFor(() => {
+			expect(setAttributes).toHaveBeenCalledWith({
+				url: 'https://www.strava.com/routes/777',
+				activityId: '777',
+				embedType: 'route',
+			});
+		});
+	});
+
+	it('resolves a segment URL via apiFetch and stores embedType=segment', async () => {
+		const user = userEvent.setup();
+		mockedApiFetch.mockResolvedValueOnce({
+			activityId: '888',
+			embedType: 'segment',
+		});
+		const { setAttributes } = renderEdit();
+
+		await user.type(
+			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
+			'https://www.strava.com/segments/888'
+		);
+		await user.click(screen.getByRole('button', { name: 'Embed' }));
+
+		await waitFor(() => {
+			expect(setAttributes).toHaveBeenCalledWith({
+				url: 'https://www.strava.com/segments/888',
+				activityId: '888',
+				embedType: 'segment',
+			});
+		});
+	});
+
+	it('resolves a short strava.app.link URL via apiFetch and falls back to embedType=activity', async () => {
 		const user = userEvent.setup();
 		mockedApiFetch.mockResolvedValueOnce({ activityId: '222' });
 		const { setAttributes } = renderEdit();
@@ -148,6 +243,7 @@ describe('Edit – placeholder (editing) mode', () => {
 			expect(setAttributes).toHaveBeenCalledWith({
 				url: 'https://strava.app.link/abcd',
 				activityId: '222',
+				embedType: 'activity',
 			});
 		});
 	});
@@ -186,7 +282,10 @@ describe('Edit – placeholder (editing) mode', () => {
 
 	it('shows a loading spinner while apiFetch is in flight', async () => {
 		const user = userEvent.setup();
-		let resolve!: (value: { activityId: string }) => void;
+		let resolve!: (value: {
+			activityId: string;
+			embedType?: EmbedType;
+		}) => void;
 		mockedApiFetch.mockImplementationOnce(
 			() =>
 				new Promise((res) => {
@@ -210,7 +309,7 @@ describe('Edit – placeholder (editing) mode', () => {
 		).toHaveAttribute('aria-busy', 'true');
 
 		await act(async () => {
-			resolve({ activityId: '444' });
+			resolve({ activityId: '444', embedType: 'activity' });
 		});
 		await waitFor(() => {
 			expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
@@ -395,6 +494,7 @@ describe('Edit – preview (rendered) mode', () => {
 					attributes={{
 						url: '',
 						activityId: '42',
+						embedType: 'activity',
 						caption: '',
 					}}
 					setAttributes={setAttributes}
@@ -415,6 +515,7 @@ describe('Edit – preview (rendered) mode', () => {
 					attributes={{
 						url: '',
 						activityId: '99',
+						embedType: 'activity',
 						caption: '',
 					}}
 					setAttributes={setAttributes}
