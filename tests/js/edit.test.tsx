@@ -31,7 +31,6 @@ function extractEmbedId(iframe: HTMLIFrameElement): string {
 
 interface RenderEditOptions {
 	activityId?: string;
-	token?: string;
 	caption?: string;
 	url?: string;
 	isSelected?: boolean;
@@ -42,7 +41,6 @@ function renderEdit(options: RenderEditOptions = {}) {
 	const attributes = {
 		url: options.url ?? '',
 		activityId: options.activityId ?? '',
-		token: options.token ?? '',
 		caption: options.caption ?? '',
 	};
 	const utils = render(
@@ -95,11 +93,11 @@ describe('Edit – placeholder (editing) mode', () => {
 		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
-	it('parses an embed snippet with a token without calling the REST endpoint', async () => {
+	it('parses an embed snippet without calling the REST endpoint', async () => {
 		const user = userEvent.setup();
 		const { setAttributes } = renderEdit();
 		const snippet =
-			'<div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="123456789" data-style="standard" data-token="abc123"></div>';
+			'<div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="123456789" data-style="standard"></div>';
 
 		await user.type(
 			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
@@ -110,36 +108,13 @@ describe('Edit – placeholder (editing) mode', () => {
 		expect(setAttributes).toHaveBeenCalledWith({
 			url: snippet,
 			activityId: '123456789',
-			token: 'abc123',
 		});
 		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
-	it('parses an embed snippet without a token', async () => {
+	it('resolves a Strava activity URL via apiFetch', async () => {
 		const user = userEvent.setup();
-		const { setAttributes } = renderEdit();
-		const snippet =
-			'<div class="strava-embed-placeholder" data-embed-id="987654321"></div>';
-
-		await user.type(
-			screen.getByPlaceholderText('https://www.strava.com/activities/…'),
-			snippet
-		);
-		await user.click(screen.getByRole('button', { name: 'Embed' }));
-
-		expect(setAttributes).toHaveBeenCalledWith({
-			url: snippet,
-			activityId: '987654321',
-			token: '',
-		});
-	});
-
-	it('resolves a Strava activity URL via apiFetch and stores the token returned', async () => {
-		const user = userEvent.setup();
-		mockedApiFetch.mockResolvedValueOnce({
-			activityId: '111',
-			token: 'tok',
-		});
+		mockedApiFetch.mockResolvedValueOnce({ activityId: '111' });
 		const { setAttributes } = renderEdit();
 
 		await user.type(
@@ -152,7 +127,6 @@ describe('Edit – placeholder (editing) mode', () => {
 			expect(setAttributes).toHaveBeenCalledWith({
 				url: 'https://www.strava.com/activities/111',
 				activityId: '111',
-				token: 'tok',
 			});
 		});
 		expect(mockedApiFetch).toHaveBeenCalledWith({
@@ -160,7 +134,7 @@ describe('Edit – placeholder (editing) mode', () => {
 		});
 	});
 
-	it('resolves a short strava.app.link URL via apiFetch and falls back to empty token', async () => {
+	it('resolves a short strava.app.link URL via apiFetch', async () => {
 		const user = userEvent.setup();
 		mockedApiFetch.mockResolvedValueOnce({ activityId: '222' });
 		const { setAttributes } = renderEdit();
@@ -175,7 +149,6 @@ describe('Edit – placeholder (editing) mode', () => {
 			expect(setAttributes).toHaveBeenCalledWith({
 				url: 'https://strava.app.link/abcd',
 				activityId: '222',
-				token: '',
 			});
 		});
 	});
@@ -214,7 +187,7 @@ describe('Edit – placeholder (editing) mode', () => {
 
 	it('shows a loading spinner while apiFetch is in flight', async () => {
 		const user = userEvent.setup();
-		let resolve!: (value: { activityId: string; token?: string }) => void;
+		let resolve!: (value: { activityId: string }) => void;
 		mockedApiFetch.mockImplementationOnce(
 			() =>
 				new Promise((res) => {
@@ -235,7 +208,7 @@ describe('Edit – placeholder (editing) mode', () => {
 		).not.toBeInTheDocument();
 
 		await act(async () => {
-			resolve({ activityId: '444', token: '' });
+			resolve({ activityId: '444' });
 		});
 		await waitFor(() => {
 			expect(screen.queryByTestId('spinner')).not.toBeInTheDocument();
@@ -244,13 +217,12 @@ describe('Edit – placeholder (editing) mode', () => {
 });
 
 describe('Edit – preview (rendered) mode', () => {
-	it('renders an iframe with the embed snippet and embeds the token attribute when provided', () => {
-		const { container } = renderEdit({ activityId: '42', token: 'abc' });
+	it('renders a sandboxed iframe with the embed snippet for the activity', () => {
+		const { container } = renderEdit({ activityId: '42' });
 		const iframe = getIframe(container);
 		expect(iframe.getAttribute('sandbox')).toBe('allow-scripts');
 		const srcDoc = iframe.getAttribute('srcdoc') ?? '';
 		expect(srcDoc).toContain('data-embed-id="42"');
-		expect(srcDoc).toContain('data-token="abc"');
 	});
 
 	it('wires the BROADCAST_IFRAME_HEIGHT relay and default-height fallback into the srcdoc', () => {
@@ -264,14 +236,6 @@ describe('Edit – preview (rendered) mode', () => {
 		 */
 		expect(srcDoc).toContain('BROADCAST_IFRAME_HEIGHT');
 		expect(srcDoc).toContain('||730');
-	});
-
-	it('omits data-token from the snippet when no token is set', () => {
-		const { container } = renderEdit({ activityId: '42' });
-		const iframe = getIframe(container);
-		const srcDoc = iframe.getAttribute('srcdoc') ?? '';
-		expect(srcDoc).toContain('data-embed-id="42"');
-		expect(srcDoc).not.toContain('data-token=');
 	});
 
 	it('renders the caption RichText only when the block is selected or the caption has content', () => {
@@ -429,7 +393,6 @@ describe('Edit – preview (rendered) mode', () => {
 					attributes={{
 						url: '',
 						activityId: '42',
-						token: '',
 						caption: '',
 					}}
 					setAttributes={setAttributes}
@@ -450,7 +413,6 @@ describe('Edit – preview (rendered) mode', () => {
 					attributes={{
 						url: '',
 						activityId: '99',
-						token: '',
 						caption: '',
 					}}
 					setAttributes={setAttributes}

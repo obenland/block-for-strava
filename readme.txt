@@ -18,7 +18,6 @@ Block for Strava adds a Gutenberg block that lets you embed any public Strava ac
 
 * Paste any public Strava activity URL
 * Supports both full URLs (`strava.com/activities/…`) and short share links (`strava.app.link/…`)
-* Choose between Standard and Large embed styles
 * Live preview in the block editor
 * No Strava account or API key needed
 
