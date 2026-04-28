@@ -57,8 +57,12 @@ interface Attributes {
 	routeShowDirt: boolean;
 }
 
-const ROUTE_UNITS: ReadonlyArray<RouteUnits> = ['auto', 'metric', 'imperial'];
-const ROUTE_MAP_STYLES: ReadonlyArray<RouteMapStyle> = [
+const ROUTE_UNITS: ReadonlyArray< RouteUnits > = [
+	'auto',
+	'metric',
+	'imperial',
+];
+const ROUTE_MAP_STYLES: ReadonlyArray< RouteMapStyle > = [
 	'standard',
 	'satellite',
 	'hybrid',
@@ -66,16 +70,16 @@ const ROUTE_MAP_STYLES: ReadonlyArray<RouteMapStyle> = [
 	'winter',
 	'light',
 ];
-const ROUTE_TERRAINS: ReadonlyArray<RouteTerrain> = ['auto', '2d', '3d'];
+const ROUTE_TERRAINS: ReadonlyArray< RouteTerrain > = [ 'auto', '2d', '3d' ];
 
-function clampEnum<T extends string>(
+function clampEnum< T extends string >(
 	value: unknown,
-	allowed: ReadonlyArray<T>,
+	allowed: ReadonlyArray< T >,
 	fallback: T
 ): T {
 	return typeof value === 'string' &&
-		(allowed as ReadonlyArray<string>).includes(value)
-		? (value as T)
+		( allowed as ReadonlyArray< string > ).includes( value )
+		? ( value as T )
 		: fallback;
 }
 
@@ -85,7 +89,7 @@ function clampEnum<T extends string>(
  * in JS — the same defense-in-depth pattern as `clampEnum`. Reject anything
  * that isn't a real boolean and use the block.json default instead.
  */
-function clampBool(value: unknown, fallback: boolean): boolean {
+function clampBool( value: unknown, fallback: boolean ): boolean {
 	return typeof value === 'boolean' ? value : fallback;
 }
 
@@ -188,31 +192,31 @@ interface RouteAttrs {
  * straightforward and avoids accidental whitespace differences between the
  * editor preview and the PHP render output.
  */
-function buildRouteDataAttrs(attrs: RouteAttrs): string {
-	const parts: string[] = [` data-style="${attrs.routeMapStyle}"`];
-	if (!attrs.routeShowElevation) {
-		parts.push(' data-hide-elevation="true"');
+function buildRouteDataAttrs( attrs: RouteAttrs ): string {
+	const parts: string[] = [ ` data-style="${ attrs.routeMapStyle }"` ];
+	if ( ! attrs.routeShowElevation ) {
+		parts.push( ' data-hide-elevation="true"' );
 	}
-	if (attrs.routeUnits !== 'auto') {
-		parts.push(` data-units="${attrs.routeUnits}"`);
+	if ( attrs.routeUnits !== 'auto' ) {
+		parts.push( ` data-units="${ attrs.routeUnits }"` );
 	}
-	if (attrs.routeFullWidth) {
-		parts.push(' data-full-width="true"');
+	if ( attrs.routeFullWidth ) {
+		parts.push( ' data-full-width="true"' );
 	}
-	if (attrs.routeTerrain !== 'auto') {
-		parts.push(` data-terrain="${attrs.routeTerrain}"`);
+	if ( attrs.routeTerrain !== 'auto' ) {
+		parts.push( ` data-terrain="${ attrs.routeTerrain }"` );
 	}
-	if (attrs.routeShowDirt) {
-		parts.push(' data-surface-type="true"');
+	if ( attrs.routeShowDirt ) {
+		parts.push( ' data-surface-type="true"' );
 	}
-	return parts.join('');
+	return parts.join( '' );
 }
 
-export default function Edit({
+export default function Edit( {
 	attributes,
 	setAttributes,
 	isSelected,
-}: EditProps) {
+}: EditProps ) {
 	const {
 		activityId,
 		embedType,
@@ -386,16 +390,16 @@ export default function Edit({
 	 * state while the preview/front-end silently fell back to another —
 	 * visually misleading and confusing to fix.
 	 */
-	const safeRouteUnits = clampEnum(routeUnits, ROUTE_UNITS, 'auto');
+	const safeRouteUnits = clampEnum( routeUnits, ROUTE_UNITS, 'auto' );
 	const safeRouteMapStyle = clampEnum(
 		routeMapStyle,
 		ROUTE_MAP_STYLES,
 		'standard'
 	);
-	const safeRouteTerrain = clampEnum(routeTerrain, ROUTE_TERRAINS, 'auto');
-	const safeRouteShowElevation = clampBool(routeShowElevation, true);
-	const safeRouteFullWidth = clampBool(routeFullWidth, false);
-	const safeRouteShowDirt = clampBool(routeShowDirt, false);
+	const safeRouteTerrain = clampEnum( routeTerrain, ROUTE_TERRAINS, 'auto' );
+	const safeRouteShowElevation = clampBool( routeShowElevation, true );
+	const safeRouteFullWidth = clampBool( routeFullWidth, false );
+	const safeRouteShowDirt = clampBool( routeShowDirt, false );
 
 	/*
 	 * For routes, expose the user-chosen options as data-* attrs that
@@ -405,17 +409,17 @@ export default function Edit({
 	 */
 	const routeDataAttrs =
 		safeEmbedType === 'route'
-			? buildRouteDataAttrs({
+			? buildRouteDataAttrs( {
 					routeShowElevation: safeRouteShowElevation,
 					routeUnits: safeRouteUnits,
 					routeFullWidth: safeRouteFullWidth,
 					routeMapStyle: safeRouteMapStyle,
 					routeTerrain: safeRouteTerrain,
 					routeShowDirt: safeRouteShowDirt,
-				})
+			  } )
 			: ' data-style="standard"';
 
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${safeEmbedType}" data-embed-id="${safeActivityId}"${routeDataAttrs}></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${ safeEmbedType }" data-embed-id="${ safeActivityId }"${ routeDataAttrs }></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${ embedId }";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${ DEFAULT_HEIGHT });}});})();</script></body></html>`;
 
 	return (
 		<>
@@ -435,163 +439,169 @@ export default function Edit({
 				</BlockControls>
 			) }
 
-			{!isEditing && safeEmbedType === 'route' && (
+			{ ! isEditing && safeEmbedType === 'route' && (
 				<InspectorControls>
 					<PanelBody
-						title={__('Route options', 'block-for-strava')}
+						title={ __( 'Route options', 'block-for-strava' ) }
 						initialOpen
 					>
 						<ToggleControl
 							__nextHasNoMarginBottom
-							label={__(
+							label={ __(
 								'Show elevation profile',
 								'block-for-strava'
-							)}
-							checked={safeRouteShowElevation}
-							onChange={(value: boolean) =>
-								setAttributes({ routeShowElevation: value })
+							) }
+							checked={ safeRouteShowElevation }
+							onChange={ ( value: boolean ) =>
+								setAttributes( { routeShowElevation: value } )
 							}
 						/>
 						<RadioControl
-							label={__('Units', 'block-for-strava')}
-							help={__(
+							label={ __( 'Units', 'block-for-strava' ) }
+							help={ __(
 								'Auto picks units based on the viewer’s location.',
 								'block-for-strava'
-							)}
-							selected={safeRouteUnits}
-							options={[
+							) }
+							selected={ safeRouteUnits }
+							options={ [
 								{
-									label: __('Auto', 'block-for-strava'),
+									label: __( 'Auto', 'block-for-strava' ),
 									value: 'auto',
 								},
 								{
-									label: __('Metric', 'block-for-strava'),
+									label: __( 'Metric', 'block-for-strava' ),
 									value: 'metric',
 								},
 								{
-									label: __('Imperial', 'block-for-strava'),
+									label: __( 'Imperial', 'block-for-strava' ),
 									value: 'imperial',
 								},
-							]}
-							onChange={(value: string) =>
-								setAttributes({
+							] }
+							onChange={ ( value: string ) =>
+								setAttributes( {
 									routeUnits: clampEnum(
 										value,
 										ROUTE_UNITS,
 										'auto'
 									),
-								})
+								} )
 							}
 						/>
 						<RadioControl
-							label={__('Embed width', 'block-for-strava')}
-							help={__(
+							label={ __( 'Embed width', 'block-for-strava' ) }
+							help={ __(
 								'Responsive embeds expand to fill available space.',
 								'block-for-strava'
-							)}
+							) }
 							selected={
 								safeRouteFullWidth ? 'responsive' : 'fixed'
 							}
-							options={[
+							options={ [
 								{
-									label: __('Fixed', 'block-for-strava'),
+									label: __( 'Fixed', 'block-for-strava' ),
 									value: 'fixed',
 								},
 								{
-									label: __('Responsive', 'block-for-strava'),
+									label: __(
+										'Responsive',
+										'block-for-strava'
+									),
 									value: 'responsive',
 								},
-							]}
-							onChange={(value: string) =>
-								setAttributes({
+							] }
+							onChange={ ( value: string ) =>
+								setAttributes( {
 									routeFullWidth: value === 'responsive',
-								})
+								} )
 							}
 						/>
 						<SelectControl
 							__nextHasNoMarginBottom
-							label={__('Map style', 'block-for-strava')}
-							value={safeRouteMapStyle}
-							options={[
+							label={ __( 'Map style', 'block-for-strava' ) }
+							value={ safeRouteMapStyle }
+							options={ [
 								{
-									label: __('Standard', 'block-for-strava'),
+									label: __( 'Standard', 'block-for-strava' ),
 									value: 'standard',
 								},
 								{
-									label: __('Satellite', 'block-for-strava'),
+									label: __(
+										'Satellite',
+										'block-for-strava'
+									),
 									value: 'satellite',
 								},
 								{
-									label: __('Hybrid', 'block-for-strava'),
+									label: __( 'Hybrid', 'block-for-strava' ),
 									value: 'hybrid',
 								},
 								{
-									label: __('Dark', 'block-for-strava'),
+									label: __( 'Dark', 'block-for-strava' ),
 									value: 'dark',
 								},
 								{
-									label: __('Winter', 'block-for-strava'),
+									label: __( 'Winter', 'block-for-strava' ),
 									value: 'winter',
 								},
 								{
-									label: __('Light', 'block-for-strava'),
+									label: __( 'Light', 'block-for-strava' ),
 									value: 'light',
 								},
-							]}
-							onChange={(value: string) =>
-								setAttributes({
+							] }
+							onChange={ ( value: string ) =>
+								setAttributes( {
 									routeMapStyle: clampEnum(
 										value,
 										ROUTE_MAP_STYLES,
 										'standard'
 									),
-								})
+								} )
 							}
 						/>
 						<RadioControl
-							label={__('Terrain', 'block-for-strava')}
-							selected={safeRouteTerrain}
-							options={[
+							label={ __( 'Terrain', 'block-for-strava' ) }
+							selected={ safeRouteTerrain }
+							options={ [
 								{
-									label: __('Auto', 'block-for-strava'),
+									label: __( 'Auto', 'block-for-strava' ),
 									value: 'auto',
 								},
 								{
-									label: __('2D', 'block-for-strava'),
+									label: __( '2D', 'block-for-strava' ),
 									value: '2d',
 								},
 								{
-									label: __('3D', 'block-for-strava'),
+									label: __( '3D', 'block-for-strava' ),
 									value: '3d',
 								},
-							]}
-							onChange={(value: string) =>
-								setAttributes({
+							] }
+							onChange={ ( value: string ) =>
+								setAttributes( {
 									routeTerrain: clampEnum(
 										value,
 										ROUTE_TERRAINS,
 										'auto'
 									),
-								})
+								} )
 							}
 						/>
 						<ToggleControl
 							__nextHasNoMarginBottom
-							label={__(
+							label={ __(
 								'Highlight unpaved surfaces',
 								'block-for-strava'
-							)}
-							checked={safeRouteShowDirt}
-							onChange={(value: boolean) =>
-								setAttributes({ routeShowDirt: value })
+							) }
+							checked={ safeRouteShowDirt }
+							onChange={ ( value: boolean ) =>
+								setAttributes( { routeShowDirt: value } )
 							}
 						/>
 					</PanelBody>
 				</InspectorControls>
-			)}
+			) }
 
-			{isEditing ? (
-				<div {...blockProps}>
+			{ isEditing ? (
+				<div { ...blockProps }>
 					<Placeholder
 						icon={ <BlockIcon icon={ activityIcon } showColors /> }
 						label={ __( 'Strava Activity', 'block-for-strava' ) }

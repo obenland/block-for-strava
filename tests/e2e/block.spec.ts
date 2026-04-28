@@ -176,16 +176,16 @@ test.describe.serial( 'Strava Activity block', () => {
 		await expect(
 			canvas.locator( '.wp-block-obenland-strava-activity iframe' )
 		).toBeVisible();
-	});
+	} );
 
-	test('frontend render: route with all options set serializes every data-* attribute', async ({
+	test( 'frontend render: route with all options set serializes every data-* attribute', async ( {
 		page,
-	}) => {
+	} ) => {
 		const routeId = '3379104463896442748';
 		const attrs = {
 			activityId: routeId,
 			embedType: 'route',
-			url: `https://www.strava.com/routes/${routeId}`,
+			url: `https://www.strava.com/routes/${ routeId }`,
 			routeShowElevation: false,
 			routeUnits: 'metric',
 			routeFullWidth: true,
@@ -197,64 +197,78 @@ test.describe.serial( 'Strava Activity block', () => {
 			'post create --post_title="Strava E2E Route Options" --post_status=publish --porcelain'
 		);
 		wp(
-			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity ${JSON.stringify(attrs)} /-->'`
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity ${ JSON.stringify(
+				attrs
+			) } /-->'`
 		);
 
-		await page.route(/strava-embeds\.com/, (route) => route.abort());
-		await page.goto(`/?p=${postId}`);
+		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
+		await page.goto( `/?p=${ postId }` );
 
 		const placeholder = page
-			.locator('.wp-block-obenland-strava-activity')
-			.locator('.strava-embed-placeholder');
-		await expect(placeholder).toHaveAttribute('data-embed-type', 'route');
-		await expect(placeholder).toHaveAttribute('data-style', 'satellite');
-		await expect(placeholder).toHaveAttribute(
+			.locator( '.wp-block-obenland-strava-activity' )
+			.locator( '.strava-embed-placeholder' );
+		await expect( placeholder ).toHaveAttribute(
+			'data-embed-type',
+			'route'
+		);
+		await expect( placeholder ).toHaveAttribute(
+			'data-style',
+			'satellite'
+		);
+		await expect( placeholder ).toHaveAttribute(
 			'data-hide-elevation',
 			'true'
 		);
-		await expect(placeholder).toHaveAttribute('data-units', 'metric');
-		await expect(placeholder).toHaveAttribute('data-full-width', 'true');
-		await expect(placeholder).toHaveAttribute('data-terrain', '3d');
-		await expect(placeholder).toHaveAttribute('data-surface-type', 'true');
-	});
+		await expect( placeholder ).toHaveAttribute( 'data-units', 'metric' );
+		await expect( placeholder ).toHaveAttribute(
+			'data-full-width',
+			'true'
+		);
+		await expect( placeholder ).toHaveAttribute( 'data-terrain', '3d' );
+		await expect( placeholder ).toHaveAttribute(
+			'data-surface-type',
+			'true'
+		);
+	} );
 
-	test('frontend render: route at defaults emits only data-style="standard"', async ({
+	test( 'frontend render: route at defaults emits only data-style="standard"', async ( {
 		page,
-	}) => {
+	} ) => {
 		const routeId = '3379104463896442748';
 		postId = wp(
 			'post create --post_title="Strava E2E Route Defaults" --post_status=publish --porcelain'
 		);
 		wp(
-			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${routeId}","embedType":"route","url":"https://www.strava.com/routes/${routeId}"} /-->'`
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${ routeId }","embedType":"route","url":"https://www.strava.com/routes/${ routeId }"} /-->'`
 		);
 
-		await page.route(/strava-embeds\.com/, (route) => route.abort());
-		await page.goto(`/?p=${postId}`);
+		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
+		await page.goto( `/?p=${ postId }` );
 
 		const placeholder = page
-			.locator('.wp-block-obenland-strava-activity')
-			.locator('.strava-embed-placeholder');
-		await expect(placeholder).toHaveAttribute('data-style', 'standard');
+			.locator( '.wp-block-obenland-strava-activity' )
+			.locator( '.strava-embed-placeholder' );
+		await expect( placeholder ).toHaveAttribute( 'data-style', 'standard' );
 
 		/*
 		 * The other route-only knobs should be absent at defaults so Strava
 		 * falls back to its own defaults inside the iframe.
 		 */
-		for (const attr of [
+		for ( const attr of [
 			'data-hide-elevation',
 			'data-units',
 			'data-full-width',
 			'data-terrain',
 			'data-surface-type',
-		]) {
-			await expect(placeholder).not.toHaveAttribute(attr, /.*/);
+		] ) {
+			await expect( placeholder ).not.toHaveAttribute( attr, /.*/ );
 		}
-	});
+	} );
 
-	test('frontend render: activity ignores route options and stays at data-style="standard"', async ({
+	test( 'frontend render: activity ignores route options and stays at data-style="standard"', async ( {
 		page,
-	}) => {
+	} ) => {
 		const attrs = {
 			activityId: '18233733854',
 			embedType: 'activity',
@@ -267,93 +281,100 @@ test.describe.serial( 'Strava Activity block', () => {
 			'post create --post_title="Strava E2E Activity Ignores Route" --post_status=publish --porcelain'
 		);
 		wp(
-			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity ${JSON.stringify(attrs)} /-->'`
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity ${ JSON.stringify(
+				attrs
+			) } /-->'`
 		);
 
-		await page.route(/strava-embeds\.com/, (route) => route.abort());
-		await page.goto(`/?p=${postId}`);
+		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
+		await page.goto( `/?p=${ postId }` );
 
 		const placeholder = page
-			.locator('.wp-block-obenland-strava-activity')
-			.locator('.strava-embed-placeholder');
-		await expect(placeholder).toHaveAttribute(
+			.locator( '.wp-block-obenland-strava-activity' )
+			.locator( '.strava-embed-placeholder' );
+		await expect( placeholder ).toHaveAttribute(
 			'data-embed-type',
 			'activity'
 		);
-		await expect(placeholder).toHaveAttribute('data-style', 'standard');
-		await expect(placeholder).not.toHaveAttribute('data-full-width', /.*/);
-		await expect(placeholder).not.toHaveAttribute(
+		await expect( placeholder ).toHaveAttribute( 'data-style', 'standard' );
+		await expect( placeholder ).not.toHaveAttribute(
+			'data-full-width',
+			/.*/
+		);
+		await expect( placeholder ).not.toHaveAttribute(
 			'data-surface-type',
 			/.*/
 		);
-	});
+	} );
 
-	test('editor: route embed exposes the Route options sidebar', async ({
+	test( 'editor: route embed exposes the Route options sidebar', async ( {
 		page,
-	}) => {
+	} ) => {
 		const routeId = '3379104463896442748';
 		postId = wp(
 			'post create --post_title="Strava E2E Route Sidebar" --post_status=publish --porcelain'
 		);
 		wp(
-			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${routeId}","embedType":"route","url":"https://www.strava.com/routes/${routeId}"} /-->'`
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${ routeId }","embedType":"route","url":"https://www.strava.com/routes/${ routeId }"} /-->'`
 		);
 
-		await loginAsAdmin(page);
-		await page.goto(`/wp-admin/post.php?post=${postId}&action=edit`);
-		await waitForEditor(page);
+		await loginAsAdmin( page );
+		await page.goto( `/wp-admin/post.php?post=${ postId }&action=edit` );
+		await waitForEditor( page );
 
 		const canvas = page
-			.frameLocator('iframe[name="editor-canvas"]')
+			.frameLocator( 'iframe[name="editor-canvas"]' )
 			.first();
-		await canvas.locator('.wp-block-obenland-strava-activity').click();
+		await canvas.locator( '.wp-block-obenland-strava-activity' ).click();
 
 		/*
 		 * Open the block-settings sidebar in case it's collapsed. Skip if the
 		 * panel is already discoverable in the document — keeps the test
 		 * resilient across editor layouts where the sidebar opens by default.
 		 */
-		const panelTitle = page.getByRole('button', { name: /route options/i });
-		if (!(await panelTitle.isVisible().catch(() => false))) {
-			const settingsToggle = page.getByRole('button', {
+		const panelTitle = page.getByRole( 'button', {
+			name: /route options/i,
+		} );
+		if ( ! ( await panelTitle.isVisible().catch( () => false ) ) ) {
+			const settingsToggle = page.getByRole( 'button', {
 				name: /^settings$/i,
-			});
-			if (await settingsToggle.isVisible().catch(() => false)) {
+			} );
+			if ( await settingsToggle.isVisible().catch( () => false ) ) {
 				await settingsToggle.click();
 			}
 		}
 
-		await expect(panelTitle).toBeVisible();
-	});
+		await expect( panelTitle ).toBeVisible();
+	} );
 
-	test('editor: activity embed does not expose the Route options sidebar', async ({
+	test( 'editor: activity embed does not expose the Route options sidebar', async ( {
 		page,
-	}) => {
+	} ) => {
 		postId = wp(
 			'post create --post_title="Strava E2E Activity Sidebar" --post_status=publish --porcelain'
 		);
 		wp(
-			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity {"activityId":"18233733854","embedType":"activity","url":"https://www.strava.com/activities/18233733854"} /-->'`
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity {"activityId":"18233733854","embedType":"activity","url":"https://www.strava.com/activities/18233733854"} /-->'`
 		);
 
-		await loginAsAdmin(page);
-		await page.goto(`/wp-admin/post.php?post=${postId}&action=edit`);
-		await waitForEditor(page);
+		await loginAsAdmin( page );
+		await page.goto( `/wp-admin/post.php?post=${ postId }&action=edit` );
+		await waitForEditor( page );
 
 		const canvas = page
-			.frameLocator('iframe[name="editor-canvas"]')
+			.frameLocator( 'iframe[name="editor-canvas"]' )
 			.first();
-		await canvas.locator('.wp-block-obenland-strava-activity').click();
+		await canvas.locator( '.wp-block-obenland-strava-activity' ).click();
 
-		const settingsToggle = page.getByRole('button', {
+		const settingsToggle = page.getByRole( 'button', {
 			name: /^settings$/i,
-		});
-		if (await settingsToggle.isVisible().catch(() => false)) {
+		} );
+		if ( await settingsToggle.isVisible().catch( () => false ) ) {
 			await settingsToggle.click();
 		}
 
 		await expect(
-			page.getByRole('button', { name: /route options/i })
-		).toHaveCount(0);
-	});
-});
+			page.getByRole( 'button', { name: /route options/i } )
+		).toHaveCount( 0 );
+	} );
+} );

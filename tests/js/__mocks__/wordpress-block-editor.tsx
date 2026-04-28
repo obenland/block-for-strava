@@ -18,7 +18,7 @@ export function BlockControls( { children }: { children: ReactNode } ) {
 	);
 }
 
-export function InspectorControls({ children }: { children: ReactNode }) {
+export function InspectorControls( { children }: { children: ReactNode } ) {
 	return createElement(
 		'div',
 		{ 'data-testid': 'inspector-controls' },
@@ -26,8 +26,8 @@ export function InspectorControls({ children }: { children: ReactNode }) {
 	);
 }
 
-export function BlockIcon({ icon }: { icon?: unknown }) {
-	return createElement('span', {
+export function BlockIcon( { icon }: { icon?: unknown } ) {
+	return createElement( 'span', {
 		'data-testid': 'block-icon',
 		'data-has-icon': icon ? 'yes' : 'no',
 	} );

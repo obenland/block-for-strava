@@ -43,7 +43,7 @@
 		"routeUnits": {
 			"type": "string",
 			"default": "auto",
-			"enum": ["auto", "metric", "imperial"]
+			"enum": [ "auto", "metric", "imperial" ]
 		},
 		"routeFullWidth": {
 			"type": "boolean",
@@ -64,7 +64,7 @@
 		"routeTerrain": {
 			"type": "string",
 			"default": "auto",
-			"enum": ["auto", "2d", "3d"]
+			"enum": [ "auto", "2d", "3d" ]
 		},
 		"routeShowDirt": {
 			"type": "boolean",
