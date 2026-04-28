@@ -378,6 +378,72 @@ describe('Edit – preview (rendered) mode', () => {
 		expect(srcDoc).toContain('||730');
 	});
 
+	it('reflects the saved embedType in the srcdoc data-embed-type attribute', () => {
+		const { container } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		const srcDoc = getIframe(container).getAttribute('srcdoc') ?? '';
+		expect(srcDoc).toContain('data-embed-type="route"');
+	});
+
+	it('clamps an unknown embedType to "activity" before interpolating into the srcdoc', () => {
+		/*
+		 * block.json declares an enum for embedType, but a hand-edited post
+		 * could persist anything; the iframe is sandboxed so this is defense
+		 * in depth, not the primary boundary.
+		 */
+		const { container } = renderEdit({
+			activityId: '42',
+			embedType: 'bogus' as 'activity',
+		});
+		const srcDoc = getIframe(container).getAttribute('srcdoc') ?? '';
+		expect(srcDoc).toContain('data-embed-type="activity"');
+		expect(srcDoc).not.toContain('data-embed-type="bogus"');
+	});
+
+	it('drops a non-numeric activityId from the srcdoc data-embed-id attribute', () => {
+		const { container } = renderEdit({
+			activityId: '"><script>alert(1)</script>',
+		});
+		const srcDoc = getIframe(container).getAttribute('srcdoc') ?? '';
+		expect(srcDoc).toContain('data-embed-id=""');
+		expect(srcDoc).not.toContain('<script>alert(1)</script>"');
+	});
+
+	it('regenerates the embedId when embedType changes for the same activityId', () => {
+		const setAttributes = jest.fn();
+		const { container, rerender } = render(
+			<Edit
+				attributes={{
+					url: '',
+					activityId: '42',
+					embedType: 'activity',
+					caption: '',
+				}}
+				setAttributes={setAttributes}
+				isSelected={false}
+			/>
+		);
+		const firstId = extractEmbedId(getIframe(container));
+
+		rerender(
+			<Edit
+				attributes={{
+					url: '',
+					activityId: '42',
+					embedType: 'route',
+					caption: '',
+				}}
+				setAttributes={setAttributes}
+				isSelected={false}
+			/>
+		);
+		const secondId = extractEmbedId(getIframe(container));
+
+		expect(secondId).not.toBe(firstId);
+	});
+
 	it('renders the caption RichText only when the block is selected or the caption has content', () => {
 		const unselectedNoCaption = renderEdit({ activityId: '42' });
 		expect(
