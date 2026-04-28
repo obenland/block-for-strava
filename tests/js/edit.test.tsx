@@ -75,9 +75,8 @@ describe('Edit – placeholder (editing) mode', () => {
 		const user = userEvent.setup();
 		renderEdit();
 		await user.click(screen.getByRole('button', { name: 'Embed' }));
-		expect(
-			await screen.findByText('Please enter a URL.')
-		).toBeInTheDocument();
+		const alert = await screen.findByRole('alert');
+		expect(alert).toHaveTextContent('Please enter a URL.');
 		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
@@ -233,6 +232,9 @@ describe('Edit – placeholder (editing) mode', () => {
 		expect(
 			screen.queryByRole('button', { name: 'Embed' })
 		).not.toBeInTheDocument();
+		expect(
+			screen.getByTestId('placeholder').querySelector('form')
+		).toHaveAttribute('aria-busy', 'true');
 
 		await act(async () => {
 			resolve({ activityId: '444', token: '' });

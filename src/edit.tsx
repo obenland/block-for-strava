@@ -229,6 +229,7 @@ export default function Edit({
 						)}
 					>
 						<form
+							aria-busy={isLoading}
 							onSubmit={(e) => {
 								e.preventDefault();
 								void handleSubmit();
@@ -261,7 +262,9 @@ export default function Edit({
 							)}
 						</form>
 						{error && (
-							<p className="block-for-strava__error">{error}</p>
+							<p role="alert" className="block-for-strava__error">
+								{error}
+							</p>
 						)}
 					</Placeholder>
 				</div>
