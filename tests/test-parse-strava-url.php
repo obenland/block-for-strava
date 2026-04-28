@@ -100,17 +100,32 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Tests that a Strava subdomain is accepted.
+	 * Tests that bare strava.com (no subdomain) is accepted.
 	 *
 	 * @covers ::block_for_strava_parse_strava_url
 	 */
-	public function test_subdomain_is_accepted(): void {
+	public function test_bare_strava_host_is_accepted(): void {
 		$this->assertSame(
 			array(
 				'type' => 'activity',
 				'id'   => '42',
 			),
-			block_for_strava_parse_strava_url( 'https://www.strava.com/activities/42' )
+			block_for_strava_parse_strava_url( 'https://strava.com/activities/42' )
+		);
+	}
+
+	/**
+	 * Tests that a non-www Strava subdomain is accepted.
+	 *
+	 * @covers ::block_for_strava_parse_strava_url
+	 */
+	public function test_non_www_subdomain_is_accepted(): void {
+		$this->assertSame(
+			array(
+				'type' => 'activity',
+				'id'   => '42',
+			),
+			block_for_strava_parse_strava_url( 'https://app.strava.com/activities/42' )
 		);
 	}
 

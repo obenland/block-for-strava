@@ -48,9 +48,12 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 		$response = rest_get_server()->dispatch( $request );
 
 		$this->assertSame( 200, $response->get_status() );
-		$this->assertSame( array( 'activityId', 'embedType' ), array_keys( $response->get_data() ) );
-		$this->assertSame( '18233733854', $response->get_data()['activityId'] );
-		$this->assertSame( 'activity', $response->get_data()['embedType'] );
+		$data = $response->get_data();
+		$this->assertCount( 2, $data );
+		$this->assertArrayHasKey( 'activityId', $data );
+		$this->assertArrayHasKey( 'embedType', $data );
+		$this->assertSame( '18233733854', $data['activityId'] );
+		$this->assertSame( 'activity', $data['embedType'] );
 	}
 
 	/**
