@@ -60,7 +60,7 @@ Instead, the editor preview uses a postMessage height-relay:
 
 1. The iframe `srcDoc` includes a tiny script that listens for the embed's internal `BROADCAST_IFRAME_HEIGHT` message and re-broadcasts `{ stravaEmbedId, stravaEmbedHeight }` to the parent window.
 2. The React component listens for those messages, requires `event.source === iframeRef.current?.contentWindow` (defense against frame spoofing), checks the embedId matches, and sets the height — clamped to 100–5000px.
-3. A fresh `embedId` (UUID or `bfs-…` fallback) is generated whenever `activityId` changes, so a stale id from a previous embed cannot be replayed.
+3. A fresh `embedId` (UUID or `bfs-…` fallback) is generated whenever either `activityId` or `embedType` changes, so a stale id from a previous embed cannot be replayed.
 
 The frontend doesn't need any of this — Strava's own `embed.js` replaces the placeholder div with a sized iframe at runtime. The relay is editor-only.
 
