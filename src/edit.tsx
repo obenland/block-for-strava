@@ -370,6 +370,21 @@ export default function Edit({
 	const safeActivityId = /^\d+$/.test( activityId ) ? activityId : '';
 
 	/*
+	 * Clamp persisted enum values once, then feed the same safe values to both
+	 * the sidebar controls and the iframe serialization. Without this, a hand-
+	 * edited post with an invalid enum would render the sidebar with no option
+	 * selected while the preview/front-end silently fell back to a default —
+	 * visually misleading and confusing to fix.
+	 */
+	const safeRouteUnits = clampEnum(routeUnits, ROUTE_UNITS, 'auto');
+	const safeRouteMapStyle = clampEnum(
+		routeMapStyle,
+		ROUTE_MAP_STYLES,
+		'standard'
+	);
+	const safeRouteTerrain = clampEnum(routeTerrain, ROUTE_TERRAINS, 'auto');
+
+	/*
 	 * For routes, expose the user-chosen options as data-* attrs that
 	 * Strava's embed.js spreads onto the inner iframe URL as query params.
 	 * Activities and segments keep the original "standard" style — those
@@ -379,18 +394,10 @@ export default function Edit({
 		safeEmbedType === 'route'
 			? buildRouteDataAttrs({
 					routeShowElevation,
-					routeUnits: clampEnum(routeUnits, ROUTE_UNITS, 'auto'),
+					routeUnits: safeRouteUnits,
 					routeFullWidth,
-					routeMapStyle: clampEnum(
-						routeMapStyle,
-						ROUTE_MAP_STYLES,
-						'standard'
-					),
-					routeTerrain: clampEnum(
-						routeTerrain,
-						ROUTE_TERRAINS,
-						'auto'
-					),
+					routeMapStyle: safeRouteMapStyle,
+					routeTerrain: safeRouteTerrain,
 					routeShowDirt,
 				})
 			: ' data-style="standard"';
@@ -438,7 +445,7 @@ export default function Edit({
 								'Auto picks units based on the viewer’s location.',
 								'block-for-strava'
 							)}
-							selected={routeUnits}
+							selected={safeRouteUnits}
 							options={[
 								{
 									label: __('Auto', 'block-for-strava'),
@@ -489,7 +496,7 @@ export default function Edit({
 						<SelectControl
 							__nextHasNoMarginBottom
 							label={__('Map style', 'block-for-strava')}
-							value={routeMapStyle}
+							value={safeRouteMapStyle}
 							options={[
 								{
 									label: __('Standard', 'block-for-strava'),
@@ -528,7 +535,7 @@ export default function Edit({
 						/>
 						<RadioControl
 							label={__('Terrain', 'block-for-strava')}
-							selected={routeTerrain}
+							selected={safeRouteTerrain}
 							options={[
 								{
 									label: __('Auto', 'block-for-strava'),

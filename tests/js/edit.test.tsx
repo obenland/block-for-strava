@@ -849,6 +849,30 @@ describe('Edit – route options sidebar', () => {
 		);
 		expect(setAttributes).toHaveBeenCalledWith({ routeShowDirt: true });
 	});
+
+	it('shows the clamped fallback in the sidebar when a persisted enum is invalid', () => {
+		/*
+		 * Without sharing the clamp, a hand-edited post with an invalid enum
+		 * would render the sidebar with no option selected even though the
+		 * preview/front-end fell back to a sane default.
+		 */
+		renderEdit({
+			activityId: '42',
+			embedType: 'route',
+			routeUnits: 'furlongs' as RouteUnits,
+			routeMapStyle: 'parchment' as RouteMapStyle,
+			routeTerrain: '4d' as RouteTerrain,
+		});
+		expect(
+			screen.getByRole('radio', { name: 'Units: Auto' })
+		).toBeChecked();
+		expect(
+			screen.getByRole('combobox', { name: 'Map style' })
+		).toHaveValue('standard');
+		expect(
+			screen.getByRole('radio', { name: 'Terrain: Auto' })
+		).toBeChecked();
+	});
 });
 
 describe('Edit – route options srcdoc serialization', () => {
