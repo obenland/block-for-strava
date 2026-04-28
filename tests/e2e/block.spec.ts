@@ -70,6 +70,31 @@ test.describe.serial('Strava Activity block', () => {
 		);
 	});
 
+	test('frontend render: route embed has data-embed-type="route"', async ({
+		page,
+	}) => {
+		const routeId = '3379104463896442748';
+		postId = wp(
+			'post create --post_title="Strava E2E Route" --post_status=publish --porcelain'
+		);
+		wp(
+			`post update ${postId} '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${routeId}","embedType":"route","url":"https://www.strava.com/routes/${routeId}"} /-->'`
+		);
+
+		// Block strava-embeds.com so embed.js can't replace the placeholder.
+		await page.route(/strava-embeds\.com/, (route) => route.abort());
+
+		await page.goto(`/?p=${postId}`);
+
+		const placeholder = page
+			.locator('.wp-block-obenland-strava-activity')
+			.locator('.strava-embed-placeholder');
+		await expect(placeholder).toBeAttached();
+		await expect(placeholder).toHaveAttribute('data-embed-id', routeId);
+		await expect(placeholder).toHaveAttribute('data-embed-type', 'route');
+		await expect(placeholder).toHaveAttribute('data-style', 'standard');
+	});
+
 	test('frontend render: caption is wrapped in figcaption', async ({
 		page,
 	}) => {
