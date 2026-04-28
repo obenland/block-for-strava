@@ -347,6 +347,78 @@ test.describe.serial( 'Strava Activity block', () => {
 		await expect( panelTitle ).toBeVisible();
 	} );
 
+	test( 'editor: route embed loads the live map from strava-embeds.com', async ( {
+		page,
+	} ) => {
+		/*
+		 * Regression guard for the CORS-from-null-origin bug. Earlier
+		 * iterations wrapped the embed in srcdoc + sandbox without
+		 * allow-same-origin; sandbox flags inherited into the nested
+		 * strava-embeds.com iframe and its /map-style/* fetches went out
+		 * as origin "null", which Strava's CORS rejected — so the route
+		 * map silently never rendered. This test deliberately does not
+		 * mock strava-embeds.com so that any future change which breaks
+		 * the actual iframe URL or CORS handshake fails here.
+		 */
+		const routeId = '3379104463896442748';
+		postId = wp(
+			'post create --post_title="Strava E2E Route Live" --post_status=publish --porcelain'
+		);
+		wp(
+			`post update ${ postId } '--post_content=<!-- wp:obenland/strava-activity {"activityId":"${ routeId }","embedType":"route","url":"https://www.strava.com/routes/${ routeId }"} /-->'`
+		);
+
+		// Set up listeners before navigation so we capture the requests.
+		const routePageLoad = page.waitForResponse(
+			( response ) =>
+				response.url().includes( `/route/${ routeId }` ) &&
+				response.request().resourceType() === 'document' &&
+				response.ok(),
+			{ timeout: 30000 }
+		);
+		const mapStyleLoad = page.waitForResponse(
+			( response ) =>
+				response.url().includes( '/map-style/' ) && response.ok(),
+			{ timeout: 30000 }
+		);
+
+		await loginAsAdmin( page );
+		await page.goto( `/wp-admin/post.php?post=${ postId }&action=edit` );
+		await waitForEditor( page );
+
+		const canvas = page
+			.frameLocator( 'iframe[name="editor-canvas"]' )
+			.first();
+		const iframe = canvas.locator(
+			'.wp-block-obenland-strava-activity iframe[title="Strava Activity"]'
+		);
+		await expect( iframe ).toBeVisible();
+
+		// The defensive attributes that keep the embed off wp-admin's origin.
+		const src = await iframe.getAttribute( 'src' );
+		expect( src ).toMatch(
+			new RegExp( `^https://strava-embeds\\.com/route/${ routeId }\\?` )
+		);
+		expect( await iframe.getAttribute( 'sandbox' ) ).toBe(
+			'allow-scripts allow-same-origin allow-popups'
+		);
+		expect( await iframe.getAttribute( 'referrerpolicy' ) ).toBe(
+			'origin'
+		);
+
+		// The top-level Strava page must respond successfully.
+		const routeResponse = await routePageLoad;
+		expect( routeResponse.status() ).toBe( 200 );
+
+		/*
+		 * The map-style fetch is the one that null-origin CORS blocked.
+		 * If this resolves with 200, the route map is actually loading —
+		 * the bug we set out to fix is gone.
+		 */
+		const mapResponse = await mapStyleLoad;
+		expect( mapResponse.status() ).toBe( 200 );
+	} );
+
 	test( 'editor: activity embed does not expose the Route options sidebar', async ( {
 		page,
 	} ) => {
