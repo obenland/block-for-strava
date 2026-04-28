@@ -1,0 +1,61 @@
+name: JS / CSS Lint
+
+on:
+    push:
+        branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/js/**'
+            - 'tests/e2e/**'
+            - 'tsconfig.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/lint-js.yml'
+    pull_request:
+        branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/js/**'
+            - 'tests/e2e/**'
+            - 'tsconfig.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/lint-js.yml'
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    js-lint:
+        name: JS / CSS Lint
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js (.nvmrc)
+              uses: actions/setup-node@v4
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: npm
+
+            - name: npm install
+              run: npm ci
+
+            - name: Build
+              run: npm run build
+
+            - name: TypeScript check
+              run: npm run check-types
+
+            - name: Lint JS
+              run: npm run lint:js
+
+            - name: Lint CSS
+              run: npm run lint:css
