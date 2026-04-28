@@ -1,4 +1,4 @@
-name: JS Unit Tests
+name: JS / CSS Lint
 
 on:
     push:
@@ -6,23 +6,23 @@ on:
         paths:
             - 'src/**'
             - 'tests/js/**'
-            - 'jest-unit.config.js'
+            - 'tests/e2e/**'
             - 'tsconfig.json'
             - 'package.json'
             - 'package-lock.json'
             - '.nvmrc'
-            - '.github/workflows/test-unit-js.yml'
+            - '.github/workflows/lint-js.yml'
     pull_request:
         branches: [trunk]
         paths:
             - 'src/**'
             - 'tests/js/**'
-            - 'jest-unit.config.js'
+            - 'tests/e2e/**'
             - 'tsconfig.json'
             - 'package.json'
             - 'package-lock.json'
             - '.nvmrc'
-            - '.github/workflows/test-unit-js.yml'
+            - '.github/workflows/lint-js.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -32,8 +32,8 @@ permissions:
     contents: read
 
 jobs:
-    js-test:
-        name: 'JS Unit Tests'
+    js-lint:
+        name: JS / CSS Lint
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
@@ -48,5 +48,14 @@ jobs:
             - name: npm install
               run: npm ci
 
-            - name: Run JS unit tests
-              run: npm run test-unit-js
+            - name: Build
+              run: npm run build
+
+            - name: TypeScript check
+              run: npm run check-types
+
+            - name: Lint JS
+              run: npm run lint:js
+
+            - name: Lint CSS
+              run: npm run lint:css

@@ -3,8 +3,34 @@ name: E2E Tests
 on:
     push:
         branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/e2e/**'
+            - 'includes/**'
+            - 'block-for-strava.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'playwright.config.ts'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/test-e2e.yml'
     pull_request:
         branches: [trunk]
+        paths:
+            - 'src/**'
+            - 'tests/e2e/**'
+            - 'includes/**'
+            - 'block-for-strava.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'playwright.config.ts'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/test-e2e.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,8 +56,26 @@ jobs:
             - name: npm install
               run: npm ci
 
-            - name: Install Playwright browsers
+            - name: Get installed Playwright version
+              id: playwright-version
+              run: |
+                  version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
+                  echo "version=$version" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+            - name: Install Playwright browsers and system deps
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
               run: npm run test:e2e:install
+
+            - name: Install Playwright system deps only (cache hit)
+              if: steps.playwright-cache.outputs.cache-hit == 'true'
+              run: npx playwright install-deps chromium
 
             - name: Build plugin
               run: npm run build

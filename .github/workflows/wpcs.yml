@@ -3,8 +3,28 @@ name: Coding Standards
 on:
     push:
         branches: [trunk]
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpcs.xml.dist'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/wpcs.yml'
     pull_request:
         branches: [trunk]
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpcs.xml.dist'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/wpcs.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -31,11 +51,11 @@ jobs:
               id: composer-cache
               with:
                   path: vendor
-                  key: composer-${{ hashFiles('composer.json') }}
+                  key: composer-${{ hashFiles('composer.json', 'composer.lock') }}
 
             - name: Install PHP dependencies
               if: steps.composer-cache.outputs.cache-hit != 'true'
-              run: composer update --prefer-dist --no-progress
+              run: composer install --prefer-dist --no-progress
 
             - name: npm install
               run: npm ci
@@ -45,30 +65,3 @@ jobs:
 
             - name: Run PHPCS
               run: npm run lint:php
-
-    js-lint:
-        name: JS / CSS Lint
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - name: Setup Node.js (.nvmrc)
-              uses: actions/setup-node@v4
-              with:
-                  node-version-file: '.nvmrc'
-                  cache: npm
-
-            - name: npm install
-              run: npm ci
-
-            - name: Build
-              run: npm run build
-
-            - name: TypeScript check
-              run: npm run check-types
-
-            - name: Lint JS
-              run: npm run lint:js
-
-            - name: Lint CSS
-              run: npm run lint:css

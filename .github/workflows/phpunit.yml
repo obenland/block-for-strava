@@ -3,22 +3,28 @@ name: PHPUnit
 on:
     push:
         branches: [trunk]
-        paths-ignore:
-            - '**/*.md'
-            - 'readme.txt'
-            - '.wordpress-org/**'
-            - '.distignore'
-            - '.editorconfig'
-            - '.gitignore'
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpunit.xml'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/phpunit.yml'
     pull_request:
         branches: [trunk]
-        paths-ignore:
-            - '**/*.md'
-            - 'readme.txt'
-            - '.wordpress-org/**'
-            - '.distignore'
-            - '.editorconfig'
-            - '.gitignore'
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpunit.xml'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/phpunit.yml'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -59,11 +65,11 @@ jobs:
               id: composer-cache
               with:
                   path: vendor
-                  key: composer-php${{ matrix.php }}-${{ hashFiles('composer.json') }}
+                  key: composer-php${{ matrix.php }}-${{ hashFiles('composer.json', 'composer.lock') }}
 
             - name: Install PHP dependencies
               if: steps.composer-cache.outputs.cache-hit != 'true'
-              run: composer update --prefer-dist --no-progress
+              run: composer install --prefer-dist --no-progress
 
             - name: npm install
               run: npm ci
