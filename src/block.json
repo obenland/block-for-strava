@@ -25,10 +25,6 @@
 			"type": "string",
 			"default": ""
 		},
-		"token": {
-			"type": "string",
-			"default": ""
-		},
 		"caption": {
 			"type": "string",
 			"default": ""

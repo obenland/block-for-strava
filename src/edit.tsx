@@ -31,7 +31,6 @@ import apiFetch from '@wordpress/api-fetch';
 interface Attributes {
 	url: string;
 	activityId: string;
-	token: string;
 	caption: string;
 }
 
@@ -43,7 +42,6 @@ interface EditProps {
 
 interface ResolveResponse {
 	activityId: string;
-	token?: string;
 }
 
 const DEFAULT_HEIGHT = 730;
@@ -67,15 +65,9 @@ function parseActivityId(url: string): string | null {
 	return match ? match[1] : null;
 }
 
-function parseEmbedCode(
-	input: string
-): { activityId: string; token: string } | null {
+function parseEmbedCode(input: string): string | null {
 	const idMatch = input.match(/data-embed-id="(\d+)"/);
-	if (!idMatch) {
-		return null;
-	}
-	const tokenMatch = input.match(/data-token="([^"]+)"/);
-	return { activityId: idMatch[1], token: tokenMatch ? tokenMatch[1] : '' };
+	return idMatch ? idMatch[1] : null;
 }
 
 function isShortUrl(url: string): boolean {
@@ -87,7 +79,7 @@ export default function Edit({
 	setAttributes,
 	isSelected,
 }: EditProps) {
-	const { activityId, token, caption } = attributes;
+	const { activityId, caption } = attributes;
 	const blockProps = useBlockProps();
 
 	const [inputUrl, setInputUrl] = useState('');
@@ -113,13 +105,15 @@ export default function Edit({
 	);
 
 	/*
-	 * Each iframe gets a unique embedId in its srcDoc, which the relay echoes
-	 * in every postMessage. The React listener only acts on matching ids, so
-	 * multiple Strava blocks on the same page never cross-update each other.
-	 * Listing activityId/token as deps regenerates the id (and remounts the
-	 * iframe) when the underlying activity changes; neither is read inside.
+	 * The embedId must be unguessable so the postMessage handler can verify
+	 * a height update came from this block's own iframe and not another
+	 * frame on the page that happened to learn the id. Listing activityId
+	 * as a dep — even though it isn't read inside the callback — forces a
+	 * fresh random id (and a remount) whenever the activity changes, so a
+	 * stale id from a previous embed can't be replayed against the new one.
 	 */
-	const embedId = useMemo(() => generateEmbedId(), [activityId, token]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	const embedId = useMemo(() => generateEmbedId(), [activityId]);
 
 	/*
 	 * Each new iframe should start at the default height. Without this reset,
@@ -168,13 +162,9 @@ export default function Edit({
 			return;
 		}
 
-		const embedData = parseEmbedCode(trimmed);
-		if (embedData) {
-			setAttributes({
-				url: trimmed,
-				activityId: embedData.activityId,
-				token: embedData.token,
-			});
+		const embedActivityId = parseEmbedCode(trimmed);
+		if (embedActivityId) {
+			setAttributes({ url: trimmed, activityId: embedActivityId });
 			setIsEditing(false);
 			return;
 		}
@@ -189,7 +179,6 @@ export default function Edit({
 				setAttributes({
 					url: trimmed,
 					activityId: response.activityId,
-					token: response.token ?? '',
 				});
 				setIsEditing(false);
 			} catch (err) {
@@ -212,8 +201,7 @@ export default function Edit({
 		);
 	}, [inputUrl, setAttributes]);
 
-	const tokenAttr = token ? ` data-token="${token}"` : '';
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="standard"${tokenAttr}></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="${activityId}" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
 
 	return (
 		<>

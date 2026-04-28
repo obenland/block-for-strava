@@ -23,30 +23,6 @@ function block_for_strava_parse_activity_id( string $url ) {
 }
 
 /**
- * Fetches the embed token for a Strava activity by scraping the activity page.
- *
- * @param  string $activity_id The Strava activity ID.
- * @return string The token, or an empty string if unavailable.
- */
-function block_for_strava_fetch_activity_token( string $activity_id ): string {
-	$response = wp_remote_get(
-		'https://www.strava.com/activities/' . rawurlencode( $activity_id ),
-		array( 'timeout' => 10 )
-	);
-
-	if ( is_wp_error( $response ) ) {
-		return '';
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	if ( preg_match( '/data-token="([^"]+)"/', $body, $matches ) ) {
-		return $matches[1];
-	}
-
-	return '';
-}
-
-/**
  * Resolves a strava.app.link short URL to a canonical strava.com URL
  * by following HTTP redirects one hop at a time.
  *
