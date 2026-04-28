@@ -90,6 +90,21 @@ export default function Edit({
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 
 	/*
+	 * Match core block conventions (image, video, embed): when the caption
+	 * RichText mounts and is still empty, move focus into it so the user can
+	 * start typing immediately. Skip the focus once content exists so we
+	 * don't steal focus on every re-render.
+	 */
+	const captionRef = useCallback(
+		(node: HTMLElement | null) => {
+			if (node && !caption) {
+				node.focus();
+			}
+		},
+		[caption]
+	);
+
+	/*
 	 * The embedId must be unguessable so the postMessage handler can verify
 	 * a height update came from this block's own iframe and not another
 	 * frame on the page that happened to learn the id. Listing activityId
@@ -286,6 +301,11 @@ export default function Edit({
 							identifier="caption"
 							tagName="figcaption"
 							className="wp-element-caption"
+							ref={captionRef}
+							aria-label={__(
+								'Strava activity caption text',
+								'block-for-strava'
+							)}
 							placeholder={__('Add caption', 'block-for-strava')}
 							value={caption}
 							onChange={(value: string) =>

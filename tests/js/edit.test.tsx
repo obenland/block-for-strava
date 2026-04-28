@@ -277,6 +277,28 @@ describe('Edit – preview (rendered) mode', () => {
 		});
 	});
 
+	it('labels the caption RichText for assistive technology', () => {
+		renderEdit({ activityId: '42', isSelected: true });
+		expect(screen.getByTestId('rich-text')).toHaveAttribute(
+			'aria-label',
+			'Strava activity caption text'
+		);
+	});
+
+	it('focuses the empty caption when it appears so the user can type', () => {
+		renderEdit({ activityId: '42', isSelected: true });
+		expect(screen.getByTestId('rich-text')).toHaveFocus();
+	});
+
+	it('does not steal focus when a caption already has content', () => {
+		renderEdit({
+			activityId: '42',
+			isSelected: true,
+			caption: 'Morning ride',
+		});
+		expect(screen.getByTestId('rich-text')).not.toHaveFocus();
+	});
+
 	it('switches back to editing mode when the Replace toolbar button is clicked', async () => {
 		const user = userEvent.setup();
 		const { container } = renderEdit({ activityId: '42' });
