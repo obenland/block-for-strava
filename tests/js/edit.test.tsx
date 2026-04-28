@@ -422,13 +422,7 @@ describe( 'Edit – placeholder (editing) mode', () => {
 
 describe( 'Edit – preview (rendered) mode', () => {
 	it( 'points the iframe directly at strava-embeds.com so it runs on a non-wp-admin origin', () => {
-		/*
-		 * Regression guard for the trust-boundary fix. If the editor ever
-		 * goes back to wrapping the embed in our own srcdoc, the iframe's
-		 * origin would inherit wp-admin's and Strava's embed.js would gain
-		 * cookie/localStorage/parent-DOM access. Pinning the URL origin
-		 * makes that change fail loudly here.
-		 */
+		// Regression guard: srcdoc would inherit wp-admin origin and expose its DOM/storage to Strava.
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'activity',
@@ -460,12 +454,7 @@ describe( 'Edit – preview (rendered) mode', () => {
 	} );
 
 	it( 'clamps an unknown embedType to "activity" before interpolating into the URL', () => {
-		/*
-		 * block.json declares an enum for embedType, but a hand-edited post
-		 * could persist anything. The embedType becomes a path segment on
-		 * strava-embeds.com, so unsafe values would let the post point the
-		 * editor preview at an arbitrary path — clamp is the boundary.
-		 */
+		// embedType becomes a path segment, so clamping is the boundary against arbitrary paths.
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'bogus' as 'activity',

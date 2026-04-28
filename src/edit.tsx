@@ -186,16 +186,7 @@ interface RouteAttrs {
 	routeShowDirt: boolean;
 }
 
-/*
- * Strava's embed.js, used on the published frontend, walks the placeholder
- * div's dataset and turns each `data-foo-bar` into a `?fooBar=…` query param
- * on the iframe URL it opens. Build that URL ourselves for the editor
- * preview so we can point an iframe directly at strava-embeds.com — the
- * frame then runs on Strava's own origin and never gains any wp-admin
- * same-origin powers, no sandbox flags required. Param names match what
- * embed.js produces (camelCase from the dash-case dataset keys), which is
- * what strava-embeds.com expects to read on the other side.
- */
+// Param names mirror what embed.js produces from `data-foo-bar` dataset keys.
 function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
 	const query = new URLSearchParams();
 	if ( ! routeOpts ) {
@@ -221,14 +212,7 @@ function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
 	return query;
 }
 
-/*
- * The hash carries identifiers strava-embeds.com reads for analytics and to
- * route postMessage replies back to the right host. `ns` is our random
- * embedId, used as the prefix in the [ns, event, args] message envelope.
- * hostOrigin/hostPath/hostTitle mirror what embed.js sends. Edit only runs
- * in the browser-side block editor, so window and document are always
- * defined here — no SSR guards needed.
- */
+// `ns` is the prefix in the [ns, event, args] postMessage envelope.
 function buildEmbedHash( ns: string ): URLSearchParams {
 	return new URLSearchParams( {
 		ns,
@@ -316,14 +300,7 @@ export default function Edit( {
 
 	useEffect( () => {
 		const handler = ( event: MessageEvent ) => {
-			/*
-			 * strava-embeds.com posts back as a [ns, eventName, args] tuple
-			 * — the same envelope embed.js handles on the published
-			 * frontend. We accept BROADCAST_IFRAME_HEIGHT and ignore the
-			 * rest. Verifying the source window in addition to the ns
-			 * (which is unguessable but still public over postMessage) keeps
-			 * other frames on the page from spoofing height updates.
-			 */
+			// Verify source window too: ns is public over postMessage.
 			if ( event.source !== iframeRef.current?.contentWindow ) {
 				return;
 			}
@@ -410,14 +387,7 @@ export default function Edit( {
 		);
 	}, [ inputUrl, setAttributes ] );
 
-	/*
-	 * Clamp before interpolating into the iframe URL. block.json declares
-	 * an enum and TypeScript types reinforce it, but a hand-edited post
-	 * could persist anything; the embedType becomes a path segment and
-	 * the activityId becomes the resource id, so unsafe values would let
-	 * a hand-edited post point the editor preview iframe at an arbitrary
-	 * path under strava-embeds.com.
-	 */
+	// Clamp before the values become path segments in the iframe URL.
 	const safeEmbedType: EmbedType =
 		embedType === 'route' || embedType === 'segment'
 			? embedType
@@ -442,11 +412,7 @@ export default function Edit( {
 	const safeRouteFullWidth = clampBool( routeFullWidth, false );
 	const safeRouteShowDirt = clampBool( routeShowDirt, false );
 
-	/*
-	 * Routes expose the user-chosen options as URL query params; activities
-	 * and segments only carry style=standard since those embed types don't
-	 * have these knobs in Strava's share dialog.
-	 */
+	// Activities and segments don't have these knobs in Strava's share dialog.
 	const stravaEmbedUrl = buildStravaEmbedUrl(
 		safeEmbedType,
 		safeActivityId,
@@ -701,19 +667,7 @@ export default function Edit( {
 						<iframe
 							key={ embedId }
 							ref={ iframeRef }
-							/*
-							 * Pointing src directly at strava-embeds.com,
-							 * instead of wrapping a placeholder + the
-							 * embed.js loader in our own srcdoc, keeps the
-							 * iframe on Strava's origin. wp-admin cookies,
-							 * localStorage, and the parent DOM stay out of
-							 * reach of any code in the embed, which also
-							 * means no sandbox attribute is needed — the
-							 * cross-origin boundary already isolates the
-							 * frame. The frontend still uses the official
-							 * embed.js placeholder flow, since published
-							 * posts have no admin context to protect.
-							 */
+							// Direct src → Strava origin → cross-origin isolation, no sandbox needed.
 							src={ stravaEmbedUrl }
 							style={ {
 								width: '100%',
