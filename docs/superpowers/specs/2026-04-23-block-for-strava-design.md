@@ -50,6 +50,20 @@ One small REST endpoint (`block-for-strava/v1/resolve`) handles short URL resolu
 - Inspector panel: Style toggle (Standard / Large), "Replace URL" link
 - Short URL / unresolvable URL: inline error below input
 
+### Editor preview height: postMessage relay vs CSS aspect ratio
+
+Core embed blocks reserve space for an embed using CSS `padding-bottom` percentages and `wp-embed-aspect-{16-9, 4-3, …}` classes (see `packages/block-library/src/embed/util.js#getClassNames`). That works because YouTube/Vimeo/etc have predictable, documented aspect ratios.
+
+Strava embeds don't. An activity with a map, photos, and stats is much taller than a tokenless segment summary; vertical/horizontal layouts vary by content. There is no single ratio that fits, so we **deliberately do not adopt** the core aspect-ratio classes.
+
+Instead, the editor preview uses a postMessage height-relay:
+
+1. The iframe `srcDoc` includes a tiny script that listens for the embed's internal `BROADCAST_IFRAME_HEIGHT` message and re-broadcasts `{ stravaEmbedId, stravaEmbedHeight }` to the parent window.
+2. The React component listens for those messages, requires `event.source === iframeRef.current?.contentWindow` (defense against frame spoofing), checks the embedId matches, and sets the height — clamped to 100–5000px.
+3. A fresh `embedId` (UUID or `bfs-…` fallback) is generated whenever either `activityId` or `embedType` changes, so a stale id from a previous embed cannot be replayed.
+
+The frontend doesn't need any of this — Strava's own `embed.js` replaces the placeholder div with a sized iframe at runtime. The relay is editor-only.
+
 ## PHP Render Callback
 
 ```php

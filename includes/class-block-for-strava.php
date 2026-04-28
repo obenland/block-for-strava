@@ -89,25 +89,30 @@ class Block_For_Strava {
 	public function rest_resolve_url( WP_REST_Request $request ) {
 		$url = $request->get_param( 'url' );
 
-		$activity_id = block_for_strava_parse_activity_id( $url );
+		$parsed = block_for_strava_parse_strava_url( $url );
 
-		if ( false === $activity_id ) {
+		if ( false === $parsed ) {
 			$resolved = block_for_strava_resolve_strava_url( $url );
 			if ( is_wp_error( $resolved ) ) {
 				return $resolved;
 			}
-			$activity_id = block_for_strava_parse_activity_id( $resolved );
+			$parsed = block_for_strava_parse_strava_url( $resolved );
 		}
 
-		if ( false === $activity_id ) {
+		if ( false === $parsed ) {
 			return new WP_Error(
 				'invalid_strava_url',
-				__( 'Could not extract a Strava activity ID from the provided URL.', 'block-for-strava' ),
+				__( 'Could not extract a Strava activity, route, or segment ID from the provided URL.', 'block-for-strava' ),
 				array( 'status' => 400 )
 			);
 		}
 
-		return new WP_REST_Response( array( 'activityId' => $activity_id ) );
+		return new WP_REST_Response(
+			array(
+				'activityId' => $parsed['id'],
+				'embedType'  => $parsed['type'],
+			)
+		);
 	}
 
 	/**
@@ -117,13 +122,22 @@ class Block_For_Strava {
 	 * @return string The rendered HTML.
 	 */
 	public function render_block( array $attributes ): string {
-		$activity_id = sanitize_text_field( $attributes['activityId'] ?? '' );
+		$activity_id    = sanitize_text_field( $attributes['activityId'] ?? '' );
+		$saved_type_raw = sanitize_text_field( $attributes['embedType'] ?? '' );
+		$embed_type     = in_array( $saved_type_raw, array( 'activity', 'route', 'segment' ), true )
+			? $saved_type_raw
+			: 'activity';
+
 		if ( ! $activity_id ) {
 			$url = sanitize_url( $attributes['url'] ?? '' );
 			if ( $url ) {
 				$resolved = block_for_strava_resolve_strava_url( $url );
 				if ( ! is_wp_error( $resolved ) ) {
-					$activity_id = block_for_strava_parse_activity_id( $resolved );
+					$parsed = block_for_strava_parse_strava_url( $resolved );
+					if ( false !== $parsed ) {
+						$activity_id = $parsed['id'];
+						$embed_type  = $parsed['type'];
+					}
 				}
 			}
 		}
@@ -153,8 +167,9 @@ class Block_For_Strava {
 		}
 
 		return sprintf(
-			'<figure %s><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="%s" data-style="standard"></div>%s</figure>',
+			'<figure %s><div class="strava-embed-placeholder" data-embed-type="%s" data-embed-id="%s" data-style="standard"></div>%s</figure>',
 			get_block_wrapper_attributes(),
+			esc_attr( $embed_type ),
 			esc_attr( $activity_id ),
 			$caption_html
 		);

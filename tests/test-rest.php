@@ -48,8 +48,46 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 		$response = rest_get_server()->dispatch( $request );
 
 		$this->assertSame( 200, $response->get_status() );
-		$this->assertSame( array( 'activityId' ), array_keys( $response->get_data() ) );
-		$this->assertSame( '18233733854', $response->get_data()['activityId'] );
+		$data = $response->get_data();
+		$this->assertCount( 2, $data );
+		$this->assertArrayHasKey( 'activityId', $data );
+		$this->assertArrayHasKey( 'embedType', $data );
+		$this->assertSame( '18233733854', $data['activityId'] );
+		$this->assertSame( 'activity', $data['embedType'] );
+	}
+
+	/**
+	 * Tests that a canonical route URL resolves with embedType=route.
+	 *
+	 * @covers Block_For_Strava::rest_resolve_url
+	 */
+	public function test_resolves_route_url(): void {
+		wp_set_current_user( self::$editor_id );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request->set_param( 'url', 'https://www.strava.com/routes/12345' );
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( '12345', $response->get_data()['activityId'] );
+		$this->assertSame( 'route', $response->get_data()['embedType'] );
+	}
+
+	/**
+	 * Tests that a canonical segment URL resolves with embedType=segment.
+	 *
+	 * @covers Block_For_Strava::rest_resolve_url
+	 */
+	public function test_resolves_segment_url(): void {
+		wp_set_current_user( self::$editor_id );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/resolve' );
+		$request->set_param( 'url', 'https://www.strava.com/segments/67890' );
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( '67890', $response->get_data()['activityId'] );
+		$this->assertSame( 'segment', $response->get_data()['embedType'] );
 	}
 
 	/**
@@ -103,6 +141,7 @@ class Test_Rest_Resolve extends WP_Test_REST_TestCase {
 
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( '99999', $response->get_data()['activityId'] );
+		$this->assertSame( 'activity', $response->get_data()['embedType'] );
 	}
 
 	/**
