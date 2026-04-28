@@ -419,7 +419,16 @@ export default function Edit( {
 			  } )
 			: ' data-style="standard"';
 
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${ safeEmbedType }" data-embed-id="${ safeActivityId }"${ routeDataAttrs }></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${ embedId }";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${ DEFAULT_HEIGHT });}});})();</script></body></html>`;
+	/*
+	 * Relay to window.top, not window.parent: the block bundle (and its
+	 * message listener) runs in the top window, but Gutenberg's iframed
+	 * editor inserts an editor-canvas iframe between us and the top
+	 * window. window.parent stops at the editor canvas, so the height
+	 * update never reaches the listener and the preview stays stuck at
+	 * DEFAULT_HEIGHT. window.top works the same in non-iframed editors
+	 * (older WP, certain post types) where parent and top are identical.
+	 */
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${ safeEmbedType }" data-embed-id="${ safeActivityId }"${ routeDataAttrs }></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${ embedId }";function send(h){window.top.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${ DEFAULT_HEIGHT });}});})();</script></body></html>`;
 
 	return (
 		<>

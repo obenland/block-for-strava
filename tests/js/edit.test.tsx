@@ -427,10 +427,15 @@ describe( 'Edit – preview (rendered) mode', () => {
 		 * If these literals drift, Strava's embed.js never sees the relay and
 		 * the editor preview never resizes — but no other unit test would
 		 * notice. The DEFAULT_HEIGHT (730) is the fallback the relay sends
-		 * when the embed reports no explicit height.
+		 * when the embed reports no explicit height. window.top (not
+		 * window.parent) is required so the relay clears Gutenberg's
+		 * editor-canvas iframe and reaches the block bundle's listener,
+		 * which is enqueued on the top window.
 		 */
 		expect( srcDoc ).toContain( 'BROADCAST_IFRAME_HEIGHT' );
 		expect( srcDoc ).toContain( '||730' );
+		expect( srcDoc ).toContain( 'window.top.postMessage' );
+		expect( srcDoc ).not.toContain( 'window.parent.postMessage' );
 	} );
 
 	it( 'reflects the saved embedType in the srcdoc data-embed-type attribute', () => {
