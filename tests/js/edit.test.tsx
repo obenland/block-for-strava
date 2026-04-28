@@ -412,12 +412,20 @@ describe( 'Edit – placeholder (editing) mode', () => {
 } );
 
 describe( 'Edit – preview (rendered) mode', () => {
-	it( 'renders a sandboxed iframe with the embed snippet for the activity', () => {
+	it( 'renders a tightly sandboxed iframe with the embed snippet for the activity', () => {
+		/*
+		 * Activities use a static map and work with the strict sandbox.
+		 * Asserting exactly one flag pins the trust surface: if someone
+		 * adds allow-same-origin to all embeds again (e.g., to silence
+		 * Snowplow CORS noise), this test fails and forces the change to
+		 * be deliberate.
+		 */
 		const { container } = renderEdit( { activityId: '42' } );
 		const iframe = getIframe( container );
-		expect( iframe.getAttribute( 'sandbox' ) ).toBe(
-			'allow-scripts allow-same-origin'
-		);
+		const sandbox = iframe.getAttribute( 'sandbox' ) ?? '';
+		const flags = sandbox.split( /\s+/ ).filter( Boolean );
+		expect( flags ).toContain( 'allow-scripts' );
+		expect( flags ).toHaveLength( 1 );
 		const srcDoc = iframe.getAttribute( 'srcdoc' ) ?? '';
 		expect( srcDoc ).toContain( 'data-embed-id="42"' );
 	} );
@@ -440,6 +448,7 @@ describe( 'Edit – preview (rendered) mode', () => {
 		const flags = sandbox.split( /\s+/ ).filter( Boolean );
 		expect( flags ).toContain( 'allow-scripts' );
 		expect( flags ).toContain( 'allow-same-origin' );
+		expect( flags ).toHaveLength( 2 );
 	} );
 
 	it( 'wires the BROADCAST_IFRAME_HEIGHT relay and default-height fallback into the srcdoc', () => {
@@ -467,9 +476,9 @@ describe( 'Edit – preview (rendered) mode', () => {
 	it( 'clamps an unknown embedType to "activity" before interpolating into the srcdoc', () => {
 		/*
 		 * block.json declares an enum for embedType, but a hand-edited post
-		 * could persist anything; the iframe runs with allow-same-origin
+		 * could persist anything; route embeds run with allow-same-origin
 		 * (the map otherwise won't load), so clamping is the boundary that
-		 * keeps unknown values out of the srcdoc HTML.
+		 * keeps unknown values out of the srcdoc HTML on routes.
 		 */
 		const { container } = renderEdit( {
 			activityId: '42',

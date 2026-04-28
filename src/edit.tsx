@@ -374,9 +374,10 @@ export default function Edit( {
 	/*
 	 * Clamp before interpolating into the iframe HTML. The block.json enum
 	 * and TypeScript types should keep these in shape, but a hand-edited
-	 * post could persist arbitrary values, and the iframe runs with
-	 * allow-same-origin (see sandbox comment below), so this clamping is a
-	 * primary boundary against injecting attribute strings into the srcdoc.
+	 * post could persist arbitrary values, and route embeds run with
+	 * allow-same-origin (see sandbox comment below), so this clamping is
+	 * the primary boundary against injecting attribute strings into the
+	 * srcdoc on routes.
 	 */
 	const safeEmbedType: EmbedType =
 		embedType === 'route' || embedType === 'segment'
@@ -669,18 +670,22 @@ export default function Edit( {
 							} }
 							scrolling="no"
 							/*
-							 * allow-same-origin is required for route embeds:
-							 * sandbox flags inherit into the nested
-							 * strava-embeds.com iframe, and without
-							 * allow-same-origin its requests for map-style
-							 * JSON go out as origin "null", which Strava's
-							 * CORS rejects (Access-Control-Allow-Origin: *
-							 * vs. credentialed fetch). With both flags the
-							 * embed gets its real origin and the map renders.
-							 * The frontend already loads embed.js unsandboxed,
-							 * so the editor isn't a tighter trust boundary.
+							 * Route embeds need allow-same-origin: sandbox
+							 * flags inherit into the nested strava-embeds.com
+							 * iframe, and without it the map-style/* fetches
+							 * go out as origin "null" and Strava's CORS
+							 * rejects them, so the route map never renders.
+							 * Activities and segments use a static map and
+							 * work fine with the tighter sandbox, so we keep
+							 * allow-same-origin gated to routes only — that
+							 * limits Strava's embed.js access to wp-admin
+							 * same-origin storage to the route case alone.
 							 */
-							sandbox="allow-scripts allow-same-origin"
+							sandbox={
+								safeEmbedType === 'route'
+									? 'allow-scripts allow-same-origin'
+									: 'allow-scripts'
+							}
 							title={ __(
 								'Strava Activity',
 								'block-for-strava'
