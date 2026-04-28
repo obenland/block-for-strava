@@ -10,9 +10,9 @@ import transforms from './transforms';
 /* Dynamic block — PHP renders the frontend output. */
 const save = (): null => null;
 
-registerBlockType(metadata.name, {
+registerBlockType( metadata.name, {
 	...metadata,
-	title: __('Strava Activity', 'block-for-strava'),
+	title: __( 'Strava Activity', 'block-for-strava' ),
 	description: __(
 		'Embed a public Strava activity on your site.',
 		'block-for-strava'
@@ -21,4 +21,4 @@ registerBlockType(metadata.name, {
 	edit: Edit,
 	save,
 	transforms,
-});
+} );

@@ -7,18 +7,22 @@ interface PlaceholderProps {
 	children?: ReactNode;
 }
 
-export function Placeholder({
+export function Placeholder( {
 	icon,
 	label,
 	instructions,
 	children,
-}: PlaceholderProps) {
+}: PlaceholderProps ) {
 	return createElement(
 		'div',
 		{ 'data-testid': 'placeholder' },
 		icon,
 		label &&
-			createElement('div', { 'data-testid': 'placeholder-label' }, label),
+			createElement(
+				'div',
+				{ 'data-testid': 'placeholder-label' },
+				label
+			),
 		instructions &&
 			createElement(
 				'div',
@@ -33,13 +37,13 @@ interface TextControlProps {
 	label?: string;
 	hideLabelFromVision?: boolean;
 	value: string;
-	onChange: (value: string) => void;
+	onChange: ( value: string ) => void;
 	placeholder?: string;
 	disabled?: boolean;
 	className?: string;
 }
 
-export function TextControl({
+export function TextControl( {
 	label,
 	hideLabelFromVision,
 	value,
@@ -47,7 +51,7 @@ export function TextControl({
 	placeholder,
 	disabled,
 	className,
-}: TextControlProps) {
+}: TextControlProps ) {
 	const id = 'text-control';
 	return createElement(
 		'div',
@@ -63,16 +67,16 @@ export function TextControl({
 				},
 				label
 			),
-		createElement('input', {
+		createElement( 'input', {
 			id,
 			type: 'text',
 			value,
 			placeholder,
 			disabled,
 			'aria-label': label,
-			onChange: (event: ChangeEvent<HTMLInputElement>) =>
-				onChange(event.target.value),
-		})
+			onChange: ( event: ChangeEvent< HTMLInputElement > ) =>
+				onChange( event.target.value ),
+		} )
 	);
 }
 
@@ -83,28 +87,28 @@ interface ButtonProps {
 	disabled?: boolean;
 }
 
-export function Button({
+export function Button( {
 	children,
 	onClick,
 	type = 'button',
 	disabled,
-}: ButtonProps) {
-	return createElement('button', { type, onClick, disabled }, children);
+}: ButtonProps ) {
+	return createElement( 'button', { type, onClick, disabled }, children );
 }
 
 export function Spinner() {
-	return createElement('span', {
+	return createElement( 'span', {
 		'data-testid': 'spinner',
 		role: 'progressbar',
-	});
+	} );
 }
 
-export function Disabled({ children }: { children?: ReactNode }) {
-	return createElement('div', { 'data-testid': 'disabled' }, children);
+export function Disabled( { children }: { children?: ReactNode } ) {
+	return createElement( 'div', { 'data-testid': 'disabled' }, children );
 }
 
-export function ToolbarGroup({ children }: { children?: ReactNode }) {
-	return createElement('div', { 'data-testid': 'toolbar-group' }, children);
+export function ToolbarGroup( { children }: { children?: ReactNode } ) {
+	return createElement( 'div', { 'data-testid': 'toolbar-group' }, children );
 }
 
 interface ToolbarButtonProps {
@@ -113,7 +117,7 @@ interface ToolbarButtonProps {
 	onClick?: () => void;
 }
 
-export function ToolbarButton({ label, onClick }: ToolbarButtonProps) {
+export function ToolbarButton( { label, onClick }: ToolbarButtonProps ) {
 	return createElement(
 		'button',
 		{ type: 'button', 'aria-label': label, onClick },

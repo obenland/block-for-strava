@@ -39,7 +39,7 @@ interface Attributes {
 
 interface EditProps {
 	attributes: Attributes;
-	setAttributes: (attrs: Partial<Attributes>) => void;
+	setAttributes: ( attrs: Partial< Attributes > ) => void;
 	isSelected: boolean;
 }
 
@@ -48,7 +48,7 @@ interface ResolveResponse {
 	embedType?: EmbedType;
 }
 
-const URL_PATH_TO_TYPE: Record<string, EmbedType> = {
+const URL_PATH_TO_TYPE: Record< string, EmbedType > = {
 	activities: 'activity',
 	routes: 'route',
 	segments: 'segment',
@@ -64,10 +64,12 @@ const MAX_HEIGHT = 5000;
  * component never throws at render time.
  */
 function generateEmbedId(): string {
-	if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+	if ( typeof crypto !== 'undefined' && crypto.randomUUID ) {
 		return crypto.randomUUID();
 	}
-	return `bfs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+	return `bfs-${ Date.now().toString( 36 ) }-${ Math.random()
+		.toString( 36 )
+		.slice( 2 ) }`;
 }
 
 function parseStravaUrl(
@@ -75,64 +77,64 @@ function parseStravaUrl(
 ): { activityId: string; embedType: EmbedType } | null {
 	let parsed: URL;
 	try {
-		parsed = new URL(url);
+		parsed = new URL( url );
 	} catch {
 		return null;
 	}
 
 	const host = parsed.hostname.toLowerCase();
-	if (host !== 'strava.com' && !host.endsWith('.strava.com')) {
+	if ( host !== 'strava.com' && ! host.endsWith( '.strava.com' ) ) {
 		return null;
 	}
 
 	const match = parsed.pathname.match(
 		/^\/(activities|routes|segments)\/(\d+)(?:\/|$)/i
 	);
-	if (!match) {
+	if ( ! match ) {
 		return null;
 	}
 	return {
-		activityId: match[2],
-		embedType: URL_PATH_TO_TYPE[match[1].toLowerCase()],
+		activityId: match[ 2 ],
+		embedType: URL_PATH_TO_TYPE[ match[ 1 ].toLowerCase() ],
 	};
 }
 
 function parseEmbedCode(
 	input: string
 ): { activityId: string; embedType: EmbedType } | null {
-	const idMatch = input.match(/data-embed-id="(\d+)"/);
-	if (!idMatch) {
+	const idMatch = input.match( /data-embed-id="(\d+)"/ );
+	if ( ! idMatch ) {
 		return null;
 	}
 	const typeMatch = input.match(
 		/data-embed-type="(activity|route|segment)"/i
 	);
 	return {
-		activityId: idMatch[1],
+		activityId: idMatch[ 1 ],
 		embedType: typeMatch
-			? (typeMatch[1].toLowerCase() as EmbedType)
+			? ( typeMatch[ 1 ].toLowerCase() as EmbedType )
 			: 'activity',
 	};
 }
 
-function isShortUrl(url: string): boolean {
-	return /strava\.app\.link/i.test(url);
+function isShortUrl( url: string ): boolean {
+	return /strava\.app\.link/i.test( url );
 }
 
-export default function Edit({
+export default function Edit( {
 	attributes,
 	setAttributes,
 	isSelected,
-}: EditProps) {
+}: EditProps ) {
 	const { activityId, embedType, caption } = attributes;
 	const blockProps = useBlockProps();
 
-	const [inputUrl, setInputUrl] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [isEditing, setIsEditing] = useState(!activityId);
-	const [previewHeight, setPreviewHeight] = useState(DEFAULT_HEIGHT);
-	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const [ inputUrl, setInputUrl ] = useState( '' );
+	const [ isLoading, setIsLoading ] = useState( false );
+	const [ error, setError ] = useState< string | null >( null );
+	const [ isEditing, setIsEditing ] = useState( ! activityId );
+	const [ previewHeight, setPreviewHeight ] = useState( DEFAULT_HEIGHT );
+	const iframeRef = useRef< HTMLIFrameElement >( null );
 
 	/*
 	 * Match core block conventions (image, video, embed): when the caption
@@ -141,12 +143,12 @@ export default function Edit({
 	 * don't steal focus on every re-render.
 	 */
 	const captionRef = useCallback(
-		(node: HTMLElement | null) => {
-			if (node && !caption) {
+		( node: HTMLElement | null ) => {
+			if ( node && ! caption ) {
 				node.focus();
 			}
 		},
-		[caption]
+		[ caption ]
 	);
 
 	/*
@@ -159,27 +161,30 @@ export default function Edit({
 	 * against the new one. Both are needed because activityId is unique per
 	 * embed type, not globally — an activity and a route can share an id.
 	 */
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	const embedId = useMemo(() => generateEmbedId(), [activityId, embedType]);
+	const embedId = useMemo(
+		() => generateEmbedId(),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[ activityId, embedType ]
+	);
 
 	/*
 	 * Each new iframe should start at the default height. Without this reset,
 	 * a tall previous embed could leave the height stuck if the relay message
 	 * for the new activity is delayed, blocked, or never arrives.
 	 */
-	useEffect(() => {
-		setPreviewHeight(DEFAULT_HEIGHT);
-	}, [embedId]);
+	useEffect( () => {
+		setPreviewHeight( DEFAULT_HEIGHT );
+	}, [ embedId ] );
 
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
+	useEffect( () => {
+		const handler = ( event: MessageEvent ) => {
 			/*
 			 * Defense in depth: the embedId is a UUID and effectively
 			 * unguessable, but also require the message to originate from
 			 * this block's own iframe so other frames on the page cannot
 			 * spoof height updates even if they obtain the id.
 			 */
-			if (event.source !== iframeRef.current?.contentWindow) {
+			if ( event.source !== iframeRef.current?.contentWindow ) {
 				return;
 			}
 			const data = event.data;
@@ -187,70 +192,72 @@ export default function Edit({
 				data &&
 				typeof data === 'object' &&
 				data.stravaEmbedId === embedId &&
-				Number.isFinite(data.stravaEmbedHeight)
+				Number.isFinite( data.stravaEmbedHeight )
 			) {
 				const next = Math.min(
-					Math.max(data.stravaEmbedHeight, MIN_HEIGHT),
+					Math.max( data.stravaEmbedHeight, MIN_HEIGHT ),
 					MAX_HEIGHT
 				);
-				setPreviewHeight(next);
+				setPreviewHeight( next );
 			}
 		};
-		window.addEventListener('message', handler);
-		return () => window.removeEventListener('message', handler);
-	}, [embedId]);
+		window.addEventListener( 'message', handler );
+		return () => window.removeEventListener( 'message', handler );
+	}, [ embedId ] );
 
-	const handleSubmit = useCallback(async () => {
-		setError(null);
+	const handleSubmit = useCallback( async () => {
+		setError( null );
 		const trimmed = inputUrl.trim();
 
-		if (!trimmed) {
-			setError(__('Please enter a URL.', 'block-for-strava'));
+		if ( ! trimmed ) {
+			setError( __( 'Please enter a URL.', 'block-for-strava' ) );
 			return;
 		}
 
-		const embedData = parseEmbedCode(trimmed);
-		if (embedData) {
-			setAttributes({
+		const embedData = parseEmbedCode( trimmed );
+		if ( embedData ) {
+			setAttributes( {
 				url: trimmed,
 				activityId: embedData.activityId,
 				embedType: embedData.embedType,
-			});
-			setIsEditing(false);
+			} );
+			setIsEditing( false );
 			return;
 		}
 
-		const parsed = parseStravaUrl(trimmed);
-		if (parsed) {
-			setAttributes({
+		const parsed = parseStravaUrl( trimmed );
+		if ( parsed ) {
+			setAttributes( {
 				url: trimmed,
 				activityId: parsed.activityId,
 				embedType: parsed.embedType,
-			});
-			setIsEditing(false);
+			} );
+			setIsEditing( false );
 			return;
 		}
 
-		if (isShortUrl(trimmed)) {
-			setIsLoading(true);
+		if ( isShortUrl( trimmed ) ) {
+			setIsLoading( true );
 			try {
-				const response = await apiFetch<ResolveResponse>({
-					path: `/block-for-strava/v1/resolve?url=${encodeURIComponent(trimmed)}`,
-				});
-				setAttributes({
+				const response = await apiFetch< ResolveResponse >( {
+					path: `/block-for-strava/v1/resolve?url=${ encodeURIComponent(
+						trimmed
+					) }`,
+				} );
+				setAttributes( {
 					url: trimmed,
 					activityId: response.activityId,
 					embedType: response.embedType ?? 'activity',
-				});
-				setIsEditing(false);
-			} catch (err) {
+				} );
+				setIsEditing( false );
+			} catch ( err ) {
 				const message =
 					err instanceof Error
 						? err.message
-						: __('Could not resolve URL.', 'block-for-strava');
-				setError(message);
+						: __( 'Could not resolve URL.', 'block-for-strava' );
+				setError( message );
 			} finally {
-				setIsLoading(false);
+				setIsLoading( false );
 			}
 			return;
 		}
@@ -261,7 +268,7 @@ export default function Edit({
 				'block-for-strava'
 			)
 		);
-	}, [inputUrl, setAttributes]);
+	}, [ inputUrl, setAttributes ] );
 
 	/*
 	 * Clamp before interpolating into the iframe HTML. The block.json enum
@@ -273,60 +280,63 @@ export default function Edit({
 		embedType === 'route' || embedType === 'segment'
 			? embedType
 			: 'activity';
-	const safeActivityId = /^\d+$/.test(activityId) ? activityId : '';
+	const safeActivityId = /^\d+$/.test( activityId ) ? activityId : '';
 
-	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${safeEmbedType}" data-embed-id="${safeActivityId}" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${embedId}";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${DEFAULT_HEIGHT});}});})();</script></body></html>`;
+	const iframeSrcDoc = `<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-type="${ safeEmbedType }" data-embed-id="${ safeActivityId }" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script><script>(function(){var n="${ embedId }";function send(h){window.parent.postMessage({stravaEmbedId:n,stravaEmbedHeight:h},"*");}window.addEventListener("message",function(e){if(Array.isArray(e.data)&&e.data[1]==="BROADCAST_IFRAME_HEIGHT"){send(e.data[2]||${ DEFAULT_HEIGHT });}});})();</script></body></html>`;
 
 	return (
 		<>
-			{!isEditing && (
+			{ ! isEditing && (
 				<BlockControls>
 					<ToolbarGroup>
 						<ToolbarButton
-							icon={pencilIcon}
-							label={__('Replace', 'block-for-strava')}
-							onClick={() => {
-								setInputUrl('');
-								setError(null);
-								setIsEditing(true);
-							}}
+							icon={ pencilIcon }
+							label={ __( 'Replace', 'block-for-strava' ) }
+							onClick={ () => {
+								setInputUrl( '' );
+								setError( null );
+								setIsEditing( true );
+							} }
 						/>
 					</ToolbarGroup>
 				</BlockControls>
-			)}
+			) }
 
-			{isEditing ? (
-				<div {...blockProps}>
+			{ isEditing ? (
+				<div { ...blockProps }>
 					<Placeholder
-						icon={<BlockIcon icon={activityIcon} showColors />}
-						label={__('Strava Activity', 'block-for-strava')}
-						instructions={__(
+						icon={ <BlockIcon icon={ activityIcon } showColors /> }
+						label={ __( 'Strava Activity', 'block-for-strava' ) }
+						instructions={ __(
 							'Paste a Strava activity URL or the embed code from the Strava share dialog.',
 							'block-for-strava'
-						)}
+						) }
 					>
 						<form
-							aria-busy={isLoading}
-							onSubmit={(e) => {
+							aria-busy={ isLoading }
+							onSubmit={ ( e ) => {
 								e.preventDefault();
 								void handleSubmit();
-							}}
+							} }
 						>
 							<TextControl
 								__next40pxDefaultSize
 								__nextHasNoMarginBottom
 								className="block-for-strava__url-input"
-								label={__('Activity URL', 'block-for-strava')}
+								label={ __(
+									'Activity URL',
+									'block-for-strava'
+								) }
 								hideLabelFromVision
-								placeholder={__(
+								placeholder={ __(
 									'https://www.strava.com/activities/…',
 									'block-for-strava'
-								)}
-								value={inputUrl}
-								onChange={setInputUrl}
-								disabled={isLoading}
+								) }
+								value={ inputUrl }
+								onChange={ setInputUrl }
+								disabled={ isLoading }
 							/>
-							{isLoading ? (
+							{ isLoading ? (
 								<Spinner />
 							) : (
 								<Button
@@ -334,30 +344,30 @@ export default function Edit({
 									variant="primary"
 									type="submit"
 								>
-									{__('Embed', 'block-for-strava')}
+									{ __( 'Embed', 'block-for-strava' ) }
 								</Button>
-							)}
+							) }
 						</form>
-						{error && (
+						{ error && (
 							<p role="alert" className="block-for-strava__error">
-								{error}
+								{ error }
 							</p>
-						)}
+						) }
 					</Placeholder>
 				</div>
 			) : (
-				<figure {...blockProps}>
+				<figure { ...blockProps }>
 					<Disabled>
 						<iframe
-							key={embedId}
-							ref={iframeRef}
-							srcDoc={iframeSrcDoc}
-							style={{
+							key={ embedId }
+							ref={ iframeRef }
+							srcDoc={ iframeSrcDoc }
+							style={ {
 								width: '100%',
-								height: `${previewHeight}px`,
+								height: `${ previewHeight }px`,
 								border: 'none',
 								display: 'block',
-							}}
+							} }
 							scrolling="no"
 							/*
 							 * Sandbox isolates Strava's third-party embed.js:
@@ -367,29 +377,35 @@ export default function Edit({
 							 * frames, so the height relay is unaffected.
 							 */
 							sandbox="allow-scripts"
-							title={__('Strava Activity', 'block-for-strava')}
+							title={ __(
+								'Strava Activity',
+								'block-for-strava'
+							) }
 						/>
 					</Disabled>
-					{(isSelected || caption) && (
+					{ ( isSelected || caption ) && (
 						<RichText
 							identifier="caption"
 							tagName="figcaption"
 							className="wp-element-caption"
-							ref={captionRef}
-							aria-label={__(
+							ref={ captionRef }
+							aria-label={ __(
 								'Strava activity caption text',
 								'block-for-strava'
-							)}
-							placeholder={__('Add caption', 'block-for-strava')}
-							value={caption}
-							onChange={(value: string) =>
-								setAttributes({ caption: value })
+							) }
+							placeholder={ __(
+								'Add caption',
+								'block-for-strava'
+							) }
+							value={ caption }
+							onChange={ ( value: string ) =>
+								setAttributes( { caption: value } )
 							}
 							inlineToolbar
 						/>
-					)}
+					) }
 				</figure>
-			)}
+			) }
 		</>
 	);
 }
