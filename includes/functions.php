@@ -55,6 +55,7 @@ function block_for_strava_fetch_activity_token( string $activity_id ): string {
  *
  * @param  string   $url           The URL to validate.
  * @param  string[] $allowed_hosts Hosts whose domain (and subdomains) are permitted.
+ *                                 Entries must be lowercase; comparison is case-sensitive.
  * @return bool     True if the URL is safe to fetch.
  */
 function block_for_strava_is_allowed_strava_url( string $url, array $allowed_hosts ): bool {

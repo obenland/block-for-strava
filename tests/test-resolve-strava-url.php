@@ -122,8 +122,11 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 		};
 
 		add_filter( 'pre_http_request', $callback, 10, 3 );
-		$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
-		remove_filter( 'pre_http_request', $callback, 10 );
+		try {
+			$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
+		} finally {
+			remove_filter( 'pre_http_request', $callback, 10 );
+		}
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'resolution_failed', $result->get_error_code() );
@@ -155,8 +158,11 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 		};
 
 		add_filter( 'pre_http_request', $callback, 10, 3 );
-		$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
-		remove_filter( 'pre_http_request', $callback, 10 );
+		try {
+			$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
+		} finally {
+			remove_filter( 'pre_http_request', $callback, 10 );
+		}
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'resolution_failed', $result->get_error_code() );
@@ -191,8 +197,11 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 		};
 
 		add_filter( 'pre_http_request', $callback, 10, 3 );
-		block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
-		remove_filter( 'pre_http_request', $callback, 10 );
+		try {
+			block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
+		} finally {
+			remove_filter( 'pre_http_request', $callback, 10 );
+		}
 
 		$this->assertIsArray( $captured_args );
 		$this->assertArrayHasKey( 'reject_unsafe_urls', $captured_args );
