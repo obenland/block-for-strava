@@ -422,7 +422,9 @@ describe( 'Edit – placeholder (editing) mode', () => {
 
 describe( 'Edit – preview (rendered) mode', () => {
 	it( 'points the iframe directly at strava-embeds.com so it runs on a non-wp-admin origin', () => {
-		// Regression guard: srcdoc would inherit wp-admin origin and expose its DOM/storage to Strava.
+		// Regression guard: srcdoc with allow-same-origin (or no sandbox) would
+		// run the embed on wp-admin origin and expose its DOM/storage to Strava;
+		// srcdoc + allow-scripts alone reintroduces the original null-origin CORS bug.
 		const { container } = renderEdit( {
 			activityId: '42',
 			embedType: 'activity',

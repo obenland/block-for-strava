@@ -359,7 +359,16 @@ test.describe.serial( 'Strava Activity block', () => {
 		 * map silently never rendered. This test deliberately does not
 		 * mock strava-embeds.com so that any future change which breaks
 		 * the actual iframe URL or CORS handshake fails here.
+		 *
+		 * Opt-in via RUN_LIVE_INTEGRATION=1: hitting Strava's CDN on every
+		 * PR would introduce flakiness from network blips, rate limits, or
+		 * CDN regional variance. Run this in a scheduled job or by hand
+		 * when verifying the embed pipeline end-to-end.
 		 */
+		test.skip(
+			! process.env.RUN_LIVE_INTEGRATION,
+			'Live Strava integration test; opt in with RUN_LIVE_INTEGRATION=1'
+		);
 		const routeId = '3379104463896442748';
 		postId = wp(
 			'post create --post_title="Strava E2E Route Live" --post_status=publish --porcelain'
