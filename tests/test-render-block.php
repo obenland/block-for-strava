@@ -185,6 +185,42 @@ class Test_Render_Block extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Non-boolean values from a hand-edited block comment fall back to the
+	 * block.json defaults. `(bool) "false"` is `true` in PHP — strict-type
+	 * matching avoids silently flipping the user's intent. Mirrors clampBool
+	 * in edit.tsx so editor preview and front-end agree.
+	 *
+	 * @covers Block_For_Strava::render_block
+	 */
+	public function test_non_boolean_values_fall_back_to_defaults(): void {
+		foreach ( array( 'false', 'true', 1, 0, 'maybe', null ) as $value ) {
+			$html = $this->render(
+				array(
+					'routeShowElevation' => $value,
+					'routeFullWidth'     => $value,
+					'routeShowDirt'      => $value,
+				)
+			);
+			$context = sprintf( 'value=%s', var_export( $value, true ) );
+			$this->assertStringNotContainsString(
+				'data-hide-elevation',
+				$html,
+				$context
+			);
+			$this->assertStringNotContainsString(
+				'data-full-width',
+				$html,
+				$context
+			);
+			$this->assertStringNotContainsString(
+				'data-surface-type',
+				$html,
+				$context
+			);
+		}
+	}
+
+	/**
 	 * Bogus enum values from a hand-edited post fall back to safe defaults.
 	 *
 	 * @covers Block_For_Strava::render_block

@@ -873,6 +873,30 @@ describe('Edit – route options sidebar', () => {
 			screen.getByRole('radio', { name: 'Terrain: Auto' })
 		).toBeChecked();
 	});
+
+	it('shows the clamped boolean fallback in the sidebar when a persisted bool is a string', () => {
+		/*
+		 * Hand-edited block comments can persist bools as strings. `if ("false")`
+		 * is truthy in JS, so without strict-type clamping the sidebar would show
+		 * one state while the preview/front-end emitted the wrong attributes.
+		 */
+		renderEdit({
+			activityId: '42',
+			embedType: 'route',
+			routeShowElevation: 'false' as unknown as boolean,
+			routeFullWidth: 'false' as unknown as boolean,
+			routeShowDirt: 'true' as unknown as boolean,
+		});
+		expect(
+			screen.getByRole('switch', { name: 'Show elevation profile' })
+		).toBeChecked();
+		expect(
+			screen.getByRole('radio', { name: 'Embed width: Fixed' })
+		).toBeChecked();
+		expect(
+			screen.getByRole('switch', { name: 'Highlight unpaved surfaces' })
+		).not.toBeChecked();
+	});
 });
 
 describe('Edit – route options srcdoc serialization', () => {
@@ -948,6 +972,22 @@ describe('Edit – route options srcdoc serialization', () => {
 		expect(doc).toContain('data-style="standard"');
 		expect(doc).not.toContain('data-units');
 		expect(doc).not.toContain('data-terrain');
+	});
+
+	it('treats string-valued booleans as the block.json defaults', () => {
+		/*
+		 * `if ("false")` is truthy in JS — without strict-type clamping these
+		 * would silently invert the user's intent. Confirm the iframe uses the
+		 * defaults when bools come through as strings.
+		 */
+		const doc = srcDoc({
+			routeShowElevation: 'false' as unknown as boolean,
+			routeFullWidth: 'true' as unknown as boolean,
+			routeShowDirt: 'true' as unknown as boolean,
+		});
+		expect(doc).not.toContain('data-hide-elevation');
+		expect(doc).not.toContain('data-full-width');
+		expect(doc).not.toContain('data-surface-type');
 	});
 
 	it('keeps data-style="standard" for activity embeds even with route options set', () => {

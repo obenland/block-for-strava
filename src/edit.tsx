@@ -79,6 +79,16 @@ function clampEnum<T extends string>(
 		: fallback;
 }
 
+/*
+ * A hand-edited block comment can persist boolean attributes as strings
+ * ("false" is valid JSON but not a boolean), and `if ("false") {}` is truthy
+ * in JS — the same defense-in-depth pattern as `clampEnum`. Reject anything
+ * that isn't a real boolean and use the block.json default instead.
+ */
+function clampBool(value: unknown, fallback: boolean): boolean {
+	return typeof value === 'boolean' ? value : fallback;
+}
+
 interface EditProps {
 	attributes: Attributes;
 	setAttributes: ( attrs: Partial< Attributes > ) => void;
@@ -370,10 +380,10 @@ export default function Edit({
 	const safeActivityId = /^\d+$/.test( activityId ) ? activityId : '';
 
 	/*
-	 * Clamp persisted enum values once, then feed the same safe values to both
-	 * the sidebar controls and the iframe serialization. Without this, a hand-
-	 * edited post with an invalid enum would render the sidebar with no option
-	 * selected while the preview/front-end silently fell back to a default —
+	 * Clamp persisted attribute values once, then feed the same safe values to
+	 * both the sidebar controls and the iframe serialization. Without this, a
+	 * hand-edited post with an invalid value would render the sidebar in one
+	 * state while the preview/front-end silently fell back to another —
 	 * visually misleading and confusing to fix.
 	 */
 	const safeRouteUnits = clampEnum(routeUnits, ROUTE_UNITS, 'auto');
@@ -383,6 +393,9 @@ export default function Edit({
 		'standard'
 	);
 	const safeRouteTerrain = clampEnum(routeTerrain, ROUTE_TERRAINS, 'auto');
+	const safeRouteShowElevation = clampBool(routeShowElevation, true);
+	const safeRouteFullWidth = clampBool(routeFullWidth, false);
+	const safeRouteShowDirt = clampBool(routeShowDirt, false);
 
 	/*
 	 * For routes, expose the user-chosen options as data-* attrs that
@@ -393,12 +406,12 @@ export default function Edit({
 	const routeDataAttrs =
 		safeEmbedType === 'route'
 			? buildRouteDataAttrs({
-					routeShowElevation,
+					routeShowElevation: safeRouteShowElevation,
 					routeUnits: safeRouteUnits,
-					routeFullWidth,
+					routeFullWidth: safeRouteFullWidth,
 					routeMapStyle: safeRouteMapStyle,
 					routeTerrain: safeRouteTerrain,
-					routeShowDirt,
+					routeShowDirt: safeRouteShowDirt,
 				})
 			: ' data-style="standard"';
 
@@ -434,7 +447,7 @@ export default function Edit({
 								'Show elevation profile',
 								'block-for-strava'
 							)}
-							checked={routeShowElevation}
+							checked={safeRouteShowElevation}
 							onChange={(value: boolean) =>
 								setAttributes({ routeShowElevation: value })
 							}
@@ -476,7 +489,9 @@ export default function Edit({
 								'Responsive embeds expand to fill available space.',
 								'block-for-strava'
 							)}
-							selected={routeFullWidth ? 'responsive' : 'fixed'}
+							selected={
+								safeRouteFullWidth ? 'responsive' : 'fixed'
+							}
 							options={[
 								{
 									label: __('Fixed', 'block-for-strava'),
@@ -566,7 +581,7 @@ export default function Edit({
 								'Highlight unpaved surfaces',
 								'block-for-strava'
 							)}
-							checked={routeShowDirt}
+							checked={safeRouteShowDirt}
 							onChange={(value: boolean) =>
 								setAttributes({ routeShowDirt: value })
 							}

@@ -209,10 +209,9 @@ class Block_For_Strava {
 			$terrain = 'auto';
 		}
 
-		$show_elevation = ! array_key_exists( 'routeShowElevation', $attributes )
-			|| (bool) $attributes['routeShowElevation'];
-		$full_width     = ! empty( $attributes['routeFullWidth'] );
-		$show_dirt      = ! empty( $attributes['routeShowDirt'] );
+		$show_elevation = $this->bool_attr( $attributes, 'routeShowElevation', true );
+		$full_width     = $this->bool_attr( $attributes, 'routeFullWidth', false );
+		$show_dirt      = $this->bool_attr( $attributes, 'routeShowDirt', false );
 
 		$out = sprintf( ' data-style="%s"', esc_attr( $map_style ) );
 		if ( ! $show_elevation ) {
@@ -231,5 +230,23 @@ class Block_For_Strava {
 			$out .= ' data-surface-type="true"';
 		}
 		return $out;
+	}
+
+	/**
+	 * Reads a boolean block attribute, falling back to the default for anything
+	 * that isn't a real boolean. A hand-edited block comment can persist these
+	 * as strings, and `(bool) "false"` is `true` — silently inverting the
+	 * user's intent. Strict-type matching here mirrors `clampBool` in edit.tsx
+	 * so the editor preview and the front-end agree.
+	 *
+	 * @param  array  $attributes  The block attributes.
+	 * @param  string $key         The attribute name to read.
+	 * @param  bool   $default_val The value to return when missing or not a bool.
+	 * @return bool
+	 */
+	private function bool_attr( array $attributes, string $key, bool $default_val ): bool {
+		return isset( $attributes[ $key ] ) && is_bool( $attributes[ $key ] )
+			? $attributes[ $key ]
+			: $default_val;
 	}
 }
