@@ -107,16 +107,7 @@ class Block_For_Strava {
 			);
 		}
 
-		$token = block_for_strava_fetch_activity_token( $activity_id );
-
-		return new WP_REST_Response(
-			array_filter(
-				array(
-					'activityId' => $activity_id,
-					'token'      => $token,
-				)
-			)
-		);
+		return new WP_REST_Response( array( 'activityId' => $activity_id ) );
 	}
 
 	/**
@@ -141,7 +132,6 @@ class Block_For_Strava {
 			return '';
 		}
 
-		$token       = sanitize_text_field( $attributes['token'] ?? '' );
 		$caption_raw = $attributes['caption'] ?? '';
 		$caption     = is_string( $caption_raw ) ? $caption_raw : '';
 
@@ -153,7 +143,6 @@ class Block_For_Strava {
 			true
 		);
 
-		$token_attr   = $token ? ' data-token="' . esc_attr( $token ) . '"' : '';
 		$caption_html = '';
 		$kses_caption = wp_kses_post( $caption );
 		if ( '' !== trim( wp_strip_all_tags( $kses_caption ) ) ) {
@@ -164,10 +153,9 @@ class Block_For_Strava {
 		}
 
 		return sprintf(
-			'<figure %s><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="%s" data-style="standard"%s></div>%s</figure>',
+			'<figure %s><div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="%s" data-style="standard"></div>%s</figure>',
 			get_block_wrapper_attributes(),
 			esc_attr( $activity_id ),
-			$token_attr,
 			$caption_html
 		);
 	}
