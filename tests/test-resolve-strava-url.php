@@ -51,7 +51,7 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 		try {
 			$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
 		} finally {
-			remove_filter( 'pre_http_request', $callback, 10 );
+			remove_filter( 'pre_http_request', $callback );
 		}
 
 		$this->assertSame( 'https://www.strava.com/activities/18233733854', $result );
@@ -66,8 +66,8 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 		$callback = static function () {
 			return new WP_Error( 'http_request_failed', 'Connection refused.' );
 		};
-
 		add_filter( 'pre_http_request', $callback );
+
 		try {
 			$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
 		} finally {
