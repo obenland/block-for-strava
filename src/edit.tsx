@@ -225,16 +225,16 @@ function buildEmbedQuery( routeOpts: RouteAttrs | null ): URLSearchParams {
  * The hash carries identifiers strava-embeds.com reads for analytics and to
  * route postMessage replies back to the right host. `ns` is our random
  * embedId, used as the prefix in the [ns, event, args] message envelope.
- * hostOrigin/hostPath/hostTitle mirror what embed.js sends.
+ * hostOrigin/hostPath/hostTitle mirror what embed.js sends. Edit only runs
+ * in the browser-side block editor, so window and document are always
+ * defined here — no SSR guards needed.
  */
 function buildEmbedHash( ns: string ): URLSearchParams {
 	return new URLSearchParams( {
 		ns,
-		hostOrigin:
-			typeof window !== 'undefined' ? window.location.origin : '',
-		hostPath:
-			typeof window !== 'undefined' ? window.location.pathname : '',
-		hostTitle: typeof document !== 'undefined' ? document.title : '',
+		hostOrigin: window.location.origin,
+		hostPath: window.location.pathname,
+		hostTitle: document.title,
 	} );
 }
 

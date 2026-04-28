@@ -981,9 +981,9 @@ describe( 'Edit – route options URL serialization', () => {
 	} );
 
 	it( 'adds fullWidth only when the embed is set to responsive', () => {
-		expect(
-			query( { routeFullWidth: true } ).get( 'fullWidth' )
-		).toBe( 'true' );
+		expect( query( { routeFullWidth: true } ).get( 'fullWidth' ) ).toBe(
+			'true'
+		);
 	} );
 
 	it( 'reflects the chosen map style in the style param', () => {
@@ -996,18 +996,14 @@ describe( 'Edit – route options URL serialization', () => {
 		expect( query( { routeTerrain: 'auto' } ).has( 'terrain' ) ).toBe(
 			false
 		);
-		expect( query( { routeTerrain: '2d' } ).get( 'terrain' ) ).toBe(
-			'2d'
-		);
-		expect( query( { routeTerrain: '3d' } ).get( 'terrain' ) ).toBe(
-			'3d'
-		);
+		expect( query( { routeTerrain: '2d' } ).get( 'terrain' ) ).toBe( '2d' );
+		expect( query( { routeTerrain: '3d' } ).get( 'terrain' ) ).toBe( '3d' );
 	} );
 
 	it( 'adds surfaceType only when unpaved highlighting is enabled', () => {
-		expect(
-			query( { routeShowDirt: true } ).get( 'surfaceType' )
-		).toBe( 'true' );
+		expect( query( { routeShowDirt: true } ).get( 'surfaceType' ) ).toBe(
+			'true'
+		);
 	} );
 
 	it( 'falls back to style=standard when the persisted route option is bogus', () => {
@@ -1045,8 +1041,7 @@ describe( 'Edit – route options URL serialization', () => {
 			routeFullWidth: true,
 			routeShowDirt: true,
 		} );
-		const params = parseEmbedSrc( getIframe( container ) ).url
-			.searchParams;
+		const params = parseEmbedSrc( getIframe( container ) ).url.searchParams;
 		expect( params.get( 'style' ) ).toBe( 'standard' );
 		expect( params.has( 'fullWidth' ) ).toBe( false );
 		expect( params.has( 'surfaceType' ) ).toBe( false );
