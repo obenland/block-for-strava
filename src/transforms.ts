@@ -6,7 +6,6 @@ import metadata from './block.json';
 interface StravaAttributes {
 	url: string;
 	activityId: string;
-	token: string;
 	caption: string;
 }
 

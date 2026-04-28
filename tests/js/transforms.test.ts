@@ -16,13 +16,11 @@ interface ToTransform {
 	isMatch: (attrs: {
 		url: string;
 		activityId: string;
-		token: string;
 		caption: string;
 	}) => boolean;
 	transform: (attrs: {
 		url: string;
 		activityId: string;
-		token: string;
 		caption: string;
 	}) => unknown;
 }
@@ -108,7 +106,6 @@ describe('transforms.to strava block → paragraph (link fallback)', () => {
 	const baseAttrs = {
 		url: 'https://www.strava.com/activities/789',
 		activityId: '789',
-		token: '',
 		caption: '',
 	};
 
