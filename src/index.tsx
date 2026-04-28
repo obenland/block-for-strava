@@ -5,6 +5,7 @@ import { chartBar as activityIcon } from '@wordpress/icons';
 
 import Edit from './edit';
 import metadata from './block.json';
+import transforms from './transforms';
 
 /* Dynamic block — PHP renders the frontend output. */
 const save = (): null => null;
@@ -19,4 +20,5 @@ registerBlockType(metadata.name, {
 	icon: activityIcon,
 	edit: Edit,
 	save,
+	transforms,
 });
