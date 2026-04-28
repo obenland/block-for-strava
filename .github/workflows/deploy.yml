@@ -5,6 +5,9 @@ on:
         tags:
             - '*'
 
+permissions:
+    contents: read
+
 jobs:
     tag:
         name: New tag
