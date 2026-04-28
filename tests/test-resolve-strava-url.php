@@ -46,8 +46,8 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 			}
 			return $preempt;
 		};
-
 		add_filter( 'pre_http_request', $callback, 10, 3 );
+
 		try {
 			$result = block_for_strava_resolve_strava_url( 'https://strava.app.link/nTuKEiCsA2b' );
 		} finally {
