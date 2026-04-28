@@ -33,10 +33,12 @@ One small REST endpoint (`block-for-strava/v1/resolve`) handles short URL resolu
 ## URL Handling
 
 **Canonical URLs** (`https://www.strava.com/activities/{id}[?...]`):
+
 - Parsed in TypeScript with regex: `/strava\.com\/activities\/(\d+)/`
 - No server round-trip needed
 
 **Short URLs** (`https://strava.app.link/{code}`):
+
 - Editor calls `GET /wp-json/block-for-strava/v1/resolve?url={url}`
 - PHP follows redirects via `wp_remote_head()` (up to 5 hops)
 - Extracts activity ID from final URL using same regex
@@ -102,7 +104,7 @@ function block_for_strava_render_block( array $attributes ): string {
 
 ## File Structure
 
-```
+```text
 block-for-strava/
 ├── .github/workflows/
 │   ├── deploy.yml          # tag → wordpress.org
@@ -153,12 +155,14 @@ block-for-strava/
 ## Tests
 
 **PHPUnit:**
+
 - `parse_strava_activity_id()`: canonical URL with/without query args, short URL returns false, invalid URL returns false
 - `resolve_strava_url()`: mocked `wp_remote_head()` returns redirect to canonical URL → extracts ID
 - Render callback: correct HTML for standard/large styles, empty string for missing activityId
 - REST endpoint: valid URL → 200 + activityId; non-Strava URL → 400; unresolvable → 400
 
 **Playwright e2e:**
+
 - Insert block, paste canonical URL, verify iframe preview appears
 - Change style, verify `data-style` attribute updates
 - Verify frontend render contains `.strava-embed-placeholder` with correct `data-embed-id`

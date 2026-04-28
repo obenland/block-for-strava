@@ -166,12 +166,70 @@ class Block_For_Strava {
 			);
 		}
 
+		$extra_data_attrs = 'route' === $embed_type
+			? $this->build_route_data_attrs( $attributes )
+			: ' data-style="standard"';
+
 		return sprintf(
-			'<figure %s><div class="strava-embed-placeholder" data-embed-type="%s" data-embed-id="%s" data-style="standard"></div>%s</figure>',
+			'<figure %s><div class="strava-embed-placeholder" data-embed-type="%s" data-embed-id="%s"%s></div>%s</figure>',
 			get_block_wrapper_attributes(),
 			esc_attr( $embed_type ),
 			esc_attr( $activity_id ),
+			$extra_data_attrs,
 			$caption_html
 		);
+	}
+
+	/**
+	 * Builds the route-specific data-* attribute string for the placeholder div.
+	 *
+	 * Strava's embed.js spreads these attributes into the inner iframe URL as
+	 * query params, so omitting an attribute lets the embed fall back to its
+	 * own default. Each returned segment is space-prefixed so callers can
+	 * concatenate directly.
+	 *
+	 * @param  array $attributes The block attributes.
+	 * @return string The serialized data-* attribute fragment.
+	 */
+	private function build_route_data_attrs( array $attributes ): string {
+		$map_style = sanitize_text_field( $attributes['routeMapStyle'] ?? '' );
+		if ( ! in_array(
+			$map_style,
+			array( 'standard', 'satellite', 'hybrid', 'dark', 'winter', 'light' ),
+			true
+		) ) {
+			$map_style = 'standard';
+		}
+		$units = sanitize_text_field( $attributes['routeUnits'] ?? '' );
+		if ( ! in_array( $units, array( 'auto', 'metric', 'imperial' ), true ) ) {
+			$units = 'auto';
+		}
+		$terrain = sanitize_text_field( $attributes['routeTerrain'] ?? '' );
+		if ( ! in_array( $terrain, array( 'auto', '2d', '3d' ), true ) ) {
+			$terrain = 'auto';
+		}
+
+		$show_elevation = ! array_key_exists( 'routeShowElevation', $attributes )
+			|| (bool) $attributes['routeShowElevation'];
+		$full_width     = ! empty( $attributes['routeFullWidth'] );
+		$show_dirt      = ! empty( $attributes['routeShowDirt'] );
+
+		$out = sprintf( ' data-style="%s"', esc_attr( $map_style ) );
+		if ( ! $show_elevation ) {
+			$out .= ' data-hide-elevation="true"';
+		}
+		if ( 'auto' !== $units ) {
+			$out .= sprintf( ' data-units="%s"', esc_attr( $units ) );
+		}
+		if ( $full_width ) {
+			$out .= ' data-full-width="true"';
+		}
+		if ( 'auto' !== $terrain ) {
+			$out .= sprintf( ' data-terrain="%s"', esc_attr( $terrain ) );
+		}
+		if ( $show_dirt ) {
+			$out .= ' data-surface-type="true"';
+		}
+		return $out;
 	}
 }

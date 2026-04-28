@@ -30,6 +30,15 @@ function extractEmbedId( iframe: HTMLIFrameElement ): string {
 }
 
 type EmbedType = 'activity' | 'route' | 'segment';
+type RouteUnits = 'auto' | 'metric' | 'imperial';
+type RouteMapStyle =
+	| 'standard'
+	| 'satellite'
+	| 'hybrid'
+	| 'dark'
+	| 'winter'
+	| 'light';
+type RouteTerrain = 'auto' | '2d' | '3d';
 
 interface RenderEditOptions {
 	activityId?: string;
@@ -37,16 +46,32 @@ interface RenderEditOptions {
 	caption?: string;
 	url?: string;
 	isSelected?: boolean;
+	routeShowElevation?: boolean;
+	routeUnits?: RouteUnits;
+	routeFullWidth?: boolean;
+	routeMapStyle?: RouteMapStyle;
+	routeTerrain?: RouteTerrain;
+	routeShowDirt?: boolean;
 }
 
-function renderEdit( options: RenderEditOptions = {} ) {
-	const setAttributes = jest.fn();
-	const attributes = {
+function buildAttributes(options: RenderEditOptions = {}) {
+	return {
 		url: options.url ?? '',
 		activityId: options.activityId ?? '',
 		embedType: options.embedType ?? ( 'activity' as EmbedType ),
 		caption: options.caption ?? '',
+		routeShowElevation: options.routeShowElevation ?? true,
+		routeUnits: options.routeUnits ?? ('auto' as RouteUnits),
+		routeFullWidth: options.routeFullWidth ?? false,
+		routeMapStyle: options.routeMapStyle ?? ('standard' as RouteMapStyle),
+		routeTerrain: options.routeTerrain ?? ('auto' as RouteTerrain),
+		routeShowDirt: options.routeShowDirt ?? false,
 	};
+}
+
+function renderEdit(options: RenderEditOptions = {}) {
+	const setAttributes = jest.fn();
+	const attributes = buildAttributes(options);
 	const utils = render(
 		<Edit
 			attributes={ attributes }
@@ -445,28 +470,24 @@ describe( 'Edit – preview (rendered) mode', () => {
 		const setAttributes = jest.fn();
 		const { container, rerender } = render(
 			<Edit
-				attributes={ {
-					url: '',
+				attributes={buildAttributes({
 					activityId: '42',
 					embedType: 'activity',
-					caption: '',
-				} }
-				setAttributes={ setAttributes }
-				isSelected={ false }
+				})}
+				setAttributes={setAttributes}
+				isSelected={false}
 			/>
 		);
 		const firstId = extractEmbedId( getIframe( container ) );
 
 		rerender(
 			<Edit
-				attributes={ {
-					url: '',
+				attributes={buildAttributes({
 					activityId: '42',
 					embedType: 'route',
-					caption: '',
-				} }
-				setAttributes={ setAttributes }
-				isSelected={ false }
+				})}
+				setAttributes={setAttributes}
+				isSelected={false}
 			/>
 		);
 		const secondId = extractEmbedId( getIframe( container ) );
@@ -650,14 +671,12 @@ describe( 'Edit – preview (rendered) mode', () => {
 			const setAttributes = jest.fn();
 			const { container, rerender } = render(
 				<Edit
-					attributes={ {
-						url: '',
+					attributes={buildAttributes({
 						activityId: '42',
 						embedType: 'activity',
-						caption: '',
-					} }
-					setAttributes={ setAttributes }
-					isSelected={ false }
+					})}
+					setAttributes={setAttributes}
+					isSelected={false}
 				/>
 			);
 			const iframe = getIframe( container );
@@ -671,14 +690,12 @@ describe( 'Edit – preview (rendered) mode', () => {
 
 			rerender(
 				<Edit
-					attributes={ {
-						url: '',
+					attributes={buildAttributes({
 						activityId: '99',
 						embedType: 'activity',
-						caption: '',
-					} }
-					setAttributes={ setAttributes }
-					isSelected={ false }
+					})}
+					setAttributes={setAttributes}
+					isSelected={false}
 				/>
 			);
 
@@ -730,7 +747,198 @@ describe( 'Edit – embedId generation', () => {
 
 		const { container } = renderEdit( { activityId: '42' } );
 		const srcDoc =
-			container.querySelector( 'iframe' )?.getAttribute( 'srcdoc' ) ?? '';
-		expect( srcDoc ).toMatch( /var n="bfs-/ );
-	} );
-} );
+			container.querySelector('iframe')?.getAttribute('srcdoc') ?? '';
+		expect(srcDoc).toMatch(/var n="bfs-/);
+	});
+});
+
+describe('Edit – route options sidebar', () => {
+	it('does not render the Route options panel for activity embeds', () => {
+		renderEdit({ activityId: '42', embedType: 'activity' });
+		expect(
+			screen.queryByTestId('inspector-controls')
+		).not.toBeInTheDocument();
+	});
+
+	it('does not render the Route options panel for segment embeds', () => {
+		renderEdit({ activityId: '42', embedType: 'segment' });
+		expect(
+			screen.queryByTestId('inspector-controls')
+		).not.toBeInTheDocument();
+	});
+
+	it('renders the Route options panel only after a route is embedded', () => {
+		renderEdit({ activityId: '42', embedType: 'route' });
+		expect(screen.getByTestId('inspector-controls')).toBeInTheDocument();
+	});
+
+	it('hides the Route options panel while still in editing mode', () => {
+		renderEdit({ embedType: 'route' });
+		expect(
+			screen.queryByTestId('inspector-controls')
+		).not.toBeInTheDocument();
+	});
+
+	it('toggles routeShowElevation when the elevation switch is clicked', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		await user.click(
+			screen.getByRole('switch', { name: 'Show elevation profile' })
+		);
+		expect(setAttributes).toHaveBeenCalledWith({
+			routeShowElevation: false,
+		});
+	});
+
+	it('updates routeUnits when a metric radio is selected', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		await user.click(screen.getByRole('radio', { name: 'Units: Metric' }));
+		expect(setAttributes).toHaveBeenCalledWith({ routeUnits: 'metric' });
+	});
+
+	it('flips routeFullWidth when the embed-width radio toggles to responsive', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		await user.click(
+			screen.getByRole('radio', { name: 'Embed width: Responsive' })
+		);
+		expect(setAttributes).toHaveBeenCalledWith({ routeFullWidth: true });
+	});
+
+	it('updates routeMapStyle when a new map style is chosen', () => {
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		fireEvent.change(screen.getByRole('combobox', { name: 'Map style' }), {
+			target: { value: 'satellite' },
+		});
+		expect(setAttributes).toHaveBeenCalledWith({
+			routeMapStyle: 'satellite',
+		});
+	});
+
+	it('updates routeTerrain when a new terrain radio is selected', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		await user.click(screen.getByRole('radio', { name: 'Terrain: 3D' }));
+		expect(setAttributes).toHaveBeenCalledWith({ routeTerrain: '3d' });
+	});
+
+	it('toggles routeShowDirt when the unpaved-surfaces switch is clicked', async () => {
+		const user = userEvent.setup();
+		const { setAttributes } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+		});
+		await user.click(
+			screen.getByRole('switch', { name: 'Highlight unpaved surfaces' })
+		);
+		expect(setAttributes).toHaveBeenCalledWith({ routeShowDirt: true });
+	});
+});
+
+describe('Edit – route options srcdoc serialization', () => {
+	function srcDoc(options: RenderEditOptions): string {
+		const { container } = renderEdit({
+			activityId: '42',
+			embedType: 'route',
+			...options,
+		});
+		const doc =
+			container.querySelector('iframe')?.getAttribute('srcdoc') ?? '';
+		// Each test re-renders, but jsdom keeps the previous nodes alive until
+		// teardown — the iframe we want is the one rendered from this call.
+		return doc;
+	}
+
+	it('emits only the chosen map style at defaults (no extra data-* attrs)', () => {
+		const doc = srcDoc({});
+		expect(doc).toContain('data-style="standard"');
+		expect(doc).not.toContain('data-hide-elevation');
+		expect(doc).not.toContain('data-units');
+		expect(doc).not.toContain('data-full-width');
+		expect(doc).not.toContain('data-terrain');
+		expect(doc).not.toContain('data-surface-type');
+	});
+
+	it('adds data-hide-elevation only when the user disables the elevation profile', () => {
+		expect(srcDoc({ routeShowElevation: false })).toContain(
+			'data-hide-elevation="true"'
+		);
+	});
+
+	it('omits data-units when on auto and includes it for metric/imperial', () => {
+		expect(srcDoc({ routeUnits: 'auto' })).not.toContain('data-units');
+		expect(srcDoc({ routeUnits: 'metric' })).toContain(
+			'data-units="metric"'
+		);
+		expect(srcDoc({ routeUnits: 'imperial' })).toContain(
+			'data-units="imperial"'
+		);
+	});
+
+	it('adds data-full-width only when the embed is set to responsive', () => {
+		expect(srcDoc({ routeFullWidth: true })).toContain(
+			'data-full-width="true"'
+		);
+	});
+
+	it('reflects the chosen map style in data-style', () => {
+		expect(srcDoc({ routeMapStyle: 'dark' })).toContain(
+			'data-style="dark"'
+		);
+	});
+
+	it('omits data-terrain on auto and includes it for 2d/3d', () => {
+		expect(srcDoc({ routeTerrain: 'auto' })).not.toContain('data-terrain');
+		expect(srcDoc({ routeTerrain: '2d' })).toContain('data-terrain="2d"');
+		expect(srcDoc({ routeTerrain: '3d' })).toContain('data-terrain="3d"');
+	});
+
+	it('adds data-surface-type only when unpaved highlighting is enabled', () => {
+		expect(srcDoc({ routeShowDirt: true })).toContain(
+			'data-surface-type="true"'
+		);
+	});
+
+	it('falls back to data-style="standard" when the persisted route option is bogus', () => {
+		const doc = srcDoc({
+			routeMapStyle: 'parchment' as RouteMapStyle,
+			routeUnits: 'furlongs' as RouteUnits,
+			routeTerrain: '4d' as RouteTerrain,
+		});
+		expect(doc).toContain('data-style="standard"');
+		expect(doc).not.toContain('data-units');
+		expect(doc).not.toContain('data-terrain');
+	});
+
+	it('keeps data-style="standard" for activity embeds even with route options set', () => {
+		const { container } = renderEdit({
+			activityId: '42',
+			embedType: 'activity',
+			routeMapStyle: 'satellite',
+			routeFullWidth: true,
+			routeShowDirt: true,
+		});
+		const doc =
+			container.querySelector('iframe')?.getAttribute('srcdoc') ?? '';
+		expect(doc).toContain('data-style="standard"');
+		expect(doc).not.toContain('data-style="satellite"');
+		expect(doc).not.toContain('data-full-width');
+		expect(doc).not.toContain('data-surface-type');
+	});
+});
