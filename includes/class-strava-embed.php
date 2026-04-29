@@ -85,7 +85,7 @@ class Block_For_Strava_Embed {
 	 * @return null|string         Strava embed HTML, or null to fall through.
 	 */
 	public static function maybe_strava_embed( $result, $url, $args ) {
-		if ( null !== $result || false === stripos( $url, 'strava' ) ) {
+		if ( null !== $result || ! self::is_strava_host( $url ) ) {
 			return $result;
 		}
 
@@ -132,7 +132,7 @@ class Block_For_Strava_Embed {
 		}
 
 		$url = (string) $request->get_param( 'url' );
-		if ( false === stripos( $url, 'strava' ) ) {
+		if ( ! self::is_strava_host( $url ) ) {
 			return $response;
 		}
 
@@ -302,6 +302,26 @@ class Block_For_Strava_Embed {
 			return false;
 		}
 		return self::build_iframe( $resolved['type'], $resolved['id'] );
+	}
+
+	/**
+	 * Cheap host-based gate so non-Strava URLs short-circuit without a full
+	 * parse/resolve pass.
+	 *
+	 * `stripos( $url, 'strava' )` was tempting but matched any URL with the
+	 * substring anywhere (`https://example.com/?q=strava`). Parsing the host
+	 * is barely more expensive and avoids running the resolver against URLs
+	 * whose origin isn't actually Strava.
+	 *
+	 * @param  string $url Candidate URL.
+	 * @return bool        True when the URL's host is strava.com (or a
+	 *                     subdomain) or strava.app.link.
+	 */
+	private static function is_strava_host( string $url ): bool {
+		return block_for_strava_is_allowed_strava_url(
+			$url,
+			array( 'strava.com', 'strava.app.link' )
+		);
 	}
 
 	/**

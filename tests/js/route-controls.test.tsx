@@ -320,6 +320,21 @@ describe( 'buildEmbedUrl', () => {
 			)
 		).toBe( 'https://strava-embeds.com/route/456' );
 	} );
+
+	it( 'includes default `style=standard` when any other param is set, matching PHP', () => {
+		// Without this, the editor preview URL (`?terrain=3d`) and the
+		// published URL (`?style=standard&terrain=3d`) would differ for
+		// the same saved attributes — minor on Strava's end, but enough
+		// to surface as two distinct cache keys downstream.
+		const url = new URL(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{ stravaRouteTerrain: '3d' }
+			)
+		);
+		expect( url.searchParams.get( 'style' ) ).toBe( 'standard' );
+		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+	} );
 } );
 
 describe( 'StravaRouteInspector controls', () => {

@@ -157,10 +157,17 @@ export function buildEmbedUrl(
 	const fullWidth = clampBool( attrs.stravaRouteFullWidth, false );
 	const showDirt = clampBool( attrs.stravaRouteShowDirt, false );
 
+	/*
+	 * `style` is always set so the URL stays in lockstep with the PHP-side
+	 * `route_params_from_attrs`, then dropped only when it would be the
+	 * sole param at its default. Without this the editor preview would
+	 * render `?terrain=3d` while the published page renders
+	 * `?style=standard&terrain=3d` for the same saved attributes — a
+	 * minor URL-string drift that a CDN cache or analytics pixel can
+	 * surface as two distinct requests.
+	 */
 	const params = new URLSearchParams();
-	if ( 'standard' !== mapStyle ) {
-		params.set( 'style', mapStyle );
-	}
+	params.set( 'style', mapStyle );
 	if ( ! showElevation ) {
 		params.set( 'hideElevation', 'true' );
 	}
@@ -177,8 +184,10 @@ export function buildEmbedUrl(
 		params.set( 'surfaceType', 'true' );
 	}
 
-	const query = params.toString();
-	return query ? `${ base }?${ query }` : base;
+	if ( 1 === params.size && 'standard' === params.get( 'style' ) ) {
+		return base;
+	}
+	return `${ base }?${ params.toString() }`;
 }
 
 addFilter(
