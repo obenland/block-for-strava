@@ -7,9 +7,9 @@ import './route-controls';
 
 /*
  * Subdomain coverage matches the PHP host check in
- * `block_for_strava_parse_strava_url()` — if the JS is stricter than the
- * server, pasted URLs would silently dead-end while the server would
- * happily render them. The `(?=[/?#]|$)` after the digits keeps
+ * `Block_For_Strava_Embed::parse_strava_url()` — if the JS is stricter
+ * than the server, pasted URLs would silently dead-end while the server
+ * would happily render them. The `(?=[/?#]|$)` after the digits keeps
  * `/activities/123abc` from matching as activity 123, mirroring the
  * boundary the PHP handler requires.
  */

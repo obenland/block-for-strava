@@ -22,7 +22,6 @@ defined( 'ABSPATH' ) || exit;
 define( 'BLOCK_FOR_STRAVA_VERSION', '1.0.0' );
 define( 'BLOCK_FOR_STRAVA_DIR', plugin_dir_path( __FILE__ ) );
 
-require_once BLOCK_FOR_STRAVA_DIR . 'includes/functions.php';
 require_once BLOCK_FOR_STRAVA_DIR . 'includes/class-strava-embed.php';
 
 /**

@@ -50,12 +50,12 @@ class Block_For_Strava_Embed {
 		add_filter( 'render_block_core/embed', array( self::class, 'render_strava_embed' ), 10, 2 );
 
 		/*
-		 * Subdomain group matches the host check in
-		 * `block_for_strava_parse_strava_url()` (any `*.strava.com`). The
-		 * trailing `(?:[/?#]|$)` rejects `/activities/123abc` so the digits
-		 * can't greedily match an unrelated path. Pattern uses `~` as the
-		 * delimiter so the `#` inside the character class is unescaped.
-		 * Priority < 10 so we beat any generic handler a theme might add.
+		 * Subdomain group matches the host check in `parse_strava_url()`
+		 * (any `*.strava.com`). The trailing `(?:[/?#]|$)` rejects
+		 * `/activities/123abc` so the digits can't greedily match an
+		 * unrelated path. Pattern uses `~` as the delimiter so the `#`
+		 * inside the character class is unescaped. Priority < 10 so we
+		 * beat any generic handler a theme might add.
 		 */
 		wp_embed_register_handler(
 			'block-for-strava-canonical',
@@ -318,7 +318,7 @@ class Block_For_Strava_Embed {
 	 *                     subdomain) or strava.app.link.
 	 */
 	private static function is_strava_host( string $url ): bool {
-		return block_for_strava_is_allowed_strava_url(
+		return self::is_allowed_strava_url(
 			$url,
 			array( 'strava.com', 'strava.app.link' )
 		);
@@ -328,17 +328,17 @@ class Block_For_Strava_Embed {
 	 * Resolves any supported Strava URL form to a canonical {type, id}.
 	 *
 	 * For strava.app.link short URLs, performs a remote lookup gated by the
-	 * SSRF-safe helper inside `block_for_strava_resolve_strava_url`. The
-	 * lookup result (positive or negative) is memoized in a transient
-	 * because `render_strava_embed` runs on every front-end render of the
-	 * post — without the cache, a saved short-URL embed would trigger up
-	 * to five `wp_safe_remote_head()` requests per page view.
+	 * SSRF-safe helper inside `resolve_strava_url()`. The lookup result
+	 * (positive or negative) is memoized in a transient because
+	 * `render_strava_embed` runs on every front-end render of the post —
+	 * without the cache, a saved short-URL embed would trigger up to five
+	 * `wp_safe_remote_head()` requests per page view.
 	 *
 	 * @param  string $url The URL to resolve.
 	 * @return array|null  ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or null.
 	 */
 	private static function resolve_to_canonical( string $url ): ?array {
-		$parsed = block_for_strava_parse_strava_url( $url );
+		$parsed = self::parse_strava_url( $url );
 		if ( false !== $parsed ) {
 			return $parsed;
 		}
@@ -351,12 +351,12 @@ class Block_For_Strava_Embed {
 			return is_array( $cached ) ? $cached : null;
 		}
 
-		$resolved = block_for_strava_resolve_strava_url( $url );
+		$resolved = self::resolve_strava_url( $url );
 		if ( is_wp_error( $resolved ) ) {
 			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
 			return null;
 		}
-		$parsed = block_for_strava_parse_strava_url( $resolved );
+		$parsed = self::parse_strava_url( $resolved );
 		if ( false === $parsed ) {
 			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
 			return null;
@@ -364,6 +364,133 @@ class Block_For_Strava_Embed {
 
 		set_transient( $cache_key, $parsed, DAY_IN_SECONDS );
 		return $parsed;
+	}
+
+	/**
+	 * Parses the embed type and id from a canonical Strava URL.
+	 *
+	 * Recognizes activities, routes, and segments. The URL path uses plural
+	 * segments ("/activities/123") but Strava's embed.js expects the singular
+	 * type as `data-embed-type` ("activity"), so the returned `type` is
+	 * normalized to the singular form.
+	 *
+	 * @param  string $url The URL to parse.
+	 * @return array|false ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or false.
+	 */
+	public static function parse_strava_url( string $url ) {
+		$parsed = wp_parse_url( $url );
+		if ( ! is_array( $parsed ) || empty( $parsed['host'] ) || empty( $parsed['path'] ) ) {
+			return false;
+		}
+
+		$host = strtolower( $parsed['host'] );
+		if ( 'strava.com' !== $host && ! str_ends_with( $host, '.strava.com' ) ) {
+			return false;
+		}
+
+		if ( preg_match( '#^/(activities|routes|segments)/(\d+)(?:/|$)#i', $parsed['path'], $matches ) ) {
+			$plural_to_singular = array(
+				'activities' => 'activity',
+				'routes'     => 'route',
+				'segments'   => 'segment',
+			);
+			return array(
+				'type' => $plural_to_singular[ strtolower( $matches[1] ) ],
+				'id'   => $matches[2],
+			);
+		}
+		return false;
+	}
+
+	/**
+	 * Determines whether a URL uses http(s) and a host on the supplied allowlist
+	 * (exact match or proper subdomain).
+	 *
+	 * Host comparison is anchored on a leading dot so that hostnames such as
+	 * `evilstrava.app.link` do not satisfy the allowlist via plain suffix matching.
+	 *
+	 * @param  string   $url           The URL to validate.
+	 * @param  string[] $allowed_hosts Hosts whose domain (and subdomains) are permitted.
+	 *                                 Entries must be lowercase; comparison is case-sensitive.
+	 * @return bool     True if the URL is safe to fetch.
+	 */
+	public static function is_allowed_strava_url( string $url, array $allowed_hosts ): bool {
+		$parsed = wp_parse_url( $url );
+		if ( false === $parsed || empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
+			return false;
+		}
+
+		$scheme = strtolower( $parsed['scheme'] );
+		if ( 'http' !== $scheme && 'https' !== $scheme ) {
+			return false;
+		}
+
+		$host = strtolower( $parsed['host'] );
+		foreach ( $allowed_hosts as $allowed ) {
+			if ( $host === $allowed || str_ends_with( $host, '.' . $allowed ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolves a strava.app.link short URL to a canonical strava.com URL
+	 * by following HTTP redirects one hop at a time.
+	 *
+	 * Only http(s) URLs on `strava.app.link` are accepted as input, and redirects
+	 * are only followed when the target host is on `strava.app.link` or
+	 * `strava.com`. Uses `wp_safe_remote_head()` so private/loopback addresses
+	 * are blocked by WordPress's safe-HTTP filters (SSRF defense).
+	 *
+	 * @param  string $url The short URL to resolve.
+	 * @return string|WP_Error The canonical URL, or a WP_Error on failure.
+	 */
+	public static function resolve_strava_url( string $url ) {
+		if ( ! self::is_allowed_strava_url( $url, array( 'strava.app.link' ) ) ) {
+			return new WP_Error(
+				'unsupported_url',
+				__( 'URL is not a supported Strava short URL.', 'block-for-strava' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$redirect_allowlist = array( 'strava.app.link', 'strava.com' );
+		$current            = $url;
+		for ( $i = 0; $i < 5; $i++ ) {
+			$response = wp_safe_remote_head( $current, array( 'redirection' => 0 ) );
+
+			if ( is_wp_error( $response ) ) {
+				return new WP_Error(
+					'request_failed',
+					__( 'Failed to resolve Strava short URL.', 'block-for-strava' ),
+					array( 'status' => 500 )
+				);
+			}
+
+			$code = wp_remote_retrieve_response_code( $response );
+
+			if ( in_array( $code, array( 301, 302, 303, 307, 308 ), true ) ) {
+				$location = wp_remote_retrieve_header( $response, 'location' );
+				if ( empty( $location ) || ! self::is_allowed_strava_url( $location, $redirect_allowlist ) ) {
+					break;
+				}
+				$current = $location;
+				if ( self::parse_strava_url( $current ) ) {
+					return $current;
+				}
+			} elseif ( 200 === $code ) {
+				return $current;
+			} else {
+				break;
+			}
+		}
+
+		return new WP_Error(
+			'resolution_failed',
+			__( 'Could not resolve Strava short URL to an activity.', 'block-for-strava' ),
+			array( 'status' => 500 )
+		);
 	}
 
 	/**
