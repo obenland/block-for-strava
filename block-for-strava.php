@@ -37,9 +37,6 @@ add_action( 'init', 'block_for_strava_init' );
 /**
  * Enqueues the editor-side bundle that registers the `core/embed` variation
  * for Strava and the paragraph→embed transform.
- *
- * No `register_block_type` is needed because the plugin no longer ships a
- * custom block — the variation reuses core/embed's edit/save/render.
  */
 function block_for_strava_enqueue_editor_assets(): void {
 	$asset_file = BLOCK_FOR_STRAVA_DIR . 'build/index.asset.php';
@@ -54,9 +51,7 @@ function block_for_strava_enqueue_editor_assets(): void {
 		$asset['version'],
 		true
 	);
-	// Without this, the `__()` strings inside the bundle never reach
-	// WordPress's translation system and stay in English regardless of
-	// active locale or any registered .json translations.
+
 	wp_set_script_translations( 'block-for-strava-variation', 'block-for-strava' );
 }
 add_action( 'enqueue_block_editor_assets', 'block_for_strava_enqueue_editor_assets' );

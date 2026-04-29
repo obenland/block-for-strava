@@ -1,6 +1,7 @@
 *.log
 .claude/
 .DS_Store
+.phpunit.result.cache
 .playwright-mcp/
 .wp-env.override.json
 build/
