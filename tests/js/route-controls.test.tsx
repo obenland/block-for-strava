@@ -375,6 +375,114 @@ describe( 'BlockEdit HOC', () => {
 		expect( iframe.style.maxWidth ).toBe( '600px' );
 	} );
 
+	it( 'exposes an Edit URL toolbar button on the rendered preview', () => {
+		// Without this, the user has no way back to the URL prompt once a
+		// canonical Strava URL is embedded — our editor.BlockEdit override
+		// replaces core/embed's whole render path (including its EmbedControls
+		// toolbar with the pencil button), so we must surface the affordance
+		// ourselves.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		).toBeInTheDocument();
+	} );
+
+	it( 'switches to a URL placeholder pre-filled with the saved URL when Edit URL is clicked', async () => {
+		// Pre-filling lets the user tweak the existing URL (e.g. swap an
+		// activity ID) instead of retyping from scratch. Hiding the inspector
+		// while editing keeps stale route options out of view — they only
+		// make sense once the new URL is committed.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/routes/456',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		const urlInput = screen.getByRole( 'textbox', {
+			name: /embed url/i,
+		} ) as HTMLInputElement;
+		expect( urlInput.value ).toBe( 'https://www.strava.com/routes/456' );
+		expect(
+			container.querySelector( 'iframe.strava-embed-iframe' )
+		).toBeNull();
+		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
+	} );
+
+	it( 'commits the new URL via setAttributes and exits edit mode on submit', async () => {
+		const setAttributes = jest.fn();
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		const urlInput = screen.getByRole( 'textbox', {
+			name: /embed url/i,
+		} );
+		await userEvent.clear( urlInput );
+		await userEvent.type(
+			urlInput,
+			'https://www.strava.com/activities/999'
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /^embed$/i } )
+		);
+		expect( setAttributes ).toHaveBeenCalledWith( {
+			url: 'https://www.strava.com/activities/999',
+		} );
+	} );
+
+	it( 'restores the iframe when Edit URL is toggled off without saving', async () => {
+		// Re-clicking the toolbar pencil should cancel the edit and leave the
+		// stored URL untouched — otherwise the user has no way to back out of
+		// an accidental click.
+		const setAttributes = jest.fn();
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes,
+			} )
+		);
+		const editButton = screen.getByRole( 'button', { name: /edit url/i } );
+		await userEvent.click( editButton );
+		await userEvent.click( editButton );
+		expect( setAttributes ).not.toHaveBeenCalled();
+		expect(
+			container.querySelector( 'iframe.strava-embed-iframe' )
+		).not.toBeNull();
+	} );
+
 	it( 'falls through to the underlying Edit for short URLs (server-side resolution required)', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
 		render(
