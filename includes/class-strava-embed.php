@@ -94,11 +94,17 @@ class Block_For_Strava_Embed {
 			return null;
 		}
 
+		// `wp_oembed_get` may pass 0 or non-numeric width/height; treat those
+		// as "no preference" so `build_iframe` falls back to its defaults
+		// instead of rendering `width="0"`.
+		$width  = isset( $args['width'] ) ? (int) $args['width'] : 0;
+		$height = isset( $args['height'] ) ? (int) $args['height'] : 0;
+
 		return self::build_iframe(
 			$resolved['type'],
 			$resolved['id'],
-			isset( $args['width'] ) ? (int) $args['width'] : null,
-			isset( $args['height'] ) ? (int) $args['height'] : null
+			$width > 0 ? $width : null,
+			$height > 0 ? $height : null
 		);
 	}
 
