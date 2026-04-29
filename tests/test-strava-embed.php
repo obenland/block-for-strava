@@ -369,6 +369,37 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Hand-edited block comments can persist non-boolean truthy values
+	 * (e.g. the string "false") for boolean attributes; the strict-equals
+	 * gate must reject them so the rendered iframe matches what the editor
+	 * actually displays.
+	 *
+	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 */
+	public function test_render_strava_embed_strict_bool_attrs(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug'     => 'strava',
+				'url'                  => 'https://www.strava.com/routes/456',
+				// Both of these are truthy under `! empty()` but neither is
+				// a real `true` — the URL must come out clean.
+				'stravaRouteFullWidth' => 'false',
+				'stravaRouteShowDirt'  => 1,
+			),
+		);
+
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/route/456"',
+			$result
+		);
+		$this->assertStringNotContainsString( 'fullWidth=', $result );
+		$this->assertStringNotContainsString( 'surfaceType=', $result );
+	}
+
+	/**
 	 * Routes at defaults render a clean URL (no params) — keeps caches and
 	 * the iframe URL stable when nothing has been customized.
 	 *

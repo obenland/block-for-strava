@@ -245,14 +245,18 @@ class Block_For_Strava_Embed {
 		if ( in_array( $units, array( 'metric', 'imperial' ), true ) ) {
 			$params['units'] = $units;
 		}
-		if ( ! empty( $attrs['stravaRouteFullWidth'] ) ) {
+		// Strict `=== true` (rather than `! empty()`) mirrors the editor-
+		// side `clampBool`: a hand-edited block comment storing the string
+		// "false" is truthy in PHP and would otherwise silently flip these
+		// flags on, diverging from what the editor actually shows.
+		if ( isset( $attrs['stravaRouteFullWidth'] ) && true === $attrs['stravaRouteFullWidth'] ) {
 			$params['fullWidth'] = 'true';
 		}
 		$terrain = $attrs['stravaRouteTerrain'] ?? 'auto';
 		if ( in_array( $terrain, array( '2d', '3d' ), true ) ) {
 			$params['terrain'] = $terrain;
 		}
-		if ( ! empty( $attrs['stravaRouteShowDirt'] ) ) {
+		if ( isset( $attrs['stravaRouteShowDirt'] ) && true === $attrs['stravaRouteShowDirt'] ) {
 			$params['surfaceType'] = 'true';
 		}
 
