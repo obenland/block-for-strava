@@ -3,6 +3,7 @@ import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon } from '@wordpress/icons';
 
 import './paragraph-transform';
+import './route-controls';
 
 /*
  * Match canonical Strava activity, route, and segment URLs plus

@@ -317,6 +317,121 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Builds a baseline core/embed-shaped block content string the way the
+	 * production filter receives it: an iframe wrapped in core's figure.
+	 *
+	 * @param  string $src The iframe `src` attribute value.
+	 */
+	private function makeEmbedBlockContent( string $src ): string {
+		return sprintf(
+			'<figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper"><iframe class="strava-embed-iframe" src="%s" width="600" height="730"></iframe></div></figure>',
+			esc_attr( $src )
+		);
+	}
+
+	/**
+	 * Strava URL params land on the iframe `src` when route attrs are set.
+	 *
+	 * @covers Block_For_Strava_Embed::apply_route_params
+	 */
+	public function test_apply_route_params_appends_query_string_for_routes(): void {
+		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/route/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug'         => 'strava',
+				'url'                      => 'https://www.strava.com/routes/456',
+				'stravaRouteMapStyle'      => 'satellite',
+				'stravaRouteUnits'         => 'metric',
+				'stravaRouteFullWidth'     => true,
+				'stravaRouteShowDirt'      => true,
+				'stravaRouteTerrain'       => '3d',
+				'stravaRouteShowElevation' => false,
+			),
+		);
+
+		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+
+		$this->assertSame( 1, preg_match( '~src="([^"]+)"~', $result, $matches ) );
+		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
+		$parts       = wp_parse_url( $decoded_src );
+		$this->assertSame( '/route/456', $parts['path'] );
+		parse_str( $parts['query'] ?? '', $query );
+		$this->assertSame(
+			array(
+				'style'         => 'satellite',
+				'hideElevation' => 'true',
+				'units'         => 'metric',
+				'fullWidth'     => 'true',
+				'terrain'       => '3d',
+				'surfaceType'   => 'true',
+			),
+			$query
+		);
+	}
+
+	/**
+	 * All-defaults must leave the iframe URL untouched — Strava's iframe
+	 * already renders the default styling without explicit params, and a
+	 * stable URL is friendlier to caches/CDNs.
+	 *
+	 * @covers Block_For_Strava_Embed::apply_route_params
+	 */
+	public function test_apply_route_params_no_op_at_defaults(): void {
+		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/route/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug' => 'strava',
+				'url'              => 'https://www.strava.com/routes/456',
+			),
+		);
+
+		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+
+		$this->assertSame( $content, $result );
+	}
+
+	/**
+	 * Activity URLs ignore route attributes — Strava's share dialog only
+	 * exposes these knobs for routes.
+	 *
+	 * @covers Block_For_Strava_Embed::apply_route_params
+	 */
+	public function test_apply_route_params_skips_activities(): void {
+		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/activity/123' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug'     => 'strava',
+				'url'                  => 'https://www.strava.com/activities/123',
+				'stravaRouteMapStyle'  => 'satellite',
+				'stravaRouteFullWidth' => true,
+			),
+		);
+
+		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+
+		$this->assertSame( $content, $result );
+	}
+
+	/**
+	 * Non-Strava embeds (e.g. YouTube) must pass through untouched.
+	 *
+	 * @covers Block_For_Strava_Embed::apply_route_params
+	 */
+	public function test_apply_route_params_skips_non_strava_embeds(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.youtube.com/embed/abc' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug' => 'youtube',
+				'url'              => 'https://www.youtube.com/watch?v=abc',
+			),
+		);
+
+		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+
+		$this->assertSame( $content, $result );
+	}
+
+	/**
 	 * Errors for non-Strava URLs must propagate untouched.
 	 *
 	 * @covers Block_For_Strava_Embed::rest_proxy_fallback

@@ -49,6 +49,7 @@ class Block_For_Strava_Embed {
 	public static function init(): void {
 		add_filter( 'pre_oembed_result', array( self::class, 'maybe_strava_embed' ), 10, 3 );
 		add_filter( 'rest_request_after_callbacks', array( self::class, 'rest_proxy_fallback' ), 10, 3 );
+		add_filter( 'render_block_core/embed', array( self::class, 'apply_route_params' ), 10, 2 );
 
 		/*
 		 * Two regex handlers cover canonical strava.com paths and short links.
@@ -167,6 +168,100 @@ class Block_For_Strava_Embed {
 			return $response;
 		}
 		return $payload;
+	}
+
+	/**
+	 * Appends Strava's route customization params to the iframe URL when a
+	 * core/embed block carries our variation's route attributes.
+	 *
+	 * Block variations can't carry their own attributes; the route options
+	 * live on `core/embed` itself (added via the JS `blocks.registerBlockType`
+	 * filter) and are honored only when `providerNameSlug === 'strava'` and
+	 * the URL targets a route. We post-process the rendered block content
+	 * because the oEmbed pipeline doesn't expose block attributes — by the
+	 * time `wp_oembed_get` runs, all we have is the URL.
+	 *
+	 * @param  string $block_content The original rendered block HTML.
+	 * @param  array  $block         Parsed block (including attrs).
+	 * @return string                Possibly-rewritten HTML.
+	 */
+	public static function apply_route_params( string $block_content, array $block ): string {
+		$attrs = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
+		if ( ( $attrs['providerNameSlug'] ?? '' ) !== 'strava' ) {
+			return $block_content;
+		}
+		$resolved = self::resolve_to_canonical( (string) ( $attrs['url'] ?? '' ) );
+		if ( null === $resolved || 'route' !== $resolved['type'] ) {
+			return $block_content;
+		}
+		$params = self::route_params_from_attrs( $attrs );
+		if ( empty( $params ) ) {
+			return $block_content;
+		}
+
+		$new_src = sprintf(
+			'https://strava-embeds.com/route/%s?%s',
+			rawurlencode( $resolved['id'] ),
+			http_build_query( $params, '', '&', PHP_QUERY_RFC3986 )
+		);
+
+		/*
+		 * Replace the iframe `src` in place rather than re-rendering — that
+		 * preserves whatever wrapper markup core/embed produced (the
+		 * `wp-block-embed`/`is-provider-strava` class set, alignment, etc.).
+		 * Only the first iframe is touched in case a theme wraps the embed
+		 * in additional iframes.
+		 */
+		return preg_replace(
+			'~(<iframe\b[^>]*\bsrc=")[^"]*(")~i',
+			'${1}' . esc_attr( $new_src ) . '${2}',
+			$block_content,
+			1
+		);
+	}
+
+	/**
+	 * Extracts the Strava route URL params from a block's attributes.
+	 *
+	 * Mirrors the convention from PR #22's editor-side `buildEmbedQuery`:
+	 * `style` is always emitted; the rest only when the user has chosen a
+	 * non-default value, so Strava's iframe falls back to its own defaults
+	 * for anything we don't override.
+	 *
+	 * @param  array $attrs Block attributes.
+	 * @return array        Param map suitable for `http_build_query`.
+	 */
+	private static function route_params_from_attrs( array $attrs ): array {
+		$map_style = $attrs['stravaRouteMapStyle'] ?? 'standard';
+		if ( ! in_array( $map_style, array( 'standard', 'satellite', 'hybrid', 'dark', 'winter', 'light' ), true ) ) {
+			$map_style = 'standard';
+		}
+		$params = array( 'style' => $map_style );
+
+		if ( isset( $attrs['stravaRouteShowElevation'] ) && false === $attrs['stravaRouteShowElevation'] ) {
+			$params['hideElevation'] = 'true';
+		}
+		$units = $attrs['stravaRouteUnits'] ?? 'auto';
+		if ( in_array( $units, array( 'metric', 'imperial' ), true ) ) {
+			$params['units'] = $units;
+		}
+		if ( ! empty( $attrs['stravaRouteFullWidth'] ) ) {
+			$params['fullWidth'] = 'true';
+		}
+		$terrain = $attrs['stravaRouteTerrain'] ?? 'auto';
+		if ( in_array( $terrain, array( '2d', '3d' ), true ) ) {
+			$params['terrain'] = $terrain;
+		}
+		if ( ! empty( $attrs['stravaRouteShowDirt'] ) ) {
+			$params['surfaceType'] = 'true';
+		}
+
+		// Drop the always-on `style` if it's the default and nothing else is
+		// set — the default URL has no params, so we leave it that way.
+		if ( count( $params ) === 1 && 'standard' === $params['style'] ) {
+			return array();
+		}
+		return $params;
 	}
 
 	/**

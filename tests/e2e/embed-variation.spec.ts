@@ -128,6 +128,56 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		expect( src ).toBe( 'https://strava-embeds.com/segment/789' );
 	} );
 
+	test( 'frontend: route block_attrs append Strava URL params to the iframe', async ( {
+		page,
+	} ) => {
+		const routeId = '3379104463896442748';
+		const attrs = {
+			providerNameSlug: 'strava',
+			url: `https://www.strava.com/routes/${ routeId }`,
+			responsive: true,
+			stravaRouteMapStyle: 'satellite',
+			stravaRouteUnits: 'metric',
+			stravaRouteFullWidth: true,
+			stravaRouteShowDirt: true,
+			stravaRouteTerrain: '3d',
+			stravaRouteShowElevation: false,
+		};
+		/*
+		 * core/embed is a static block — the editor writes the resolved
+		 * iframe HTML to post_content after the oEmbed proxy returns. Mimic
+		 * that here so `apply_route_params` has the same input it sees in
+		 * production. Without the iframe in the saved content, the front
+		 * end would just show the bare URL as text.
+		 */
+		const savedIframe = `<iframe class="strava-embed-iframe" src="https://strava-embeds.com/route/${ routeId }" width="600" height="730" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="Strava embed"></iframe>`;
+		const blockComment = `<!-- wp:embed ${ JSON.stringify(
+			attrs
+		) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">${ savedIframe }</div></figure><!-- /wp:embed -->`;
+		postId = wp(
+			'post create --post_title="Strava route options" --post_status=publish --porcelain'
+		);
+		wp(
+			`post update ${ postId } --post_content=${ JSON.stringify(
+				blockComment
+			) }`
+		);
+
+		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
+		await page.goto( `/?p=${ postId }` );
+
+		const iframe = page.locator( 'iframe.strava-embed-iframe' ).first();
+		const src = ( await iframe.getAttribute( 'src' ) ) ?? '';
+		const url = new URL( src );
+		expect( url.pathname ).toBe( `/route/${ routeId }` );
+		expect( url.searchParams.get( 'style' ) ).toBe( 'satellite' );
+		expect( url.searchParams.get( 'hideElevation' ) ).toBe( 'true' );
+		expect( url.searchParams.get( 'units' ) ).toBe( 'metric' );
+		expect( url.searchParams.get( 'fullWidth' ) ).toBe( 'true' );
+		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+		expect( url.searchParams.get( 'surfaceType' ) ).toBe( 'true' );
+	} );
+
 	test( 'frontend: iframe carries the defense-in-depth sandbox + referrer-policy attributes', async ( {
 		page,
 	} ) => {
