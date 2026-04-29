@@ -334,6 +334,47 @@ describe( 'BlockEdit HOC', () => {
 		expect( params.get( 'hideElevation' ) ).toBe( 'true' );
 	} );
 
+	it( 'drops the iframe max-width when fullWidth is enabled', () => {
+		// Without this, flipping the Embed width radio updates the iframe
+		// `src` (`?fullWidth=true`) but the outer iframe element stays clamped
+		// at 600px, so the user sees no visible change.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/routes/456',
+					stravaRouteFullWidth: true,
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector(
+			'iframe.strava-embed-iframe'
+		) as HTMLIFrameElement;
+		expect( iframe.style.maxWidth ).toBe( '' );
+		expect( iframe.style.width ).toBe( '100%' );
+	} );
+
+	it( 'keeps the iframe max-width clamp at fullWidth=false (default)', () => {
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/routes/456',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector(
+			'iframe.strava-embed-iframe'
+		) as HTMLIFrameElement;
+		expect( iframe.style.maxWidth ).toBe( '600px' );
+	} );
+
 	it( 'falls through to the underlying Edit for short URLs (server-side resolution required)', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
 		render(

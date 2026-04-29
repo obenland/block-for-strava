@@ -493,12 +493,22 @@ export function StravaCustomEdit(
 		return () => window.removeEventListener( 'message', handler );
 	}, [] );
 
+	/*
+	 * Mirror the frontend `build_iframe` width contract so the editor preview
+	 * actually changes when the Embed width toggle is flipped. With
+	 * fullWidth=false the iframe is capped at 600px (matches Strava's stock
+	 * fixed embed); with fullWidth=true the cap is dropped so the iframe
+	 * fills its container. Without this the iframe always rendered 100% wide
+	 * and the Fixed/Responsive radio looked broken.
+	 */
+	const isRoute = 'route' === props.resolved.type;
+	const fullWidth =
+		isRoute && clampBool( props.attributes.stravaRouteFullWidth, false );
+
 	return createElement(
 		Fragment,
 		null,
-		'route' === props.resolved.type
-			? createElement( StravaRouteInspector, props )
-			: null,
+		isRoute ? createElement( StravaRouteInspector, props ) : null,
 		createElement(
 			'figure',
 			blockProps,
@@ -516,6 +526,7 @@ export function StravaCustomEdit(
 					title: __( 'Strava embed', 'block-for-strava' ),
 					style: {
 						width: '100%',
+						maxWidth: fullWidth ? undefined : '600px',
 						height: `${ height }px`,
 						border: 0,
 						display: 'block',
