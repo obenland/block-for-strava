@@ -254,14 +254,22 @@ class Block_For_Strava_Embed {
 	}
 
 	/**
-	 * Builds the sandboxed iframe HTML that loads Strava's embed.js.
+	 * Builds the iframe HTML that points directly at Strava's embed page.
 	 *
-	 * The iframe srcDoc carries the placeholder div + script so the embed is
-	 * fully self-contained — the surrounding page does not need to enqueue
-	 * Strava scripts, and the sandbox attribute keeps the script away from
-	 * the parent document. The dimensions feed both the iframe's intrinsic
-	 * size and the responsive aspect-ratio that core/embed applies on the
-	 * front-end.
+	 * Earlier iterations wrapped a placeholder div + embed.js in a `data:`
+	 * URL iframe, but a sandboxed srcdoc/data-URL frame inherits its null
+	 * origin into the nested strava-embeds.com iframe that embed.js creates.
+	 * The nested frame's CORS fetches (`/map-style/*` for routes) then go out
+	 * as origin `null` and Strava rejects them, so route maps silently never
+	 * render. Pointing the top-level iframe at strava-embeds.com directly
+	 * gives it the real Strava origin and the map loads.
+	 *
+	 * `allow-scripts allow-same-origin` is what lets Strava's embed page
+	 * read its own resources at strava-embeds.com (it does NOT grant the
+	 * iframe access to the host page — the cross-origin boundary handles
+	 * that). The popup flags keep the "View on Strava" link working as a
+	 * normal tab. `referrerpolicy=origin` stops the host page URL from
+	 * leaking to Strava.
 	 *
 	 * @param  string $embed_type  One of 'activity', 'route', 'segment'.
 	 * @param  string $activity_id Numeric Strava ID.
@@ -280,21 +288,15 @@ class Block_For_Strava_Embed {
 		$render_width  = $width > 0 ? $width : 600;
 		$render_height = $height > 0 ? $height : self::DEFAULT_HEIGHT;
 
-		$inner_doc = sprintf(
-			'<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;}</style></head><body><div class="strava-embed-placeholder" data-embed-id="%s" data-embed-type="%s" data-style="standard"></div><script src="https://strava-embeds.com/embed.js"></script></body></html>', // phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- Inline script lives inside a sandboxed data: URL iframe, not on the host page.
-			esc_attr( $activity_id ),
-			esc_attr( $embed_type )
+		$src = sprintf(
+			'https://strava-embeds.com/%s/%s',
+			rawurlencode( $embed_type ),
+			rawurlencode( $activity_id )
 		);
 
-		/*
-		 * `allow-scripts` is required because Strava's embed.js must run inside
-		 * the iframe; everything else (forms, popups, top navigation, same
-		 * origin) stays blocked so the embed cannot reach into the host page
-		 * even if Strava's CDN is compromised.
-		 */
 		return sprintf(
-			'<iframe class="strava-embed-iframe" src="data:text/html;charset=utf-8;base64,%s" width="%d" height="%d" frameborder="0" scrolling="no" sandbox="allow-scripts" title="%s"></iframe>',
-			esc_attr( base64_encode( $inner_doc ) ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
+			esc_url( $src ),
 			$render_width,
 			$render_height,
 			esc_attr__( 'Strava embed', 'block-for-strava' )

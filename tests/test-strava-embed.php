@@ -18,36 +18,32 @@ declare( strict_types = 1 );
 class Test_Strava_Embed extends WP_UnitTestCase {
 
 	/**
-	 * Asserts the iframe HTML carries the expected Strava placeholder data.
+	 * Asserts the iframe HTML loads the expected Strava embed page directly.
 	 *
-	 * The data: URL is base64 so we decode it and pull the placeholder div
-	 * out of the inner document; locking down the inner shape stops a future
-	 * change from quietly breaking the embed.js handshake.
+	 * The earlier shape wrapped a placeholder div + embed.js inside a data:
+	 * URL, but that imposed a null origin on the nested strava-embeds.com
+	 * iframe and broke route map CORS. Today the iframe `src` points at the
+	 * real share URL so the embed page runs on its actual origin.
 	 *
 	 * @param  string $html        The iframe HTML to inspect.
-	 * @param  string $embed_type  Expected `data-embed-type`.
-	 * @param  string $activity_id Expected `data-embed-id`.
+	 * @param  string $embed_type  Expected URL path segment ('activity' etc.).
+	 * @param  string $activity_id Expected URL ID segment.
 	 */
 	private function assertStravaIframe( string $html, string $embed_type, string $activity_id ): void {
 		$this->assertMatchesRegularExpression( '/^<iframe\s/', $html );
 		$this->assertStringContainsString( 'class="strava-embed-iframe"', $html );
-
-		$this->assertSame( 1, preg_match( '/src="data:text\/html;charset=utf-8;base64,([^"]+)"/', $html, $matches ) );
-		$decoded = base64_decode( $matches[1], true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
-		$this->assertNotFalse( $decoded );
 		$this->assertStringContainsString(
-			sprintf( 'data-embed-id="%s"', $activity_id ),
-			$decoded
+			sprintf( 'src="https://strava-embeds.com/%s/%s"', $embed_type, $activity_id ),
+			$html
 		);
+		// Sandbox + referrer policy are the defense-in-depth line — assert
+		// them so a future tweak can't quietly drop framebust protection or
+		// start leaking the host page URL via Referer.
 		$this->assertStringContainsString(
-			sprintf( 'data-embed-type="%s"', $embed_type ),
-			$decoded
+			'sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"',
+			$html
 		);
-		$this->assertStringContainsString(
-			// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- String literal: this is the expected payload, not a real script tag.
-			'<script src="https://strava-embeds.com/embed.js"></script>',
-			$decoded
-		);
+		$this->assertStringContainsString( 'referrerpolicy="origin"', $html );
 	}
 
 	/**
@@ -235,6 +231,11 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	public function test_rest_proxy_fallback_rewrites_strava_response(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
 		wp_set_current_user( $user_id );
+
+		// Core's get_proxy_item iterates `$wp_scripts->queue` when an embed
+		// handler matches; lazily-init the global so the test doesn't depend
+		// on an earlier test having enqueued anything.
+		wp_scripts();
 
 		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
 		$request->set_param( 'url', 'https://www.strava.com/activities/18233733854' );

@@ -14,7 +14,12 @@ module.exports = {
 			'<rootDir>/tests/js/__mocks__/wordpress-components.tsx',
 	},
 	setupFilesAfterEnv: [ '<rootDir>/tests/js/setup.ts' ],
-	collectCoverageFrom: [ 'src/**/*.{ts,tsx}', '!src/**/*.d.ts' ],
+	collectCoverageFrom: [
+		'src/**/*.{ts,tsx}',
+		'!src/**/*.d.ts',
+		// Pure entry point — re-exports modules whose own tests cover behavior.
+		'!src/index.tsx',
+	],
 	coverageDirectory: '<rootDir>/coverage/js',
 	coverageReporters: [ 'text', 'lcov', 'json-summary' ],
 	coverageThreshold: {

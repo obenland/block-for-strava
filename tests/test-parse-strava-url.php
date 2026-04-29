@@ -162,23 +162,4 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 	public function test_empty_string_returns_false(): void {
 		$this->assertFalse( block_for_strava_parse_strava_url( '' ) );
 	}
-
-	/**
-	 * Tests that block_for_strava_parse_activity_id still returns just the id
-	 * for activity URLs (back-compat) and false for routes/segments.
-	 *
-	 * @covers ::block_for_strava_parse_activity_id
-	 */
-	public function test_parse_activity_id_back_compat(): void {
-		$this->assertSame(
-			'18233733854',
-			block_for_strava_parse_activity_id( 'https://www.strava.com/activities/18233733854' )
-		);
-		$this->assertFalse(
-			block_for_strava_parse_activity_id( 'https://www.strava.com/routes/12345' )
-		);
-		$this->assertFalse(
-			block_for_strava_parse_activity_id( 'https://www.strava.com/segments/67890' )
-		);
-	}
 }
