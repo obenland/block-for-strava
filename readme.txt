@@ -57,7 +57,8 @@ site server makes a `HEAD` request to `strava.app.link` and follows redirects
 only to `strava.app.link` or `strava.com` to resolve the public activity, route,
 or segment URL. Resolved URLs are cached temporarily in WordPress transients.
 
-Service provider: Strava, Inc.
+External service: Strava public embeds, operated by Strava, Inc. This plugin is
+independently developed and is not affiliated with or endorsed by Strava Inc.
 Terms of Service: [Strava Terms of Service](https://www.strava.com/legal/terms)
 Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
 
