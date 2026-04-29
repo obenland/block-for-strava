@@ -30,6 +30,9 @@ import {
 import {
 	Fragment,
 	createElement,
+	useEffect,
+	useRef,
+	useState,
 	type ComponentType,
 } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
@@ -378,13 +381,74 @@ export function StravaRouteInspector( {
 	);
 }
 
+/*
+ * Initial editor-preview height. Strava's embed page broadcasts its actual
+ * rendered height via `BROADCAST_IFRAME_HEIGHT` shortly after load, but we
+ * need *something* to show before that arrives — 730 is roughly the route-
+ * with-elevation case (the tallest of the three). Activities and segments
+ * shrink to ~405 once the broadcast lands; routes settle right around 730.
+ */
+const DEFAULT_PREVIEW_HEIGHT = 730;
+
+/*
+ * Sanity guards on the height we'll accept from a postMessage. Strava's
+ * embeds never broadcast values anywhere near these extremes; the clamp is
+ * defense-in-depth against a measurement glitch (or a hostile iframe peer)
+ * driving the editor preview to 1px or 50000px.
+ */
+const MIN_PREVIEW_HEIGHT = 100;
+const MAX_PREVIEW_HEIGHT = 5000;
+
+/**
+ * Decodes a `BROADCAST_IFRAME_HEIGHT` postMessage from `strava-embeds.com`,
+ * returning the clamped pixel height to apply or `null` if the payload
+ * isn't a recognized height broadcast.
+ *
+ * Strava's embed page posts `[id, 'BROADCAST_IFRAME_HEIGHT', height]` to
+ * its parent window once layout settles. The previous custom-block
+ * implementation listened for this through a srcdoc shim; the variation
+ * embeds strava-embeds.com directly so the editor receives the broadcast
+ * first-hand and we just need to decode it.
+ *
+ * Returning `null` for malformed payloads keeps the caller branch-free —
+ * a height of `0` from a malformed message would otherwise be ambiguous
+ * with "ignore this message."
+ *
+ * @param data Untyped MessageEvent.data value.
+ */
+export function parseStravaHeightMessage( data: unknown ): number | null {
+	if (
+		! Array.isArray( data ) ||
+		'BROADCAST_IFRAME_HEIGHT' !== data[ 1 ] ||
+		'number' !== typeof data[ 2 ] ||
+		! Number.isFinite( data[ 2 ] )
+	) {
+		return null;
+	}
+	return Math.min(
+		Math.max( data[ 2 ], MIN_PREVIEW_HEIGHT ),
+		MAX_PREVIEW_HEIGHT
+	);
+}
+
 /**
  * Renders the Strava embed iframe directly inside the editor canvas, with
  * route options baked into the URL so toggling a control updates the
  * preview live. The figure/wrapper structure mirrors core/embed's `save()`
  * output so the surrounding editor styles, alignment, and selection chrome
  * still apply.
- * @param props
+ *
+ * Two editor-only behaviors layered on top of the bare iframe:
+ * - `pointer-events: none` keeps clicks from sinking into the cross-origin
+ *   strava-embeds.com document; without it, the figure (which holds the
+ *   selection handlers `useBlockProps` returns) never sees the click and
+ *   the user can no longer pick the block after a paste.
+ * - A `BROADCAST_IFRAME_HEIGHT` listener resizes the iframe to whatever
+ *   Strava's embed page reports it actually rendered at; otherwise activity
+ *   and segment previews sit inside a 730px frame with ~325px of empty band
+ *   below the visible content (730 is sized for routes + elevation).
+ *
+ * @param props Block edit props plus the URL-resolved {type, id}.
  */
 export function StravaCustomEdit(
 	props: BlockEditProps & { resolved: ResolvedStravaUrl }
@@ -394,6 +458,41 @@ export function StravaCustomEdit(
 			'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
 	} );
 	const src = buildEmbedUrl( props.resolved, props.attributes );
+
+	const iframeRef = useRef< HTMLIFrameElement | null >( null );
+	const [ height, setHeight ] = useState( DEFAULT_PREVIEW_HEIGHT );
+
+	/*
+	 * Reset to the default whenever the iframe URL changes — toggling
+	 * between two routes (or flipping a route option that re-keys the src)
+	 * would otherwise leave the preview stuck at the prior content's
+	 * height until the new page broadcasts. A momentary 730px is preferable
+	 * to a stale value from the previous embed.
+	 */
+	useEffect( () => {
+		setHeight( DEFAULT_PREVIEW_HEIGHT );
+	}, [ src ] );
+
+	useEffect( () => {
+		const handler = ( event: MessageEvent ) => {
+			/*
+			 * Source-window check rather than origin: a sandboxed iframe's
+			 * effective origin is opaque, and we want the listener to be
+			 * scoped to *this* preview specifically — any other Strava
+			 * embed elsewhere on the page would otherwise drive our height.
+			 */
+			if ( event.source !== iframeRef.current?.contentWindow ) {
+				return;
+			}
+			const next = parseStravaHeightMessage( event.data );
+			if ( null !== next ) {
+				setHeight( next );
+			}
+		};
+		window.addEventListener( 'message', handler );
+		return () => window.removeEventListener( 'message', handler );
+	}, [] );
+
 	return createElement(
 		Fragment,
 		null,
@@ -407,6 +506,7 @@ export function StravaCustomEdit(
 				'div',
 				{ className: 'wp-block-embed__wrapper' },
 				createElement( 'iframe', {
+					ref: iframeRef,
 					className: 'strava-embed-iframe',
 					src,
 					sandbox:
@@ -416,9 +516,10 @@ export function StravaCustomEdit(
 					title: __( 'Strava embed', 'block-for-strava' ),
 					style: {
 						width: '100%',
-						height: '730px',
+						height: `${ height }px`,
 						border: 0,
 						display: 'block',
+						pointerEvents: 'none',
 					},
 				} )
 			)
