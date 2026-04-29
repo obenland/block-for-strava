@@ -24,7 +24,7 @@ require_once "$_tests_dir/includes/functions.php";
  * Manually loads the plugin under test.
  */
 function _manually_load_plugin(): void {
-	require_once dirname( __DIR__ ) . '/block-for-strava.php';
+	require_once dirname( __DIR__, 2 ) . '/block-for-strava.php';
 }
 tests_add_filter( 'muplugins_loaded', '_manually_load_plugin' );
 

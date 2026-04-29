@@ -2,13 +2,13 @@
 <phpunit
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd"
-	bootstrap="tests/bootstrap.php"
+	bootstrap="tests/php/bootstrap.php"
 	backupGlobals="false"
 	colors="true"
 >
 	<testsuites>
 		<testsuite name="Block for Strava">
-			<directory prefix="test-" suffix=".php">./tests</directory>
+			<directory prefix="test-" suffix=".php">./tests/php/tests</directory>
 		</testsuite>
 	</testsuites>
 </phpunit>
