@@ -7,3 +7,5 @@ playwright-report/
 test-results/
 coverage/
 .wp-env.override.json
+.playwright-mcp/
+.claude/
