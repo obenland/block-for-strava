@@ -1,10 +1,11 @@
-node_modules/
-vendor/
-build/
 *.log
+.claude/
 .DS_Store
+.playwright-mcp/
+.wp-env.override.json
+build/
+coverage/
+node_modules/
 playwright-report/
 test-results/
-coverage/
-.wp-env.override.json
-.claude/
+vendor/
