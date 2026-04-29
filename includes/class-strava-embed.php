@@ -3,18 +3,16 @@
  * Strava oEmbed hijack.
  *
  * Strava does not publish an oEmbed endpoint, but the share dialog ships an
- * iframe-friendly placeholder + script. This class makes Strava URLs behave
- * like a first-class embed provider so a pasted URL flows through the
- * standard `core/embed` pipeline (paste detection, preview, caching, render)
- * without requiring our custom block.
+ * iframe-friendly embed page. This class makes Strava URLs behave like a
+ * first-class embed provider so a pasted URL flows through the standard
+ * `core/embed` pipeline (paste detection, preview, caching, render) without
+ * requiring our custom block.
  *
- * The pattern is borrowed from the ActivityPub plugin's `Embed` class:
- * - `pre_oembed_result` short-circuits `wp_oembed_get()` for Strava URLs.
- * - `rest_request_after_callbacks` rewrites the editor's `/oembed/1.0/proxy`
- *   response so the embed block receives valid HTML even though Strava has
- *   no provider.
- * - `wp_embed_register_handler()` covers autoembed inside post_content
- *   (classic editor / shortcode-style URLs).
+ * Three integration points: `pre_oembed_result` short-circuits
+ * `wp_oembed_get()`, `rest_request_after_callbacks` rewrites the editor's
+ * `/oembed/1.0/proxy` response, and `wp_embed_register_handler()` covers
+ * autoembed inside post_content. Pattern is borrowed from the ActivityPub
+ * plugin's `Embed` class.
  *
  * @package BlockForStrava
  */
@@ -24,17 +22,17 @@ declare( strict_types = 1 );
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Hijacks oEmbed lookups for Strava URLs and returns a self-contained iframe
- * that loads Strava's official embed.js inside a sandbox.
+ * Hijacks oEmbed lookups for Strava URLs and returns an iframe pointing at
+ * Strava's embed page.
  */
 class Block_For_Strava_Embed {
 
 	/**
-	 * Allowed embed types (singular, as Strava's embed.js expects).
+	 * Default iframe width in pixels.
 	 *
-	 * @var string[]
+	 * @var int
 	 */
-	private const EMBED_TYPES = array( 'activity', 'route', 'segment' );
+	private const DEFAULT_WIDTH = 600;
 
 	/**
 	 * Default iframe height in pixels.
@@ -52,25 +50,23 @@ class Block_For_Strava_Embed {
 		add_filter( 'render_block_core/embed', array( self::class, 'apply_route_params' ), 10, 2 );
 
 		/*
-		 * Two regex handlers cover canonical strava.com paths and short links.
-		 * Priority < 10 so we beat any generic handler a theme might add.
-		 *
-		 * The canonical regex's subdomain group matches the host check in
-		 * block_for_strava_parse_strava_url() (any `*.strava.com`). The
+		 * Subdomain group matches the host check in
+		 * `block_for_strava_parse_strava_url()` (any `*.strava.com`). The
 		 * trailing `(?:[/?#]|$)` rejects `/activities/123abc` so the digits
 		 * can't greedily match an unrelated path. Pattern uses `~` as the
 		 * delimiter so the `#` inside the character class is unescaped.
+		 * Priority < 10 so we beat any generic handler a theme might add.
 		 */
 		wp_embed_register_handler(
 			'block-for-strava-canonical',
-			'~https?://(?:[a-z0-9-]+\.)*strava\.com/(activities|routes|segments)/(\d+)(?:[/?#]|$)~i',
-			array( self::class, 'embed_handler_canonical' ),
+			'~https?://(?:[a-z0-9-]+\.)*strava\.com/(?:activities|routes|segments)/\d+(?:[/?#]|$)~i',
+			array( self::class, 'embed_handler' ),
 			5
 		);
 		wp_embed_register_handler(
 			'block-for-strava-short',
 			'#https?://strava\.app\.link/[^\s]+#i',
-			array( self::class, 'embed_handler_short' ),
+			array( self::class, 'embed_handler' ),
 			5
 		);
 	}
@@ -89,7 +85,7 @@ class Block_For_Strava_Embed {
 	 * @return null|string         Strava embed HTML, or null to fall through.
 	 */
 	public static function maybe_strava_embed( $result, $url, $args ) {
-		if ( null !== $result ) {
+		if ( null !== $result || false === stripos( $url, 'strava' ) ) {
 			return $result;
 		}
 
@@ -98,11 +94,17 @@ class Block_For_Strava_Embed {
 			return null;
 		}
 
+		// `wp_oembed_get` may pass 0 or non-numeric width/height; treat those
+		// as "no preference" so `build_iframe` falls back to its defaults
+		// instead of rendering `width="0"`.
+		$width  = isset( $args['width'] ) ? (int) $args['width'] : 0;
+		$height = isset( $args['height'] ) ? (int) $args['height'] : 0;
+
 		return self::build_iframe(
 			$resolved['type'],
 			$resolved['id'],
-			isset( $args['width'] ) ? (int) $args['width'] : 0,
-			isset( $args['height'] ) ? (int) $args['height'] : 0
+			$width > 0 ? $width : null,
+			$height > 0 ? $height : null
 		);
 	}
 
@@ -112,13 +114,12 @@ class Block_For_Strava_Embed {
 	 *
 	 * Core's proxy endpoint already falls back to `wp_embed_register_handler`
 	 * callbacks when no oEmbed provider matches — and that's where our
-	 * iframe HTML comes from. But the fallback response is generically
-	 * branded `provider_name: 'Embed Handler'` and lacks a `type`, which the
-	 * embed block surfaces verbatim in its toolbar / preview header. We
-	 * rebrand here so the variation looks like a first-class provider, and
-	 * we synthesize the response from scratch only if our handler somehow
-	 * failed (defense-in-depth — the user's paste flow shouldn't dead-end
-	 * with a 404 because of a registration ordering glitch).
+	 * iframe HTML comes from. The fallback response is generically branded
+	 * `provider_name: 'Embed Handler'` and lacks a `type`, which the embed
+	 * block surfaces verbatim. We rebrand here, and synthesize from scratch
+	 * only if our handler somehow failed (defense-in-depth — the user's
+	 * paste flow shouldn't dead-end with a 404 because of a registration
+	 * ordering glitch).
 	 *
 	 * @param  mixed           $response Callback result (WP_REST_Response, WP_Error, or stdClass).
 	 * @param  array           $handler  Route handler matched.
@@ -130,38 +131,36 @@ class Block_For_Strava_Embed {
 			return $response;
 		}
 
-		$url      = (string) $request->get_param( 'url' );
+		$url = (string) $request->get_param( 'url' );
+		if ( false === stripos( $url, 'strava' ) ) {
+			return $response;
+		}
+
 		$resolved = self::resolve_to_canonical( $url );
 		if ( null === $resolved ) {
 			return $response;
 		}
 
 		/*
-		 * Core's get_proxy_item returns either a WP_Error (no provider, no
-		 * handler) or a stdClass (provider data, or "Embed Handler" payload).
 		 * Only synthesize for oembed-lookup failures — other WP_Errors that
 		 * make it this far (rest_cookie_invalid_nonce, rest_forbidden, etc.)
 		 * must propagate untouched so the editor can react to auth state.
 		 */
 		if ( is_wp_error( $response ) ) {
-			return 'oembed_invalid_url' === $response->get_error_code()
-				? self::synthesize_proxy_response( $resolved['type'], $resolved['id'] )
-				: $response;
+			if ( 'oembed_invalid_url' === $response->get_error_code() ) {
+				return self::build_payload( $resolved['type'], $resolved['id'] );
+			}
+			return $response;
 		}
 
-		$payload = $response instanceof WP_REST_Response
-			? $response->get_data()
-			: ( is_object( $response ) ? $response : null );
-
+		$payload = $response instanceof WP_REST_Response ? $response->get_data() : $response;
 		if ( ! is_object( $payload ) || empty( $payload->html ) ) {
-			return self::synthesize_proxy_response( $resolved['type'], $resolved['id'] );
+			return self::build_payload( $resolved['type'], $resolved['id'] );
 		}
 
 		$payload->provider_name = 'Strava';
 		$payload->provider_url  = 'https://www.strava.com/';
-		if ( ! isset( $payload->type ) ) {
-			$payload->type = 'rich';
-		}
+		$payload->type          = $payload->type ?? 'rich';
 
 		if ( $response instanceof WP_REST_Response ) {
 			$response->set_data( $payload );
@@ -265,13 +264,13 @@ class Block_For_Strava_Embed {
 	}
 
 	/**
-	 * Builds a Strava-branded proxy response when core didn't get there.
+	 * Builds a Strava-branded `/oembed/1.0/proxy` response payload.
 	 *
 	 * @param  string $embed_type  Singular embed type.
 	 * @param  string $activity_id Numeric Strava ID.
 	 * @return stdClass
 	 */
-	private static function synthesize_proxy_response( string $embed_type, string $activity_id ): stdClass {
+	private static function build_payload( string $embed_type, string $activity_id ): stdClass {
 		return (object) array(
 			'provider_name' => 'Strava',
 			'provider_url'  => 'https://www.strava.com/',
@@ -282,39 +281,17 @@ class Block_For_Strava_Embed {
 	}
 
 	/**
-	 * `wp_embed_register_handler` callback for canonical Strava paths.
+	 * `wp_embed_register_handler` callback for Strava URLs.
 	 *
-	 * @param  array $matches The regex match groups.
-	 * @return string|false   Iframe HTML, or false to fall through.
-	 */
-	public static function embed_handler_canonical( $matches ) {
-		$plural_to_singular = array(
-			'activities' => 'activity',
-			'routes'     => 'route',
-			'segments'   => 'segment',
-		);
-		$key                = strtolower( (string) ( $matches[1] ?? '' ) );
-		if ( ! isset( $plural_to_singular[ $key ] ) ) {
-			return false;
-		}
-		$id = (string) ( $matches[2] ?? '' );
-		if ( '' === $id || ! ctype_digit( $id ) ) {
-			return false;
-		}
-		return self::build_iframe( $plural_to_singular[ $key ], $id );
-	}
-
-	/**
-	 * `wp_embed_register_handler` callback for strava.app.link short URLs.
-	 *
-	 * Resolves the short URL to a canonical strava.com URL via the existing
-	 * SSRF-safe redirect-chaser; returns false on failure so WordPress keeps
-	 * the bare URL in place (matching the autoembed contract).
+	 * Both canonical paths and `strava.app.link` short URLs route through
+	 * `resolve_to_canonical` so the regex stays the only host gate. Returns
+	 * false on resolution failure so `WP_Embed::shortcode()` falls through
+	 * to leaving the URL bare (the autoembed contract).
 	 *
 	 * @param  array $matches The regex match groups (full URL in [0]).
 	 * @return string|false   Iframe HTML, or false to fall through.
 	 */
-	public static function embed_handler_short( $matches ) {
+	public static function embed_handler( $matches ) {
 		$resolved = self::resolve_to_canonical( (string) ( $matches[0] ?? '' ) );
 		if ( null === $resolved ) {
 			return false;
@@ -325,10 +302,8 @@ class Block_For_Strava_Embed {
 	/**
 	 * Resolves any supported Strava URL form to a canonical {type, id}.
 	 *
-	 * Returns null for non-Strava URLs so the caller can fall through to
-	 * normal processing. For strava.app.link short URLs, performs a remote
-	 * lookup; that's gated by the existing SSRF-safe helper so untrusted
-	 * input cannot redirect us to internal hosts.
+	 * For strava.app.link short URLs, performs a remote lookup gated by the
+	 * SSRF-safe helper inside `block_for_strava_resolve_strava_url`.
 	 *
 	 * @param  string $url The URL to resolve.
 	 * @return array|null  ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or null.
@@ -337,10 +312,6 @@ class Block_For_Strava_Embed {
 		$parsed = block_for_strava_parse_strava_url( $url );
 		if ( false !== $parsed ) {
 			return $parsed;
-		}
-
-		if ( ! block_for_strava_is_allowed_strava_url( $url, array( 'strava.app.link' ) ) ) {
-			return null;
 		}
 
 		$resolved = block_for_strava_resolve_strava_url( $url );
@@ -369,23 +340,13 @@ class Block_For_Strava_Embed {
 	 * normal tab. `referrerpolicy=origin` stops the host page URL from
 	 * leaking to Strava.
 	 *
-	 * @param  string $embed_type  One of 'activity', 'route', 'segment'.
-	 * @param  string $activity_id Numeric Strava ID.
-	 * @param  int    $width       Optional preferred width (0 = default).
-	 * @param  int    $height      Optional preferred height (0 = default).
-	 * @return string              Iframe HTML.
+	 * @param  string   $embed_type  One of 'activity', 'route', 'segment'.
+	 * @param  string   $activity_id Numeric Strava ID.
+	 * @param  int|null $width       Preferred width in pixels (null = default).
+	 * @param  int|null $height      Preferred height in pixels (null = default).
+	 * @return string                Iframe HTML.
 	 */
-	private static function build_iframe( string $embed_type, string $activity_id, int $width = 0, int $height = 0 ): string {
-		if ( ! in_array( $embed_type, self::EMBED_TYPES, true ) ) {
-			$embed_type = 'activity';
-		}
-		if ( '' === $activity_id || ! ctype_digit( $activity_id ) ) {
-			return '';
-		}
-
-		$render_width  = $width > 0 ? $width : 600;
-		$render_height = $height > 0 ? $height : self::DEFAULT_HEIGHT;
-
+	private static function build_iframe( string $embed_type, string $activity_id, ?int $width = null, ?int $height = null ): string {
 		$src = sprintf(
 			'https://strava-embeds.com/%s/%s',
 			rawurlencode( $embed_type ),
@@ -395,8 +356,8 @@ class Block_For_Strava_Embed {
 		return sprintf(
 			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
 			esc_url( $src ),
-			$render_width,
-			$render_height,
+			$width ?? self::DEFAULT_WIDTH,
+			$height ?? self::DEFAULT_HEIGHT,
 			esc_attr__( 'Strava embed', 'block-for-strava' )
 		);
 	}
