@@ -9,7 +9,7 @@
  */
 import { registerBlockVariation } from '@wordpress/blocks';
 
-import '../../src/embed-variation';
+import '../../src/index';
 
 interface Variation {
 	patterns: ReadonlyArray< RegExp >;
@@ -83,6 +83,12 @@ describe( 'core/embed Strava variation', () => {
 			false
 		);
 		expect( matches( 'https://evilstrava.com/activities/123' ) ).toBe(
+			false
+		);
+		// Boundary check: /activities/123abc must not match as activity 123 —
+		// without the trailing delimiter assertion the digits would be a
+		// valid prefix and we'd embed the wrong resource.
+		expect( matches( 'https://www.strava.com/activities/123abc' ) ).toBe(
 			false
 		);
 	} );

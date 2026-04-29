@@ -208,6 +208,23 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Boundary check: the handler regex must not accept a URL whose ID
+	 * segment is followed by extra characters (e.g. /123abc) — without a
+	 * trailing delimiter assertion, the `\d+` would greedily match `123`
+	 * and we'd embed the wrong activity.
+	 *
+	 * @covers Block_For_Strava_Embed::embed_handler_canonical
+	 */
+	public function test_autoembed_rejects_id_followed_by_letters(): void {
+		global $wp_embed;
+		$url    = 'https://www.strava.com/activities/123abc';
+		$result = $wp_embed->shortcode( array(), $url );
+		// `WP_Embed::shortcode()` returns the original URL when no handler
+		// matches, so the absence of an iframe is what we assert.
+		$this->assertStringNotContainsString( '<iframe', $result );
+	}
+
+	/**
 	 * `wp_embed_register_handler` returns autoembed HTML when post content
 	 * contains a bare URL. This integration test runs the URL through
 	 * `WP_Embed::shortcode()` like autoembed does.

@@ -53,13 +53,16 @@ class Block_For_Strava_Embed {
 		/*
 		 * Two regex handlers cover canonical strava.com paths and short links.
 		 * Priority < 10 so we beat any generic handler a theme might add.
+		 *
+		 * The canonical regex's subdomain group matches the host check in
+		 * block_for_strava_parse_strava_url() (any `*.strava.com`). The
+		 * trailing `(?:[/?#]|$)` rejects `/activities/123abc` so the digits
+		 * can't greedily match an unrelated path. Pattern uses `~` as the
+		 * delimiter so the `#` inside the character class is unescaped.
 		 */
 		wp_embed_register_handler(
 			'block-for-strava-canonical',
-			// Subdomain coverage matches block_for_strava_parse_strava_url's
-			// `str_ends_with( $host, '.strava.com' )` so app.strava.com,
-			// foo.bar.strava.com, etc. all flow through the same handler.
-			'#https?://(?:[a-z0-9-]+\.)*strava\.com/(activities|routes|segments)/(\d+)#i',
+			'~https?://(?:[a-z0-9-]+\.)*strava\.com/(activities|routes|segments)/(\d+)(?:[/?#]|$)~i',
 			array( self::class, 'embed_handler_canonical' ),
 			5
 		);
