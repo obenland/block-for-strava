@@ -10,9 +10,10 @@
  *   universally would clutter every embed block in the inserter.
  */
 import { applyFilters } from '@wordpress/hooks';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import apiFetch from '@wordpress/api-fetch';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createElement, type ComponentType } from 'react';
+import { act, createElement, type ComponentType } from 'react';
 
 import {
 	buildEmbedUrl,
@@ -52,6 +53,7 @@ interface EditProps {
 		stravaRouteFullWidth?: boolean;
 		stravaRouteShowDirt?: boolean;
 		stravaRouteShowElevation?: boolean;
+		stravaEmbedToken?: string;
 	};
 	setAttributes: ( attrs: Partial< EditProps[ 'attributes' ] > ) => void;
 }
@@ -623,6 +625,201 @@ describe( 'BlockEdit HOC', () => {
 	} );
 } );
 
+describe( 'editor embed-status preflight', () => {
+	beforeEach( () => {
+		( apiFetch as unknown as jest.Mock ).mockReset();
+	} );
+
+	function renderEmbed(
+		attributes: EditProps[ 'attributes' ] = {},
+		url: string = 'https://www.strava.com/activities/18233733854'
+	): { setAttributes: jest.Mock; container: HTMLElement } {
+		function FakeEdit() {
+			return createElement( 'div', { 'data-testid': 'fake-edit' } );
+		}
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const setAttributes = jest.fn();
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url,
+					...attributes,
+				},
+				setAttributes,
+			} )
+		);
+		return { setAttributes, container };
+	}
+
+	it( 'calls /embed-status when an activity URL has no stored token', async () => {
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: true,
+			status: 200,
+		} );
+
+		renderEmbed();
+
+		await waitFor( () =>
+			expect( apiFetch ).toHaveBeenCalledWith( {
+				path: '/block-for-strava/v1/embed-status?type=activity&id=18233733854',
+			} )
+		);
+	} );
+
+	it( 'shows a notice when Strava reports the activity is not embeddable', async () => {
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: false,
+			status: 403,
+		} );
+
+		const { container } = renderEmbed();
+
+		await waitFor( () =>
+			expect(
+				container.querySelector( '[data-testid="strava-embed-notice"]' )
+			).toBeInTheDocument()
+		);
+		/*
+		 * The notice text must explicitly point users at the share-dialog
+		 * snippet; a generic "this didn't work" message would leave them
+		 * stuck without an actionable next step.
+		 */
+		expect( container.textContent ).toMatch( /embed code|share dialog/i );
+	} );
+
+	it( 'does not show a notice when the activity is embeddable', async () => {
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: true,
+			status: 200,
+		} );
+
+		const { container } = renderEmbed();
+
+		await waitFor( () => expect( apiFetch ).toHaveBeenCalled() );
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		expect(
+			container.querySelector( '[data-testid="strava-embed-notice"]' )
+		).toBeNull();
+	} );
+
+	it( 'skips the preflight when the token is already stored (snippet path)', async () => {
+		renderEmbed( { stravaEmbedToken: 'AlReAdYsTored' } );
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		expect( apiFetch ).not.toHaveBeenCalled();
+	} );
+
+	it( 'preflights routes too (embeddability applies to all types)', async () => {
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: true,
+			status: 200,
+		} );
+
+		renderEmbed( {}, 'https://www.strava.com/routes/456' );
+
+		await waitFor( () =>
+			expect( apiFetch ).toHaveBeenCalledWith( {
+				path: '/block-for-strava/v1/embed-status?type=route&id=456',
+			} )
+		);
+	} );
+
+	it( 'silently swallows fetch errors and shows no notice', async () => {
+		( apiFetch as unknown as jest.Mock ).mockRejectedValueOnce(
+			new Error( 'offline' )
+		);
+
+		const { container } = renderEmbed();
+
+		await waitFor( () => expect( apiFetch ).toHaveBeenCalled() );
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		/*
+		 * No notice on transport failure — better to fall through silently
+		 * than to misclassify a private activity as public or vice versa.
+		 */
+		expect(
+			container.querySelector( '[data-testid="strava-embed-notice"]' )
+		).toBeNull();
+	} );
+
+	it( 'ignores a late preflight response when the URL has changed', async () => {
+		/*
+		 * Fast-typing user pastes one URL and immediately edits to another.
+		 * The first preflight is in-flight when the cleanup fires; if we
+		 * don't honor the cancellation flag, the stale response could
+		 * flip embedStatus from a still-pending fresh request and surface
+		 * the wrong notice. This test pins the cancellation guard.
+		 */
+		let resolveFirst: ( v: {
+			embeddable: boolean;
+			status: number;
+		} ) => void = () => {};
+		( apiFetch as unknown as jest.Mock ).mockImplementationOnce(
+			() =>
+				new Promise( ( res ) => {
+					resolveFirst = res;
+				} )
+		);
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: true,
+			status: 200,
+		} );
+
+		function FakeEdit() {
+			return createElement( 'div', { 'data-testid': 'fake-edit' } );
+		}
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container, rerender } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/111',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		// Swap to a different activity before the first call resolves.
+		rerender(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/222',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+
+		/*
+		 * Now resolve the first (now-cancelled) call with a "blocked"
+		 * response — its setState must be ignored.
+		 */
+		await act( async () => {
+			resolveFirst( { embeddable: false, status: 403 } );
+			await Promise.resolve();
+		} );
+		await waitFor( () => expect( apiFetch ).toHaveBeenCalledTimes( 2 ) );
+		/*
+		 * Drain the second response (which was queued via
+		 * mockResolvedValueOnce above).
+		 */
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		expect(
+			container.querySelector( '[data-testid="strava-embed-notice"]' )
+		).toBeNull();
+	} );
+} );
+
 describe( 'buildEmbedUrl', () => {
 	it( 'returns a clean URL for non-route types', () => {
 		expect( buildEmbedUrl( { type: 'activity', id: '123' }, {} ) ).toBe(
@@ -704,6 +901,47 @@ describe( 'buildEmbedUrl', () => {
 		);
 		expect( url.searchParams.get( 'style' ) ).toBe( 'standard' );
 		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+	} );
+
+	it( 'appends `?token=` for activity URLs when the token attribute is set', () => {
+		/*
+		 * Without this, token-gated activities (private/followers-only)
+		 * 403 in the editor preview even though the snippet paste flow
+		 * stored the token. The PHP renderer honors the same attribute
+		 * at front-end render time so the editor and the published page
+		 * stay in lockstep.
+		 */
+		const url = new URL(
+			buildEmbedUrl(
+				{ type: 'activity', id: '18233733854' },
+				{ stravaEmbedToken: 'gS4P2Fvt-Vc' }
+			)
+		);
+		expect( url.pathname ).toBe( '/activity/18233733854' );
+		expect( url.searchParams.get( 'token' ) ).toBe( 'gS4P2Fvt-Vc' );
+	} );
+
+	it( 'omits token param when the attribute is empty', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'activity', id: '123' },
+				{ stravaEmbedToken: '' }
+			)
+		).toBe( 'https://strava-embeds.com/activity/123' );
+	} );
+
+	it( 'preserves the token alongside route params for routes', () => {
+		const url = new URL(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{
+					stravaEmbedToken: 'rOuTeToken',
+					stravaRouteMapStyle: 'satellite',
+				}
+			)
+		);
+		expect( url.searchParams.get( 'token' ) ).toBe( 'rOuTeToken' );
+		expect( url.searchParams.get( 'style' ) ).toBe( 'satellite' );
 	} );
 } );
 

@@ -4,6 +4,7 @@ import { chartBar as stravaIcon } from '@wordpress/icons';
 
 import './paragraph-transform';
 import './route-controls';
+import './snippet-transform';
 
 /*
  * Subdomain coverage matches the PHP host check in

@@ -46,6 +46,7 @@ import {
 import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
+import apiFetch from '@wordpress/api-fetch';
 
 type RouteMapStyle =
 	| 'standard'
@@ -73,6 +74,16 @@ interface StravaRouteAttributes {
 	stravaRouteFullWidth?: boolean;
 	stravaRouteShowDirt?: boolean;
 	stravaRouteShowElevation?: boolean;
+	/*
+	 * Per-activity share token Strava issues for non-public activities.
+	 * Only the snippet-paste path (`src/snippet-transform`) writes it —
+	 * the token isn't discoverable server-side from a URL alone, so a
+	 * URL-only paste leaves this empty and the preflight effect below
+	 * surfaces a notice instructing the user to paste the share-dialog
+	 * snippet instead. Empty string also covers public-Everyone
+	 * activities, which don't need a token at all.
+	 */
+	stravaEmbedToken?: string;
 }
 
 interface BlockEditProps {
@@ -151,8 +162,19 @@ export function buildEmbedUrl(
 	attrs: StravaRouteAttributes
 ): string {
 	const base = `https://strava-embeds.com/${ resolved.type }/${ resolved.id }`;
+	const token =
+		typeof attrs.stravaEmbedToken === 'string'
+			? attrs.stravaEmbedToken
+			: '';
 	if ( 'route' !== resolved.type ) {
-		return base;
+		/*
+		 * Activities and segments only ever take a single param (the
+		 * token); short-circuit so we don't pull in the route-params
+		 * machinery.
+		 */
+		return token
+			? `${ base }?token=${ encodeURIComponent( token ) }`
+			: base;
 	}
 
 	const mapStyle = clampEnum(
@@ -208,8 +230,16 @@ export function buildEmbedUrl(
 		nonDefaultParamCount++;
 	}
 
-	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle ) {
+	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle && ! token ) {
 		return base;
+	}
+	if ( token ) {
+		/*
+		 * Routes won't 403 like tokenized activities do, but Strava accepts
+		 * the param either way and the snippet path could carry one through
+		 * for routes. Round-trip it so editor/server URLs match exactly.
+		 */
+		params.set( 'token', token );
 	}
 	return `${ base }?${ params.toString() }`;
 }
@@ -467,6 +497,56 @@ export function StravaCustomEdit(
 		className:
 			'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
 	} );
+
+	/*
+	 * Preflight Strava's iframe URL on the user's behalf so we can warn
+	 * before save when the URL alone won't render. Strava's per-activity
+	 * share token isn't discoverable server-side (it's only minted into
+	 * the share dialog for a logged-in browser session), so the only
+	 * actionable signal we can give is "this URL paste won't work — paste
+	 * the embed code from Strava's share dialog instead." A `200` from
+	 * strava-embeds.com means the URL renders fine; a `403` means the
+	 * activity is restricted and needs a token. Skip the fetch entirely
+	 * when a token is already stored — the snippet-paste flow is the
+	 * other source of one and its iframe is guaranteed to render.
+	 */
+	const { attributes, resolved } = props;
+	const storedToken = attributes.stravaEmbedToken ?? '';
+	const [ embedStatus, setEmbedStatus ] = useState<
+		'unknown' | 'ok' | 'blocked'
+	>( 'unknown' );
+	useEffect( () => {
+		if ( '' !== storedToken ) {
+			// Snippet-paste path already supplied a working token.
+			setEmbedStatus( 'ok' );
+			return;
+		}
+		setEmbedStatus( 'unknown' );
+		let cancelled = false;
+		apiFetch< { embeddable: boolean; status: number } >( {
+			path: `/block-for-strava/v1/embed-status?type=${ encodeURIComponent(
+				resolved.type
+			) }&id=${ encodeURIComponent( resolved.id ) }`,
+		} )
+			.then( ( response ) => {
+				if ( cancelled ) {
+					return;
+				}
+				setEmbedStatus( response?.embeddable ? 'ok' : 'blocked' );
+			} )
+			.catch( () => {
+				/*
+				 * Network failure is non-fatal: leave status as `unknown`
+				 * so we don't surface a misleading "blocked" notice over
+				 * a transient blip. The iframe still renders; the user
+				 * sees Strava's response directly.
+				 */
+			} );
+		return () => {
+			cancelled = true;
+		};
+	}, [ resolved.type, resolved.id, storedToken ] );
+
 	const src = buildEmbedUrl( props.resolved, props.attributes );
 
 	const iframeRef = useRef< HTMLIFrameElement | null >( null );
@@ -581,6 +661,28 @@ export function StravaCustomEdit(
 		),
 		isRoute && ! isEditingURL
 			? createElement( StravaRouteInspector, props )
+			: null,
+		! isEditingURL && 'blocked' === embedStatus
+			? createElement(
+					'div',
+					{
+						'data-testid': 'strava-embed-notice',
+						className: 'block-for-strava-notice',
+						style: {
+							padding: '12px 16px',
+							marginBottom: '8px',
+							border: '1px solid #ddd',
+							borderLeft: '4px solid #fc5200',
+							background: '#fff8f3',
+							fontSize: '13px',
+							lineHeight: '1.5',
+						},
+					},
+					__(
+						'This Strava activity isn’t set to public visibility, so the URL alone won’t embed. Open the activity on Strava, click Share → Embed, and paste the embed code here instead of the URL.',
+						'block-for-strava'
+					)
+			  )
 			: null,
 		isEditingURL
 			? createElement(

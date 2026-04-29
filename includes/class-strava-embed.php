@@ -48,6 +48,7 @@ class Block_For_Strava_Embed {
 		add_filter( 'pre_oembed_result', array( self::class, 'maybe_strava_embed' ), 10, 3 );
 		add_filter( 'rest_request_after_callbacks', array( self::class, 'rest_proxy_fallback' ), 10, 3 );
 		add_filter( 'render_block_core/embed', array( self::class, 'render_strava_embed' ), 10, 2 );
+		add_action( 'rest_api_init', array( self::class, 'register_rest_routes' ) );
 
 		/*
 		 * Subdomain group matches the host check in `parse_strava_url()`
@@ -201,6 +202,23 @@ class Block_For_Strava_Embed {
 		$params = 'route' === $resolved['type']
 			? self::route_params_from_attrs( $attrs )
 			: array();
+
+		/*
+		 * Tokenized activities (anything not visibility=Everyone) 403 from
+		 * strava-embeds.com without a `?token=…`. The token only enters
+		 * the system via the snippet-paste path (`src/snippet-transform`)
+		 * — Strava doesn't surface it in the unauthenticated activity HTML,
+		 * so there's no server-side path to discover one for a URL-only
+		 * paste. When the attribute is empty, fall through to the URL-only
+		 * iframe shape: it works for public-Everyone activities and renders
+		 * Strava's "Error code: EEE" page for restricted ones (which the
+		 * editor's preflight surfaces as a notice before the post is saved).
+		 */
+		$token = isset( $attrs['stravaEmbedToken'] ) ? (string) $attrs['stravaEmbedToken'] : '';
+		if ( '' !== $token ) {
+			$params['token'] = $token;
+		}
+
 		$iframe = self::build_iframe( $resolved['type'], $resolved['id'], null, null, $params );
 
 		/*
@@ -491,6 +509,135 @@ class Block_For_Strava_Embed {
 			__( 'Could not resolve Strava short URL to an activity.', 'block-for-strava' ),
 			array( 'status' => 500 )
 		);
+	}
+
+	/**
+	 * Registers `/block-for-strava/v1/embed-status` so the editor can warn
+	 * the user before save when an activity URL alone won't render.
+	 *
+	 * Strava's per-activity share token (`data-token` on the placeholder
+	 * div) is only available to a logged-in browser session via the share
+	 * dialog — it isn't in the unauthenticated activity HTML, so there's
+	 * no server-side path that can mint one for a URL-only paste. What we
+	 * CAN do is HEAD the embed iframe URL on the user's behalf and tell
+	 * the editor whether the URL alone produces a working iframe (200) or
+	 * Strava's "Error code: EEE" page (403). The editor uses that signal
+	 * to show a notice with instructions to paste the share-dialog snippet
+	 * instead. Gated by `edit_posts` because the preflight causes outbound
+	 * HTTP and we don't want unauthenticated callers using us as a probe.
+	 */
+	public static function register_rest_routes(): void {
+		register_rest_route(
+			'block-for-strava/v1',
+			'/embed-status',
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => static function () {
+					return current_user_can( 'edit_posts' );
+				},
+				'args'                => array(
+					'type' => array(
+						'required'          => true,
+						'validate_callback' => static function ( $value ) {
+							return is_string( $value ) && in_array( $value, array( 'activity', 'route', 'segment' ), true );
+						},
+						'sanitize_callback' => static function ( $value ) {
+							return (string) $value;
+						},
+					),
+					'id'   => array(
+						'required'          => true,
+						'validate_callback' => static function ( $value ) {
+							/*
+							 * `(string)` first so an integer query param
+							 * (which `WP_REST_Request` may keep as a native
+							 * int) round-trips through ctype_digit cleanly;
+							 * `is_numeric` would let through scientific
+							 * notation and signed numbers Strava's path
+							 * doesn't accept.
+							 */
+							return is_string( $value ) || is_int( $value )
+								? ctype_digit( (string) $value )
+								: false;
+						},
+						'sanitize_callback' => static function ( $value ) {
+							return (string) $value;
+						},
+					),
+				),
+
+				/*
+				 * `embeddable` is the question the editor cares about;
+				 * surfacing the raw HTTP code too keeps the response
+				 * useful if a future UI wants to differentiate
+				 * "doesn't exist" (404) from "needs token" (403).
+				 */
+				'callback'            => static function ( WP_REST_Request $request ) {
+					$type   = (string) $request->get_param( 'type' );
+					$id     = (string) $request->get_param( 'id' );
+					$status = self::probe_embed_status( $type, $id );
+					return new WP_REST_Response(
+						array(
+							'embeddable' => 200 === $status,
+							'status'     => $status,
+						)
+					);
+				},
+			)
+		);
+	}
+
+	/**
+	 * HEADs the strava-embeds.com URL for a given resource and returns the
+	 * resulting HTTP status (or 0 on transport failure).
+	 *
+	 * Result is memoized in a transient so the editor's polling on every
+	 * URL change (and any front-end render that ever calls in here) doesn't
+	 * fan out into one HTTP request per render. Negative results cache
+	 * short — Strava can flip an activity's visibility back to Everyone at
+	 * any moment, and we'd rather have the next paste re-probe than show a
+	 * stale "not embeddable" warning for a day.
+	 *
+	 * @param  string $embed_type One of 'activity'|'route'|'segment'.
+	 * @param  string $resource_id Numeric Strava resource ID.
+	 * @return int                 HTTP status code, or 0 on transport failure.
+	 */
+	private static function probe_embed_status( string $embed_type, string $resource_id ): int {
+		$cache_key = 'block_for_strava_embed_status_' . md5( $embed_type . ':' . $resource_id );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached && is_int( $cached ) ) {
+			return $cached;
+		}
+
+		$response = wp_safe_remote_head(
+			sprintf(
+				'https://strava-embeds.com/%s/%s',
+				rawurlencode( $embed_type ),
+				rawurlencode( $resource_id )
+			),
+			array(
+				'timeout'     => 5,
+				'redirection' => 0,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
+			return 0;
+		}
+
+		$status = (int) wp_remote_retrieve_response_code( $response );
+
+		/*
+		 * Cache 200s long (a public activity won't flip private often)
+		 * and non-200s short (private activities frequently get unblocked).
+		 */
+		set_transient(
+			$cache_key,
+			$status,
+			200 === $status ? DAY_IN_SECONDS : 5 * MINUTE_IN_SECONDS
+		);
+		return $status;
 	}
 
 	/**
