@@ -20,12 +20,20 @@
  * resolved into the canonical form.
  */
 import { addFilter } from '@wordpress/hooks';
-import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import {
+	BlockControls,
+	useBlockProps,
+	InspectorControls,
+} from '@wordpress/block-editor';
+import {
+	Button,
 	PanelBody,
-	ToggleControl,
+	Placeholder,
 	RadioControl,
 	SelectControl,
+	ToggleControl,
+	ToolbarButton,
+	ToolbarGroup,
 } from '@wordpress/components';
 import {
 	Fragment,
@@ -35,7 +43,9 @@ import {
 	useState,
 	type ComponentType,
 } from '@wordpress/element';
+import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
+import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
 
 type RouteMapStyle =
 	| 'standard'
@@ -451,7 +461,7 @@ export function parseStravaHeightMessage( data: unknown ): number | null {
  * @param props Block edit props plus the URL-resolved {type, id}.
  */
 export function StravaCustomEdit(
-	props: BlockEditProps & { resolved: ResolvedStravaUrl }
+	props: BlockEditProps & { resolved: ResolvedStravaUrl; url: string }
 ) {
 	const blockProps = useBlockProps( {
 		className:
@@ -461,6 +471,36 @@ export function StravaCustomEdit(
 
 	const iframeRef = useRef< HTMLIFrameElement | null >( null );
 	const [ height, setHeight ] = useState( DEFAULT_PREVIEW_HEIGHT );
+
+	/*
+	 * URL-edit mode mirrors core/embed's pencil affordance: the toolbar
+	 * button toggles between the iframe preview and a placeholder form
+	 * pre-filled with the current URL. We have to roll our own because
+	 * `editor.BlockEdit` swaps out core/embed's entire edit component (and
+	 * with it, core's `EmbedControls` toolbar) once we resolve a canonical
+	 * Strava URL. `urlInput` mirrors the saved attribute on entry so
+	 * cancelling (re-clicking the pencil without submitting) leaves the
+	 * stored URL untouched.
+	 */
+	const [ isEditingURL, setIsEditingURL ] = useState( false );
+	const [ urlInput, setUrlInput ] = useState( props.url );
+
+	const submitURL = ( event: FormEvent< HTMLFormElement > ) => {
+		event.preventDefault();
+		/*
+		 * Trim before saving: `parseStravaUrl` anchors at `^https?` so a
+		 * leading newline or space from a clipboard paste would silently
+		 * fall through to core/embed and the saved attribute would carry
+		 * the stray whitespace forward.
+		 */
+		props.setAttributes( { url: urlInput.trim() } );
+		setIsEditingURL( false );
+	};
+
+	const toggleEditingURL = () => {
+		setUrlInput( props.url );
+		setIsEditingURL( ( prev ) => ! prev );
+	};
 
 	/*
 	 * Reset to the default whenever the iframe URL changes — toggling
@@ -508,33 +548,96 @@ export function StravaCustomEdit(
 	return createElement(
 		Fragment,
 		null,
-		isRoute ? createElement( StravaRouteInspector, props ) : null,
 		createElement(
-			'figure',
-			blockProps,
+			BlockControls,
+			null,
 			createElement(
-				'div',
-				{ className: 'wp-block-embed__wrapper' },
-				createElement( 'iframe', {
-					ref: iframeRef,
-					className: 'strava-embed-iframe',
-					src,
-					sandbox:
-						'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
-					referrerPolicy: 'origin',
-					scrolling: 'no',
-					title: __( 'Strava embed', 'block-for-strava' ),
-					style: {
-						width: '100%',
-						maxWidth: fullWidth ? undefined : '600px',
-						height: `${ height }px`,
-						border: 0,
-						display: 'block',
-						pointerEvents: 'none',
-					},
+				ToolbarGroup,
+				null,
+				createElement( ToolbarButton, {
+					icon: editIcon,
+					label: __( 'Edit URL', 'block-for-strava' ),
+					onClick: toggleEditingURL,
+					isActive: isEditingURL,
 				} )
 			)
-		)
+		),
+		isRoute && ! isEditingURL
+			? createElement( StravaRouteInspector, props )
+			: null,
+		isEditingURL
+			? createElement(
+					'figure',
+					blockProps,
+					createElement(
+						Placeholder,
+						{
+							icon: stravaIcon,
+							label: __( 'Strava', 'block-for-strava' ),
+							instructions: __(
+								'Paste a Strava activity, route, or segment URL.',
+								'block-for-strava'
+							),
+						},
+						createElement(
+							'form',
+							{
+								className: 'block-library-embed__form',
+								onSubmit: submitURL,
+							},
+							createElement( 'input', {
+								type: 'url',
+								value: urlInput,
+								className: 'components-placeholder__input',
+								'aria-label': __(
+									'Embed URL',
+									'block-for-strava'
+								),
+								placeholder: __(
+									'Enter URL to embed here…',
+									'block-for-strava'
+								),
+								onChange: (
+									event: ChangeEvent< HTMLInputElement >
+								) => setUrlInput( event.target.value ),
+							} ),
+							createElement(
+								Button,
+								{
+									variant: 'primary',
+									type: 'submit',
+								},
+								__( 'Embed', 'block-for-strava' )
+							)
+						)
+					)
+			  )
+			: createElement(
+					'figure',
+					blockProps,
+					createElement(
+						'div',
+						{ className: 'wp-block-embed__wrapper' },
+						createElement( 'iframe', {
+							ref: iframeRef,
+							className: 'strava-embed-iframe',
+							src,
+							sandbox:
+								'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
+							referrerPolicy: 'origin',
+							scrolling: 'no',
+							title: __( 'Strava embed', 'block-for-strava' ),
+							style: {
+								width: '100%',
+								maxWidth: fullWidth ? undefined : '600px',
+								height: `${ height }px`,
+								border: 0,
+								display: 'block',
+								pointerEvents: 'none',
+							},
+						} )
+					)
+			  )
 	);
 }
 
@@ -549,15 +652,20 @@ addFilter(
 	'block-for-strava/route-controls',
 	( BlockEdit: ComponentType< BlockEditProps > ) => {
 		function StravaRouteEdit( props: BlockEditProps ) {
+			const url = props.attributes.url ?? '';
 			const resolved =
 				'core/embed' === props.name &&
 				'strava' === props.attributes.providerNameSlug
-					? parseStravaUrl( props.attributes.url ?? '' )
+					? parseStravaUrl( url )
 					: null;
 			if ( null === resolved ) {
 				return createElement( BlockEdit, props );
 			}
-			return createElement( StravaCustomEdit, { ...props, resolved } );
+			return createElement( StravaCustomEdit, {
+				...props,
+				resolved,
+				url,
+			} );
 		}
 		StravaRouteEdit.displayName = 'StravaRouteEdit';
 		return StravaRouteEdit;

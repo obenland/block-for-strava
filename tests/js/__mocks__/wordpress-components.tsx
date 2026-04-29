@@ -85,6 +85,7 @@ interface ButtonProps {
 	onClick?: () => void;
 	type?: 'button' | 'submit' | 'reset';
 	disabled?: boolean;
+	variant?: 'primary' | 'secondary' | 'tertiary' | 'link';
 }
 
 export function Button( {
@@ -115,12 +116,22 @@ interface ToolbarButtonProps {
 	icon?: ReactNode;
 	label?: string;
 	onClick?: () => void;
+	isActive?: boolean;
 }
 
-export function ToolbarButton( { label, onClick }: ToolbarButtonProps ) {
+export function ToolbarButton( {
+	label,
+	onClick,
+	isActive,
+}: ToolbarButtonProps ) {
 	return createElement(
 		'button',
-		{ type: 'button', 'aria-label': label, onClick },
+		{
+			type: 'button',
+			'aria-label': label,
+			...( isActive !== undefined && { 'aria-pressed': isActive } ),
+			onClick,
+		},
 		label
 	);
 }
