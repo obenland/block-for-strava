@@ -282,6 +282,23 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Auth/permission errors on Strava URLs must propagate so the editor
+	 * can react (re-auth, retry) instead of seeing a synthesized success
+	 * payload that hides the real failure.
+	 *
+	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
+	 */
+	public function test_rest_proxy_fallback_propagates_non_oembed_errors_for_strava_urls(): void {
+		$err     = new WP_Error( 'rest_cookie_invalid_nonce', 'nope', array( 'status' => 403 ) );
+		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
+		$request->set_param( 'url', 'https://www.strava.com/activities/18233733854' );
+
+		$result = Block_For_Strava_Embed::rest_proxy_fallback( $err, array(), $request );
+
+		$this->assertSame( $err, $result );
+	}
+
+	/**
 	 * Errors for non-Strava URLs must propagate untouched.
 	 *
 	 * @covers Block_For_Strava_Embed::rest_proxy_fallback

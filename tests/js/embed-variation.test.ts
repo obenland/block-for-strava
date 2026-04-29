@@ -55,8 +55,13 @@ describe( 'core/embed Strava variation', () => {
 		).toBe( true );
 		// `app.strava.com` is what the mobile share dialog produces; the PHP
 		// parser already accepts it so the JS variation must too, otherwise
-		// pasting that URL silently dead-ends in the editor.
+		// pasting that URL silently dead-ends in the editor. Multi-level
+		// subdomains (`foo.bar.strava.com`) round-trip the same way because
+		// the server-side host check uses `str_ends_with`.
 		expect( matches( 'https://app.strava.com/activities/123' ) ).toBe(
+			true
+		);
+		expect( matches( 'https://foo.bar.strava.com/routes/456' ) ).toBe(
 			true
 		);
 	} );

@@ -15,7 +15,7 @@ import { chartBar as stravaIcon } from '@wordpress/icons';
  * server would happily render it).
  */
 const STRAVA_PATTERNS: ReadonlyArray< RegExp > = [
-	/^https?:\/\/(?:[a-z0-9-]+\.)?strava\.com\/(?:activities|routes|segments)\/\d+/i,
+	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(?:activities|routes|segments)\/\d+/i,
 	/^https?:\/\/strava\.app\.link\/[^\s]+/i,
 ];
 

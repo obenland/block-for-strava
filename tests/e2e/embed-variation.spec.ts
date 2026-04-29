@@ -62,32 +62,42 @@ function decodeIframeSrc( src: string ): string {
 }
 
 /**
- * Publishes a post containing the given URL and returns the decoded inner
- * document of the Strava embed iframe rendered on the front end. Blocks
- * strava-embeds.com so embed.js can't replace the placeholder inside the
- * inner data-URL document during the test run.
+ * Publishes a post with the given content and returns its ID synchronously.
+ * Split from `fetchAutoembedIframe` so the caller can assign the ID into
+ * the test's outer `postId` *before* any async assertion runs — otherwise
+ * a failed expect inside the helper would leak a published post that
+ * `afterEach` can't see.
  *
- * @param page    Playwright page.
  * @param title   Post title.
  * @param content Raw post_content (typically a bare Strava URL).
  */
-async function renderAutoembed(
-	page: Page,
-	title: string,
-	content: string
-): Promise< { postId: string; inner: string } > {
-	const postId = wp(
+function publishPostWithContent( title: string, content: string ): string {
+	const id = wp(
 		`post create --post_title="${ title }" --post_status=publish --porcelain`
 	);
-	wp( `post update ${ postId } --post_content="${ content }"` );
+	wp( `post update ${ id } --post_content="${ content }"` );
+	return id;
+}
 
+/**
+ * Loads the published post and returns the decoded inner document of the
+ * Strava embed iframe. Blocks strava-embeds.com so embed.js can't replace
+ * the placeholder inside the inner data-URL document during the test run.
+ *
+ * @param page   Playwright page.
+ * @param postId Post ID returned by `publishPostWithContent`.
+ */
+async function fetchAutoembedIframeInner(
+	page: Page,
+	postId: string
+): Promise< string > {
 	await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
 	await page.goto( `/?p=${ postId }` );
 
 	const iframe = page.locator( 'iframe.strava-embed-iframe' ).first();
 	await expect( iframe ).toBeAttached();
 	const src = ( await iframe.getAttribute( 'src' ) ) ?? '';
-	return { postId, inner: decodeIframeSrc( src ) };
+	return decodeIframeSrc( src );
 }
 
 test.describe.serial( 'Strava core/embed variation', () => {
@@ -105,41 +115,38 @@ test.describe.serial( 'Strava core/embed variation', () => {
 	} ) => {
 		// A bare URL on its own line is what classic content/autoembed turns
 		// into an embed at render time. Our handler should match it.
-		const result = await renderAutoembed(
-			page,
+		postId = publishPostWithContent(
 			'Strava autoembed',
 			'https://www.strava.com/activities/18233733854'
 		);
-		postId = result.postId;
-		expect( result.inner ).toContain( 'data-embed-id="18233733854"' );
-		expect( result.inner ).toContain( 'data-embed-type="activity"' );
+		const inner = await fetchAutoembedIframeInner( page, postId );
+		expect( inner ).toContain( 'data-embed-id="18233733854"' );
+		expect( inner ).toContain( 'data-embed-type="activity"' );
 	} );
 
 	test( 'frontend: route URL autoembeds with data-embed-type="route"', async ( {
 		page,
 	} ) => {
 		const routeId = '3379104463896442748';
-		const result = await renderAutoembed(
-			page,
+		postId = publishPostWithContent(
 			'Strava route autoembed',
 			`https://www.strava.com/routes/${ routeId }`
 		);
-		postId = result.postId;
-		expect( result.inner ).toContain( `data-embed-id="${ routeId }"` );
-		expect( result.inner ).toContain( 'data-embed-type="route"' );
+		const inner = await fetchAutoembedIframeInner( page, postId );
+		expect( inner ).toContain( `data-embed-id="${ routeId }"` );
+		expect( inner ).toContain( 'data-embed-type="route"' );
 	} );
 
 	test( 'frontend: segment URL autoembeds with data-embed-type="segment"', async ( {
 		page,
 	} ) => {
-		const result = await renderAutoembed(
-			page,
+		postId = publishPostWithContent(
 			'Strava segment autoembed',
 			'https://www.strava.com/segments/789'
 		);
-		postId = result.postId;
-		expect( result.inner ).toContain( 'data-embed-id="789"' );
-		expect( result.inner ).toContain( 'data-embed-type="segment"' );
+		const inner = await fetchAutoembedIframeInner( page, postId );
+		expect( inner ).toContain( 'data-embed-id="789"' );
+		expect( inner ).toContain( 'data-embed-type="segment"' );
 	} );
 
 	test( 'editor: pasting a Strava URL creates a core/embed block on the strava variation', async ( {

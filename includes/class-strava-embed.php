@@ -56,7 +56,10 @@ class Block_For_Strava_Embed {
 		 */
 		wp_embed_register_handler(
 			'block-for-strava-canonical',
-			'#https?://(?:www\.)?strava\.com/(activities|routes|segments)/(\d+)#i',
+			// Subdomain coverage matches block_for_strava_parse_strava_url's
+			// `str_ends_with( $host, '.strava.com' )` so app.strava.com,
+			// foo.bar.strava.com, etc. all flow through the same handler.
+			'#https?://(?:[a-z0-9-]+\.)*strava\.com/(activities|routes|segments)/(\d+)#i',
 			array( self::class, 'embed_handler_canonical' ),
 			5
 		);
@@ -132,9 +135,14 @@ class Block_For_Strava_Embed {
 		/*
 		 * Core's get_proxy_item returns either a WP_Error (no provider, no
 		 * handler) or a stdClass (provider data, or "Embed Handler" payload).
+		 * Only synthesize for oembed-lookup failures — other WP_Errors that
+		 * make it this far (rest_cookie_invalid_nonce, rest_forbidden, etc.)
+		 * must propagate untouched so the editor can react to auth state.
 		 */
 		if ( is_wp_error( $response ) ) {
-			return self::synthesize_proxy_response( $resolved['type'], $resolved['id'] );
+			return 'oembed_invalid_url' === $response->get_error_code()
+				? self::synthesize_proxy_response( $resolved['type'], $resolved['id'] )
+				: $response;
 		}
 
 		$payload = $response instanceof WP_REST_Response
