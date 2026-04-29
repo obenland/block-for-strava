@@ -403,10 +403,21 @@ class Block_For_Strava_Embed {
 
 		$resolved_width  = $width ?? self::DEFAULT_WIDTH;
 		$resolved_height = $height ?? self::DEFAULT_HEIGHT;
-		// The plugin no longer ships a frontend stylesheet, so without an
-		// inline cap the fixed `width="600"` would overflow narrower
-		// containers (classic content, widget areas, mobile viewports).
-		$style = sprintf( 'width:100%%;max-width:%dpx;display:block;border:0;', $resolved_width );
+
+		/*
+		 * The plugin no longer ships a frontend stylesheet, so without an
+		 * inline cap the fixed `width="600"` would overflow narrower
+		 * containers (classic content, widget areas, mobile viewports).
+		 *
+		 * When the route opts into `fullWidth`, drop the `max-width` cap so
+		 * the iframe element matches the responsive Strava embed page inside
+		 * — otherwise the inner page renders responsive but the outer iframe
+		 * stays clamped at 600px and the toggle has no visible effect.
+		 */
+		$is_full_width = isset( $params['fullWidth'] ) && 'true' === $params['fullWidth'];
+		$style         = $is_full_width
+			? 'width:100%;display:block;border:0;'
+			: sprintf( 'width:100%%;max-width:%dpx;display:block;border:0;', $resolved_width );
 
 		return sprintf(
 			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" style="%s" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',

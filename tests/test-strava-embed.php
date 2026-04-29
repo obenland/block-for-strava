@@ -491,6 +491,51 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * `stravaRouteFullWidth=true` must drop the `max-width:600px` clamp on the
+	 * outer iframe element — without this, the inner Strava embed page goes
+	 * responsive while the iframe element itself stays pinned to 600px and
+	 * the user-visible width never changes.
+	 *
+	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 */
+	public function test_render_strava_embed_full_width_drops_max_width(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug'     => 'strava',
+				'url'                  => 'https://www.strava.com/routes/456',
+				'stravaRouteFullWidth' => true,
+			),
+		);
+
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+
+		$this->assertStringContainsString( 'fullWidth=true', $result );
+		$this->assertStringContainsString( 'style="width:100%;display:block;border:0;"', $result );
+		$this->assertStringNotContainsString( 'max-width', $result );
+	}
+
+	/**
+	 * Routes without `stravaRouteFullWidth` keep the legacy `max-width:600px`
+	 * clamp so they don't overflow narrow containers.
+	 *
+	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 */
+	public function test_render_strava_embed_default_keeps_max_width(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug' => 'strava',
+				'url'              => 'https://www.strava.com/routes/456',
+			),
+		);
+
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+
+		$this->assertStringContainsString( 'style="width:100%;max-width:600px;display:block;border:0;"', $result );
+	}
+
+	/**
 	 * Non-Strava embeds (e.g. YouTube) must pass through untouched.
 	 *
 	 * @covers Block_For_Strava_Embed::render_strava_embed
