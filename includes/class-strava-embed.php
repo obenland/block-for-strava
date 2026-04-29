@@ -605,8 +605,16 @@ class Block_For_Strava_Embed {
 	private static function probe_embed_status( string $embed_type, string $resource_id ): int {
 		$cache_key = 'block_for_strava_embed_status_' . md5( $embed_type . ':' . $resource_id );
 		$cached    = get_transient( $cache_key );
-		if ( false !== $cached && is_int( $cached ) ) {
-			return $cached;
+
+		/*
+		 * Database-backed transients round-trip integers as numeric strings
+		 * (the options table stores serialized strings); a strict `is_int`
+		 * check would treat every cache hit after the first request as a
+		 * miss and re-HEAD strava-embeds.com on every render. `is_numeric`
+		 * + `(int)` accepts both shapes.
+		 */
+		if ( false !== $cached && is_numeric( $cached ) ) {
+			return (int) $cached;
 		}
 
 		$response = wp_safe_remote_head(

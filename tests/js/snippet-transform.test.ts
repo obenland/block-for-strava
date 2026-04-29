@@ -79,7 +79,7 @@ describe( 'core/embed registerBlockType filter (snippet token plumbing)', () => 
 		expect( result.attributes?.existingThing ).toBe( existing );
 	} );
 
-	it( 'adds a raw transform from on core/embed', () => {
+	it( 'adds a raw transform on core/embed', () => {
 		const result = runFilter( {}, 'core/embed' );
 		const from = result.transforms?.from ?? [];
 		/*

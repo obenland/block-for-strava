@@ -668,7 +668,7 @@ describe( 'editor embed-status preflight', () => {
 		);
 	} );
 
-	it( 'shows a notice when Strava reports the activity is not embeddable', async () => {
+	it( 'shows the snippet notice when an activity URL returns 403', async () => {
 		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
 			embeddable: false,
 			status: 403,
@@ -696,6 +696,53 @@ describe( 'editor embed-status preflight', () => {
 		} );
 
 		const { container } = renderEmbed();
+
+		await waitFor( () => expect( apiFetch ).toHaveBeenCalled() );
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		expect(
+			container.querySelector( '[data-testid="strava-embed-notice"]' )
+		).toBeNull();
+	} );
+
+	it( 'does not show the snippet notice for non-403 failures (404, 5xx, etc.)', async () => {
+		/*
+		 * The "paste the share-dialog snippet" advice only applies to the
+		 * 403 EEE case. A 404 (activity deleted) or 5xx (Strava outage)
+		 * shouldn't surface the same notice — the user can't fix those
+		 * by re-pasting a snippet.
+		 */
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: false,
+			status: 404,
+		} );
+
+		const { container } = renderEmbed();
+
+		await waitFor( () => expect( apiFetch ).toHaveBeenCalled() );
+		await act( async () => {
+			await Promise.resolve();
+		} );
+		expect(
+			container.querySelector( '[data-testid="strava-embed-notice"]' )
+		).toBeNull();
+	} );
+
+	it( 'does not show the snippet notice for a route URL that 403s', async () => {
+		/*
+		 * Routes don't have a token-paste recovery path; they shouldn't
+		 * surface the activity-specific notice text even on a 403.
+		 */
+		( apiFetch as unknown as jest.Mock ).mockResolvedValueOnce( {
+			embeddable: false,
+			status: 403,
+		} );
+
+		const { container } = renderEmbed(
+			{},
+			'https://www.strava.com/routes/456'
+		);
 
 		await waitFor( () => expect( apiFetch ).toHaveBeenCalled() );
 		await act( async () => {
@@ -799,7 +846,7 @@ describe( 'editor embed-status preflight', () => {
 		);
 
 		/*
-		 * Now resolve the first (now-cancelled) call with a "blocked"
+		 * Now resolve the first (now-cancelled) call with a 403
 		 * response — its setState must be ignored.
 		 */
 		await act( async () => {

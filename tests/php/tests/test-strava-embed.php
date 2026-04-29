@@ -571,9 +571,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 
 	/**
 	 * Activities whose visibility isn't "Everyone" need a `?token=…` on the
-	 * iframe URL or strava-embeds.com 403s. The editor stores the token on
-	 * the block (either via the snippet-paste path or via the editor's
-	 * server-side token fetch), and the renderer must thread it through.
+	 * iframe URL or strava-embeds.com 403s. The token reaches the block
+	 * via the snippet-paste flow, and the renderer must thread it through.
 	 *
 	 * @covers Block_For_Strava_Embed::render_strava_embed
 	 */

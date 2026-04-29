@@ -500,20 +500,28 @@ export function StravaCustomEdit(
 
 	/*
 	 * Preflight Strava's iframe URL on the user's behalf so we can warn
-	 * before save when the URL alone won't render. Strava's per-activity
-	 * share token isn't discoverable server-side (it's only minted into
-	 * the share dialog for a logged-in browser session), so the only
-	 * actionable signal we can give is "this URL paste won't work — paste
-	 * the embed code from Strava's share dialog instead." A `200` from
-	 * strava-embeds.com means the URL renders fine; a `403` means the
-	 * activity is restricted and needs a token. Skip the fetch entirely
-	 * when a token is already stored — the snippet-paste flow is the
-	 * other source of one and its iframe is guaranteed to render.
+	 * before save when an activity URL alone won't render. Strava's
+	 * per-activity share token isn't discoverable server-side (it's only
+	 * minted into the share dialog for a logged-in browser session), so
+	 * the only actionable signal we can give is "this URL paste won't
+	 * work — paste the embed code from Strava's share dialog instead."
+	 *
+	 * That message is only correct for activities that 403 (the EEE
+	 * "needs token" page). 404s, 5xxs, transport failures, and route /
+	 * segment URLs share the same `embeddable: false` payload but
+	 * shouldn't trigger the snippet notice — the snippet workaround
+	 * doesn't apply to those cases. Treat anything other than
+	 * `status === 403 && type === 'activity'` as `unknown` so the iframe
+	 * just renders and the user sees Strava's actual response.
+	 *
+	 * Skip the fetch entirely when a token is already stored — the
+	 * snippet-paste flow is the other source of one and its iframe is
+	 * guaranteed to render.
 	 */
 	const { attributes, resolved } = props;
 	const storedToken = attributes.stravaEmbedToken ?? '';
 	const [ embedStatus, setEmbedStatus ] = useState<
-		'unknown' | 'ok' | 'blocked'
+		'unknown' | 'ok' | 'needs-token'
 	>( 'unknown' );
 	useEffect( () => {
 		if ( '' !== storedToken ) {
@@ -532,14 +540,30 @@ export function StravaCustomEdit(
 				if ( cancelled ) {
 					return;
 				}
-				setEmbedStatus( response?.embeddable ? 'ok' : 'blocked' );
+				if ( response?.embeddable ) {
+					setEmbedStatus( 'ok' );
+					return;
+				}
+				/*
+				 * Only the activity-403 case has an actionable user
+				 * recovery (paste the share-dialog snippet). Everything
+				 * else stays `unknown`, the iframe renders, and the user
+				 * sees Strava's real response — better than a notice
+				 * giving advice that doesn't apply.
+				 */
+				if (
+					'activity' === resolved.type &&
+					403 === response?.status
+				) {
+					setEmbedStatus( 'needs-token' );
+				}
 			} )
 			.catch( () => {
 				/*
 				 * Network failure is non-fatal: leave status as `unknown`
-				 * so we don't surface a misleading "blocked" notice over
-				 * a transient blip. The iframe still renders; the user
-				 * sees Strava's response directly.
+				 * so we don't surface a misleading notice over a transient
+				 * blip. The iframe still renders; the user sees Strava's
+				 * response directly.
 				 */
 			} );
 		return () => {
@@ -662,7 +686,7 @@ export function StravaCustomEdit(
 		isRoute && ! isEditingURL
 			? createElement( StravaRouteInspector, props )
 			: null,
-		! isEditingURL && 'blocked' === embedStatus
+		! isEditingURL && 'needs-token' === embedStatus
 			? createElement(
 					'div',
 					{
