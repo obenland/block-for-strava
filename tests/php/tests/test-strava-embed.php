@@ -441,6 +441,62 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Provides adversarial values for each enum-validated route attribute,
+	 * paired with the iframe URL param key that must NOT appear in output.
+	 *
+	 * @return array<string, array{0: string, 1: string, 2: string}>
+	 */
+	public static function provide_adversarial_route_enums(): array {
+		return array(
+			'mapStyle injection' => array( 'stravaRouteMapStyle', '"><script>alert(1)</script>', 'style' ),
+			'units injection'    => array( 'stravaRouteUnits', '" onload="alert(1)', 'units' ),
+			'terrain injection'  => array( 'stravaRouteTerrain', 'javascript:alert(1)', 'terrain' ),
+		);
+	}
+
+	/**
+	 * Pins the `in_array(..., true)` allowlist guards in
+	 * `route_params_from_attrs()` as the security boundary for any route
+	 * attribute that carries arbitrary string content. An adversarial value
+	 * must never reach the iframe `src` verbatim — the rendered URL stays
+	 * clean because the unknown value falls back to the default and the
+	 * default-only `style=standard` case is dropped.
+	 *
+	 * @dataProvider provide_adversarial_route_enums
+	 *
+	 * @param string $attr_name        Block attribute key under test.
+	 * @param string $payload          Adversarial string the attribute could carry.
+	 * @param string $forbidden_param  Iframe URL param name that must not appear.
+	 *
+	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 */
+	public function test_render_strava_embed_rejects_unknown_enum_values( string $attr_name, string $payload, string $forbidden_param ): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
+		$block   = array(
+			'attrs' => array(
+				'providerNameSlug' => 'strava',
+				'url'              => 'https://www.strava.com/routes/456',
+				$attr_name         => $payload,
+			),
+		);
+
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+
+		// Adversarial value never reaches the rendered HTML.
+		$this->assertStringNotContainsString( $payload, $result );
+
+		// Extract the iframe src and inspect its query string, so the
+		// assertion targets URL params rather than e.g. the inline `style`
+		// attribute that the iframe always carries.
+		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
+		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
+		$parts       = wp_parse_url( $decoded_src );
+		$this->assertSame( '/route/456', $parts['path'] );
+		parse_str( $parts['query'] ?? '', $query );
+		$this->assertArrayNotHasKey( $forbidden_param, $query );
+	}
+
+	/**
 	 * Routes at defaults render a clean URL (no params) — keeps caches and
 	 * the iframe URL stable when nothing has been customized.
 	 *
