@@ -47,6 +47,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 			$html
 		);
 		$this->assertStringContainsString( 'referrerpolicy="origin"', $html );
+		// The plugin no longer ships a frontend stylesheet, so an inline
+		// max-width cap is what stops `width="600"` from overflowing
+		// narrow containers (mobile, widget areas).
+		$this->assertStringContainsString( 'style="width:100%;max-width:600px;display:block;border:0;"', $html );
 	}
 
 	/**

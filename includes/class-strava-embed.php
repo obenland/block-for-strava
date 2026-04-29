@@ -221,10 +221,12 @@ class Block_For_Strava_Embed {
 	/**
 	 * Extracts the Strava route URL params from a block's attributes.
 	 *
-	 * Mirrors the convention from PR #22's editor-side `buildEmbedQuery`:
-	 * `style` is always emitted; the rest only when the user has chosen a
-	 * non-default value, so Strava's iframe falls back to its own defaults
-	 * for anything we don't override.
+	 * `style` is included unless it would be the only param and still set
+	 * to its default `standard` value; the rest are only emitted when the
+	 * user has chosen a non-default value, so Strava's iframe falls back
+	 * to its own defaults for anything we don't override. Returning an
+	 * empty array when nothing is customized keeps the iframe URL stable
+	 * (and cache-friendly) for routes that haven't been tweaked.
 	 *
 	 * @param  array $attrs Block attributes.
 	 * @return array        Param map suitable for `http_build_query`.
@@ -356,11 +358,19 @@ class Block_For_Strava_Embed {
 			$src .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
 		}
 
+		$resolved_width  = $width ?? self::DEFAULT_WIDTH;
+		$resolved_height = $height ?? self::DEFAULT_HEIGHT;
+		// The plugin no longer ships a frontend stylesheet, so without an
+		// inline cap the fixed `width="600"` would overflow narrower
+		// containers (classic content, widget areas, mobile viewports).
+		$style = sprintf( 'width:100%%;max-width:%dpx;display:block;border:0;', $resolved_width );
+
 		return sprintf(
-			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
+			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" style="%s" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
 			esc_url( $src ),
-			$width ?? self::DEFAULT_WIDTH,
-			$height ?? self::DEFAULT_HEIGHT,
+			$resolved_width,
+			$resolved_height,
+			esc_attr( $style ),
 			esc_attr__( 'Strava embed', 'block-for-strava' )
 		);
 	}

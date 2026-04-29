@@ -54,5 +54,9 @@ function block_for_strava_enqueue_editor_assets(): void {
 		$asset['version'],
 		true
 	);
+	// Without this, the `__()` strings inside the bundle never reach
+	// WordPress's translation system and stay in English regardless of
+	// active locale or any registered .json translations.
+	wp_set_script_translations( 'block-for-strava-variation', 'block-for-strava' );
 }
 add_action( 'enqueue_block_editor_assets', 'block_for_strava_enqueue_editor_assets' );
