@@ -12,13 +12,13 @@ Embed public Strava activities, routes, and segments on your WordPress site with
 
 == Description ==
 
-Block for Strava adds a Gutenberg block that lets you embed any public Strava activity, route, or segment on your site. Paste a Strava URL and the block renders the official Strava embed — no API keys required.
+Block for Strava extends WordPress's core Embed block so any public Strava URL just works — paste the URL into a post and it converts into a Strava embed automatically. No new block type to learn, no API keys.
 
 **Features:**
 
-* Paste any public Strava activity, route, or segment URL
+* Paste any public Strava activity, route, or segment URL on its own line — the editor turns it into an embed automatically
 * Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`) and short share links (`strava.app.link/…`)
-* Live preview in the block editor
+* Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a sandboxed iframe
 * No Strava account or API key needed
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
@@ -27,8 +27,8 @@ Block for Strava adds a Gutenberg block that lets you embed any public Strava ac
 
 1. Upload the plugin files to `/wp-content/plugins/block-for-strava/`, or install directly from the WordPress Plugins screen.
 2. Activate the plugin.
-3. In the block editor, search for "Strava Activity" and insert the block.
-4. Paste a public Strava activity, route, or segment URL and click Embed.
+3. In the block editor, paste any Strava activity, route, or segment URL onto its own line — it auto-converts to a Strava embed.
+4. Or open the block inserter, search for "Strava", and pick the variation; then paste a URL into the embed block's prompt.
 
 == Frequently Asked Questions ==
 

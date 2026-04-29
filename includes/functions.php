@@ -46,22 +46,6 @@ function block_for_strava_parse_strava_url( string $url ) {
 }
 
 /**
- * Parses a Strava activity ID from a canonical activity URL.
- *
- * Kept for backwards compatibility; returns false for routes and segments.
- *
- * @param  string $url The URL to parse.
- * @return string|false The activity ID, or false if not an activity URL.
- */
-function block_for_strava_parse_activity_id( string $url ) {
-	$parsed = block_for_strava_parse_strava_url( $url );
-	if ( false !== $parsed && 'activity' === $parsed['type'] ) {
-		return $parsed['id'];
-	}
-	return false;
-}
-
-/**
  * Determines whether a URL uses http(s) and a host on the supplied allowlist
  * (exact match or proper subdomain).
  *
