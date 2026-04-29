@@ -129,7 +129,7 @@ export function ToolbarButton( {
 		{
 			type: 'button',
 			'aria-label': label,
-			'aria-pressed': isActive ? 'true' : 'false',
+			...( isActive !== undefined && { 'aria-pressed': isActive } ),
 			onClick,
 		},
 		label

@@ -487,7 +487,13 @@ export function StravaCustomEdit(
 
 	const submitURL = ( event: FormEvent< HTMLFormElement > ) => {
 		event.preventDefault();
-		props.setAttributes( { url: urlInput } );
+		/*
+		 * Trim before saving: `parseStravaUrl` anchors at `^https?` so a
+		 * leading newline or space from a clipboard paste would silently
+		 * fall through to core/embed and the saved attribute would carry
+		 * the stray whitespace forward.
+		 */
+		props.setAttributes( { url: urlInput.trim() } );
 		setIsEditingURL( false );
 	};
 

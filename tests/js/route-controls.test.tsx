@@ -458,6 +458,41 @@ describe( 'BlockEdit HOC', () => {
 		} );
 	} );
 
+	it( 'trims whitespace from the URL on submit', async () => {
+		// `parseStravaUrl` anchors at `^https?`; without trimming, a pasted URL
+		// with a leading newline or space would silently fall through to
+		// core/embed and the saved attribute would carry the stray characters.
+		const setAttributes = jest.fn();
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		const urlInput = screen.getByRole( 'textbox', {
+			name: /embed url/i,
+		} );
+		await userEvent.clear( urlInput );
+		await userEvent.type(
+			urlInput,
+			'  https://www.strava.com/activities/999  '
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /^embed$/i } )
+		);
+		expect( setAttributes ).toHaveBeenCalledWith( {
+			url: 'https://www.strava.com/activities/999',
+		} );
+	} );
+
 	it( 'restores the iframe when Edit URL is toggled off without saving', async () => {
 		// Re-clicking the toolbar pencil should cancel the edit and leave the
 		// stored URL untouched — otherwise the user has no way to back out of
