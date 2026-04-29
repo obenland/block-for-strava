@@ -157,16 +157,16 @@ test.describe.serial( 'Strava core/embed variation', () => {
 			stravaRouteShowElevation: false,
 		};
 		/*
-		 * core/embed is a static block — the editor writes the resolved
-		 * iframe HTML to post_content after the oEmbed proxy returns. Mimic
-		 * that here so `apply_route_params` has the same input it sees in
-		 * production. Without the iframe in the saved content, the front
-		 * end would just show the bare URL as text.
+		 * core/embed's `save()` writes the bare URL inside the wrapper; the
+		 * `render_block_core/embed` filter swaps it for our parameterized
+		 * iframe before autoembed runs. Saving in this shape mirrors what
+		 * the editor produces in production.
 		 */
-		const savedIframe = `<iframe class="strava-embed-iframe" src="https://strava-embeds.com/route/${ routeId }" width="600" height="730" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="Strava embed"></iframe>`;
 		const blockComment = `<!-- wp:embed ${ JSON.stringify(
 			attrs
-		) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">${ savedIframe }</div></figure><!-- /wp:embed -->`;
+		) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">\n${
+			attrs.url
+		}\n</div></figure><!-- /wp:embed -->`;
 		postId = wp(
 			'post create --post_title="Strava route options" --post_status=publish --porcelain'
 		);

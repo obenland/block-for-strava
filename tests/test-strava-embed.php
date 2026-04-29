@@ -312,22 +312,24 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Builds a baseline core/embed-shaped block content string the way the
 	 * production filter receives it: an iframe wrapped in core's figure.
 	 *
-	 * @param  string $src The iframe `src` attribute value.
+	 * @param  string $url Bare URL the editor would have stored.
 	 */
-	private function makeEmbedBlockContent( string $src ): string {
+	private function makeEmbedBlockContent( string $url ): string {
 		return sprintf(
-			'<figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper"><iframe class="strava-embed-iframe" src="%s" width="600" height="730"></iframe></div></figure>',
-			esc_attr( $src )
+			'<figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">%s%s%s</div></figure>',
+			"\n",
+			$url,
+			"\n"
 		);
 	}
 
 	/**
 	 * Strava URL params land on the iframe `src` when route attrs are set.
 	 *
-	 * @covers Block_For_Strava_Embed::apply_route_params
+	 * @covers Block_For_Strava_Embed::render_strava_embed
 	 */
-	public function test_apply_route_params_appends_query_string_for_routes(): void {
-		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/route/456' );
+	public function test_render_strava_embed_appends_route_params(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
 		$block   = array(
 			'attrs' => array(
 				'providerNameSlug'         => 'strava',
@@ -341,9 +343,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 			),
 		);
 
-		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
-		$this->assertSame( 1, preg_match( '~src="([^"]+)"~', $result, $matches ) );
+		$this->assertStringContainsString( 'class="wp-block-embed__wrapper"', $result );
+		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
 		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
 		$parts       = wp_parse_url( $decoded_src );
 		$this->assertSame( '/route/456', $parts['path'] );
@@ -362,14 +365,13 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * All-defaults must leave the iframe URL untouched — Strava's iframe
-	 * already renders the default styling without explicit params, and a
-	 * stable URL is friendlier to caches/CDNs.
+	 * Routes at defaults render a clean URL (no params) — keeps caches and
+	 * the iframe URL stable when nothing has been customized.
 	 *
-	 * @covers Block_For_Strava_Embed::apply_route_params
+	 * @covers Block_For_Strava_Embed::render_strava_embed
 	 */
-	public function test_apply_route_params_no_op_at_defaults(): void {
-		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/route/456' );
+	public function test_render_strava_embed_clean_url_at_defaults(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
 		$block   = array(
 			'attrs' => array(
 				'providerNameSlug' => 'strava',
@@ -377,40 +379,48 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 			),
 		);
 
-		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
-		$this->assertSame( $content, $result );
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/route/456"',
+			$result
+		);
+		$this->assertStringNotContainsString( '?style=', $result );
 	}
 
 	/**
-	 * Activity URLs ignore route attributes — Strava's share dialog only
-	 * exposes these knobs for routes.
+	 * Activity URLs render the iframe with no route params, matching the
+	 * autoembed handler's output exactly.
 	 *
-	 * @covers Block_For_Strava_Embed::apply_route_params
+	 * @covers Block_For_Strava_Embed::render_strava_embed
 	 */
-	public function test_apply_route_params_skips_activities(): void {
-		$content = $this->makeEmbedBlockContent( 'https://strava-embeds.com/activity/123' );
+	public function test_render_strava_embed_activity_url(): void {
+		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/activities/123' );
 		$block   = array(
 			'attrs' => array(
 				'providerNameSlug'     => 'strava',
 				'url'                  => 'https://www.strava.com/activities/123',
+				// Route attrs on a non-route URL are ignored.
 				'stravaRouteMapStyle'  => 'satellite',
 				'stravaRouteFullWidth' => true,
 			),
 		);
 
-		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
-		$this->assertSame( $content, $result );
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/activity/123"',
+			$result
+		);
 	}
 
 	/**
 	 * Non-Strava embeds (e.g. YouTube) must pass through untouched.
 	 *
-	 * @covers Block_For_Strava_Embed::apply_route_params
+	 * @covers Block_For_Strava_Embed::render_strava_embed
 	 */
-	public function test_apply_route_params_skips_non_strava_embeds(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.youtube.com/embed/abc' );
+	public function test_render_strava_embed_skips_non_strava_embeds(): void {
+		$content = '<figure class="wp-block-embed is-provider-youtube"><div class="wp-block-embed__wrapper"><iframe src="https://www.youtube.com/embed/abc"></iframe></div></figure>';
 		$block   = array(
 			'attrs' => array(
 				'providerNameSlug' => 'youtube',
@@ -418,7 +428,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 			),
 		);
 
-		$result = Block_For_Strava_Embed::apply_route_params( $content, $block );
+		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
 		$this->assertSame( $content, $result );
 	}

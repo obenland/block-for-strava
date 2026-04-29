@@ -14,7 +14,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentType } from 'react';
 
-import { StravaRouteInspector } from '../../src/route-controls';
+import { buildEmbedUrl, StravaRouteInspector } from '../../src/route-controls';
 
 interface AttributeSpec {
 	type: 'string' | 'boolean';
@@ -120,7 +120,7 @@ describe( 'BlockEdit HOC', () => {
 		return createElement( 'div', { 'data-testid': 'fake-edit' }, 'fake' );
 	}
 
-	it( 'renders only the underlying Edit when not a Strava route block', () => {
+	it( 'falls through to the underlying Edit for non-Strava embeds', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
 		render(
 			createElement( Wrapped, {
@@ -133,12 +133,11 @@ describe( 'BlockEdit HOC', () => {
 			} )
 		);
 		expect( screen.getByTestId( 'fake-edit' ) ).toBeInTheDocument();
-		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
 	} );
 
-	it( 'renders only the underlying Edit for Strava activity URLs', () => {
+	it( 'renders our iframe (no inspector) for Strava activity URLs', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
-		render(
+		const { container } = render(
 			createElement( Wrapped, {
 				name: 'core/embed',
 				attributes: {
@@ -148,12 +147,17 @@ describe( 'BlockEdit HOC', () => {
 				setAttributes: jest.fn(),
 			} )
 		);
+		expect( screen.queryByTestId( 'fake-edit' ) ).toBeNull();
 		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
+		const iframe = container.querySelector( 'iframe.strava-embed-iframe' );
+		expect( iframe?.getAttribute( 'src' ) ).toBe(
+			'https://strava-embeds.com/activity/123'
+		);
 	} );
 
-	it( 'renders the inspector panel for Strava route URLs', () => {
+	it( 'renders our iframe + the inspector for Strava route URLs', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
-		render(
+		const { container } = render(
 			createElement( Wrapped, {
 				name: 'core/embed',
 				attributes: {
@@ -169,6 +173,68 @@ describe( 'BlockEdit HOC', () => {
 		expect(
 			screen.getByRole( 'region', { name: /route options/i } )
 		).toBeInTheDocument();
+		const iframe = container.querySelector( 'iframe.strava-embed-iframe' );
+		expect( iframe?.getAttribute( 'src' ) ).toBe(
+			'https://strava-embeds.com/route/456'
+		);
+	} );
+
+	it( 'reflects route attribute changes live in the iframe URL', () => {
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/routes/456',
+					stravaRouteMapStyle: 'satellite',
+					stravaRouteTerrain: '3d',
+					stravaRouteUnits: 'metric',
+					stravaRouteShowDirt: true,
+					stravaRouteFullWidth: true,
+					stravaRouteShowElevation: false,
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const src = container
+			.querySelector( 'iframe.strava-embed-iframe' )
+			?.getAttribute( 'src' );
+		expect( src ).toBeDefined();
+		const params = new URL( src as string ).searchParams;
+		expect( params.get( 'style' ) ).toBe( 'satellite' );
+		expect( params.get( 'terrain' ) ).toBe( '3d' );
+		expect( params.get( 'units' ) ).toBe( 'metric' );
+		expect( params.get( 'fullWidth' ) ).toBe( 'true' );
+		expect( params.get( 'surfaceType' ) ).toBe( 'true' );
+		expect( params.get( 'hideElevation' ) ).toBe( 'true' );
+	} );
+
+	it( 'falls through to the underlying Edit for short URLs (server-side resolution required)', () => {
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://strava.app.link/abc',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect( screen.getByTestId( 'fake-edit' ) ).toBeInTheDocument();
+	} );
+
+	it( 'falls through to the underlying Edit when the URL is missing', () => {
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: { providerNameSlug: 'strava' },
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect( screen.getByTestId( 'fake-edit' ) ).toBeInTheDocument();
 	} );
 
 	it( 'leaves other block types alone (e.g. core/paragraph)', () => {
@@ -183,19 +249,76 @@ describe( 'BlockEdit HOC', () => {
 				setAttributes: jest.fn(),
 			} )
 		);
-		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
+		expect( screen.getByTestId( 'fake-edit' ) ).toBeInTheDocument();
+	} );
+} );
+
+describe( 'buildEmbedUrl', () => {
+	it( 'returns a clean URL for non-route types', () => {
+		expect( buildEmbedUrl( { type: 'activity', id: '123' }, {} ) ).toBe(
+			'https://strava-embeds.com/activity/123'
+		);
+		expect( buildEmbedUrl( { type: 'segment', id: '789' }, {} ) ).toBe(
+			'https://strava-embeds.com/segment/789'
+		);
 	} );
 
-	it( 'tolerates a missing url attribute (no panel rendered)', () => {
-		const Wrapped = applyBlockEditFilter( FakeEdit );
-		render(
-			createElement( Wrapped, {
-				name: 'core/embed',
-				attributes: { providerNameSlug: 'strava' },
-				setAttributes: jest.fn(),
-			} )
+	it( 'returns a clean URL for routes at defaults', () => {
+		expect( buildEmbedUrl( { type: 'route', id: '456' }, {} ) ).toBe(
+			'https://strava-embeds.com/route/456'
 		);
-		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
+	} );
+
+	it( 'omits route params when set to default values', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{
+					stravaRouteMapStyle: 'standard',
+					stravaRouteTerrain: 'auto',
+					stravaRouteUnits: 'auto',
+					stravaRouteShowDirt: false,
+					stravaRouteFullWidth: false,
+					stravaRouteShowElevation: true,
+				}
+			)
+		).toBe( 'https://strava-embeds.com/route/456' );
+	} );
+
+	it( 'emits each non-default route param', () => {
+		const url = new URL(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{
+					stravaRouteMapStyle: 'satellite',
+					stravaRouteTerrain: '3d',
+					stravaRouteUnits: 'metric',
+					stravaRouteShowDirt: true,
+					stravaRouteFullWidth: true,
+					stravaRouteShowElevation: false,
+				}
+			)
+		);
+		expect( url.pathname ).toBe( '/route/456' );
+		expect( url.searchParams.get( 'style' ) ).toBe( 'satellite' );
+		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+		expect( url.searchParams.get( 'units' ) ).toBe( 'metric' );
+		expect( url.searchParams.get( 'surfaceType' ) ).toBe( 'true' );
+		expect( url.searchParams.get( 'fullWidth' ) ).toBe( 'true' );
+		expect( url.searchParams.get( 'hideElevation' ) ).toBe( 'true' );
+	} );
+
+	it( 'clamps invalid stored values back to defaults (no params emitted)', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{
+					stravaRouteMapStyle: 'bogus',
+					stravaRouteTerrain: 'flat',
+					stravaRouteUnits: 'imperial-ish',
+				}
+			)
+		).toBe( 'https://strava-embeds.com/route/456' );
 	} );
 } );
 

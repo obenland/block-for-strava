@@ -3,18 +3,24 @@
  *
  * Block variations can't carry their own attributes or transforms, so we
  * extend `core/embed` itself with route-only attributes via the
- * `blocks.registerBlockType` filter and add the inspector panel through
- * `editor.BlockEdit`. The panel only appears when the variation is active
- * (`providerNameSlug === 'strava'`) AND the URL targets a route — Strava
- * exposes these knobs only for routes in their share dialog.
+ * `blocks.registerBlockType` filter and override the editor preview through
+ * `editor.BlockEdit` for any Strava-variation embed pointing at a canonical
+ * URL we can resolve client-side. The override:
  *
- * Editor preview shows the default route styling because core/embed
- * caches the oEmbed proxy response per URL; the customizations land in
- * the published HTML via the PHP `render_block_core/embed` filter, which
- * appends Strava's documented query params to the iframe `src`.
+ * - Renders the iframe ourselves with route options baked into the URL as
+ *   query params, so toggling a control updates the preview in real time
+ *   (core/embed's preview comes from a per-URL cached oEmbed response and
+ *   wouldn't reflect attribute changes alone).
+ * - Surfaces the route options panel for route URLs only; activity and
+ *   segment URLs render the same iframe without the panel since Strava's
+ *   share dialog doesn't expose these knobs for those types.
+ *
+ * Short URLs (`strava.app.link/…`) require server-side resolution, so the
+ * override falls back to core/embed's default Edit until the URL has been
+ * resolved into the canonical form.
  */
 import { addFilter } from '@wordpress/hooks';
-import { InspectorControls } from '@wordpress/block-editor';
+import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import {
 	PanelBody,
 	ToggleControl,
@@ -89,14 +95,91 @@ const ROUTE_UNITS: ReadonlyArray< RouteUnits > = [
 const ROUTE_TERRAINS: ReadonlyArray< RouteTerrain > = [ 'auto', '2d', '3d' ];
 
 /*
- * Strict end-anchor variant of the variation's route pattern: the controls
- * panel should only surface when we're confident the URL is a route. The
- * variation patterns accept a prefix; here we require the digits to be
- * followed by a delimiter or end-of-string so partial matches don't trigger
- * a UI panel that wouldn't apply.
+ * Captures `(type, id)` from a canonical Strava URL so the editor preview
+ * can build the iframe directly. The trailing `(?=[/?#]|$)` mirrors the PHP
+ * boundary so `/routes/123abc` doesn't match as route 123. Short URLs need
+ * a server hop to resolve; the BlockEdit override falls back to core/embed
+ * when the URL hasn't been resolved into the canonical form yet.
  */
-const ROUTE_URL_RE =
-	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/routes\/\d+(?=[/?#]|$)/i;
+const CANONICAL_STRAVA_URL_RE =
+	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(activities|routes|segments)\/(\d+)(?=[/?#]|$)/i;
+
+const URL_PATH_TO_TYPE: Record< string, 'activity' | 'route' | 'segment' > = {
+	activities: 'activity',
+	routes: 'route',
+	segments: 'segment',
+};
+
+interface ResolvedStravaUrl {
+	type: 'activity' | 'route' | 'segment';
+	id: string;
+}
+
+function parseStravaUrl( url: string ): ResolvedStravaUrl | null {
+	const match = CANONICAL_STRAVA_URL_RE.exec( url );
+	if ( ! match ) {
+		return null;
+	}
+	return {
+		type: URL_PATH_TO_TYPE[ match[ 1 ].toLowerCase() ],
+		id: match[ 2 ],
+	};
+}
+
+/**
+ * Builds the strava-embeds.com URL for a canonical resource, including
+ * route-specific query params when the user has overridden any default.
+ *
+ * @param resolved Resolved type+id from `parseStravaUrl`.
+ * @param attrs    Block attributes carrying optional `stravaRoute*` fields.
+ */
+export function buildEmbedUrl(
+	resolved: ResolvedStravaUrl,
+	attrs: StravaRouteAttributes
+): string {
+	const base = `https://strava-embeds.com/${ resolved.type }/${ resolved.id }`;
+	if ( 'route' !== resolved.type ) {
+		return base;
+	}
+
+	const mapStyle = clampEnum(
+		attrs.stravaRouteMapStyle,
+		ROUTE_MAP_STYLES,
+		'standard'
+	);
+	const terrain = clampEnum(
+		attrs.stravaRouteTerrain,
+		ROUTE_TERRAINS,
+		'auto'
+	);
+	const units = clampEnum( attrs.stravaRouteUnits, ROUTE_UNITS, 'auto' );
+	const showElevation = clampBool( attrs.stravaRouteShowElevation, true );
+	const fullWidth = clampBool( attrs.stravaRouteFullWidth, false );
+	const showDirt = clampBool( attrs.stravaRouteShowDirt, false );
+
+	const params = new URLSearchParams();
+	if ( 'standard' !== mapStyle ) {
+		params.set( 'style', mapStyle );
+	}
+	if ( ! showElevation ) {
+		params.set( 'hideElevation', 'true' );
+	}
+	if ( 'auto' !== units ) {
+		params.set( 'units', units );
+	}
+	if ( fullWidth ) {
+		params.set( 'fullWidth', 'true' );
+	}
+	if ( 'auto' !== terrain ) {
+		params.set( 'terrain', terrain );
+	}
+	if ( showDirt ) {
+		params.set( 'surfaceType', 'true' );
+	}
+
+	const query = params.toString();
+	return query ? `${ base }?${ query }` : base;
+}
 
 addFilter(
 	'blocks.registerBlockType',
@@ -131,17 +214,6 @@ addFilter(
 		};
 	}
 );
-
-function isStravaRouteBlock(
-	name: string,
-	attributes: StravaRouteAttributes
-): boolean {
-	return (
-		'core/embed' === name &&
-		'strava' === attributes.providerNameSlug &&
-		ROUTE_URL_RE.test( attributes.url ?? '' )
-	);
-}
 
 /*
  * `clampEnum` is the same defense-in-depth pattern the legacy block used —
@@ -286,20 +358,74 @@ export function StravaRouteInspector( {
 	);
 }
 
+/**
+ * Renders the Strava embed iframe directly inside the editor canvas, with
+ * route options baked into the URL so toggling a control updates the
+ * preview live. The figure/wrapper structure mirrors core/embed's `save()`
+ * output so the surrounding editor styles, alignment, and selection chrome
+ * still apply.
+ * @param props
+ */
+export function StravaCustomEdit(
+	props: BlockEditProps & { resolved: ResolvedStravaUrl }
+) {
+	const blockProps = useBlockProps( {
+		className:
+			'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
+	} );
+	const src = buildEmbedUrl( props.resolved, props.attributes );
+	return createElement(
+		Fragment,
+		null,
+		'route' === props.resolved.type
+			? createElement( StravaRouteInspector, props )
+			: null,
+		createElement(
+			'figure',
+			blockProps,
+			createElement(
+				'div',
+				{ className: 'wp-block-embed__wrapper' },
+				createElement( 'iframe', {
+					className: 'strava-embed-iframe',
+					src,
+					sandbox:
+						'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
+					referrerPolicy: 'origin',
+					scrolling: 'no',
+					title: __( 'Strava embed', 'block-for-strava' ),
+					style: {
+						width: '100%',
+						height: '730px',
+						border: 0,
+						display: 'block',
+					},
+				} )
+			)
+		)
+	);
+}
+
+/*
+ * Override core/embed's preview only when we can resolve the URL into a
+ * canonical {type, id} client-side. Short URLs (`strava.app.link/…`) and
+ * empty URLs need core/embed's stock UI: short URLs require the server-
+ * side resolver, and an empty URL needs the URL-prompt placeholder.
+ */
 addFilter(
 	'editor.BlockEdit',
 	'block-for-strava/route-controls',
 	( BlockEdit: ComponentType< BlockEditProps > ) => {
 		function StravaRouteEdit( props: BlockEditProps ) {
-			if ( ! isStravaRouteBlock( props.name, props.attributes ) ) {
+			const resolved =
+				'core/embed' === props.name &&
+				'strava' === props.attributes.providerNameSlug
+					? parseStravaUrl( props.attributes.url ?? '' )
+					: null;
+			if ( null === resolved ) {
 				return createElement( BlockEdit, props );
 			}
-			return createElement(
-				Fragment,
-				null,
-				createElement( BlockEdit, props ),
-				createElement( StravaRouteInspector, props )
-			);
+			return createElement( StravaCustomEdit, { ...props, resolved } );
 		}
 		StravaRouteEdit.displayName = 'StravaRouteEdit';
 		return StravaRouteEdit;

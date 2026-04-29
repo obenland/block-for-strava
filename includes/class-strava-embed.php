@@ -47,7 +47,7 @@ class Block_For_Strava_Embed {
 	public static function init(): void {
 		add_filter( 'pre_oembed_result', array( self::class, 'maybe_strava_embed' ), 10, 3 );
 		add_filter( 'rest_request_after_callbacks', array( self::class, 'rest_proxy_fallback' ), 10, 3 );
-		add_filter( 'render_block_core/embed', array( self::class, 'apply_route_params' ), 10, 2 );
+		add_filter( 'render_block_core/embed', array( self::class, 'render_strava_embed' ), 10, 2 );
 
 		/*
 		 * Subdomain group matches the host check in
@@ -170,53 +170,52 @@ class Block_For_Strava_Embed {
 	}
 
 	/**
-	 * Appends Strava's route customization params to the iframe URL when a
-	 * core/embed block carries our variation's route attributes.
+	 * Replaces a Strava core/embed block's wrapper contents with our iframe.
 	 *
-	 * Block variations can't carry their own attributes; the route options
-	 * live on `core/embed` itself (added via the JS `blocks.registerBlockType`
-	 * filter) and are honored only when `providerNameSlug === 'strava'` and
-	 * the URL targets a route. We post-process the rendered block content
-	 * because the oEmbed pipeline doesn't expose block attributes — by the
-	 * time `wp_oembed_get` runs, all we have is the URL.
+	 * Core/embed's `save()` writes a bare URL inside `<div class="wp-block-
+	 * embed__wrapper">`; the URL gets turned into an iframe later by
+	 * `WP_Embed::autoembed` running on `the_content`. Hooking earlier here
+	 * lets us bake route-specific URL params directly into the iframe `src`
+	 * (block attributes aren't visible to autoembed/oEmbed callbacks) and
+	 * removes the autoembed pass for these blocks entirely — autoembed
+	 * still owns bare URLs in plain post content.
+	 *
+	 * For activities and segments the resulting iframe is identical to what
+	 * autoembed would have produced, so the rewrite is a clean no-op even
+	 * when no route options are set.
 	 *
 	 * @param  string $block_content The original rendered block HTML.
 	 * @param  array  $block         Parsed block (including attrs).
 	 * @return string                Possibly-rewritten HTML.
 	 */
-	public static function apply_route_params( string $block_content, array $block ): string {
+	public static function render_strava_embed( string $block_content, array $block ): string {
 		$attrs = isset( $block['attrs'] ) && is_array( $block['attrs'] ) ? $block['attrs'] : array();
 		if ( ( $attrs['providerNameSlug'] ?? '' ) !== 'strava' ) {
 			return $block_content;
 		}
 		$resolved = self::resolve_to_canonical( (string) ( $attrs['url'] ?? '' ) );
-		if ( null === $resolved || 'route' !== $resolved['type'] ) {
-			return $block_content;
-		}
-		$params = self::route_params_from_attrs( $attrs );
-		if ( empty( $params ) ) {
+		if ( null === $resolved ) {
 			return $block_content;
 		}
 
-		$new_src = sprintf(
-			'https://strava-embeds.com/route/%s?%s',
-			rawurlencode( $resolved['id'] ),
-			http_build_query( $params, '', '&', PHP_QUERY_RFC3986 )
-		);
+		$params = 'route' === $resolved['type']
+			? self::route_params_from_attrs( $attrs )
+			: array();
+		$iframe = self::build_iframe( $resolved['type'], $resolved['id'], null, null, $params );
 
 		/*
-		 * Replace the iframe `src` in place rather than re-rendering — that
-		 * preserves whatever wrapper markup core/embed produced (the
-		 * `wp-block-embed`/`is-provider-strava` class set, alignment, etc.).
-		 * Only the first iframe is touched in case a theme wraps the embed
-		 * in additional iframes.
+		 * Wrapper inner content is the bare URL after `save()`; replace it
+		 * with our iframe in one shot. The non-greedy `.*?` plus `s` flag
+		 * is safe because core/embed doesn't nest other elements inside the
+		 * wrapper.
 		 */
-		return preg_replace(
-			'~(<iframe\b[^>]*\bsrc=")[^"]*(")~i',
-			'${1}' . esc_attr( $new_src ) . '${2}',
+		$replaced = preg_replace(
+			'~(<div[^>]*\bclass="[^"]*wp-block-embed__wrapper[^"]*"[^>]*>).*?(</div>)~is',
+			'${1}' . $iframe . '${2}',
 			$block_content,
 			1
 		);
+		return null === $replaced ? $block_content : $replaced;
 	}
 
 	/**
@@ -344,14 +343,18 @@ class Block_For_Strava_Embed {
 	 * @param  string   $activity_id Numeric Strava ID.
 	 * @param  int|null $width       Preferred width in pixels (null = default).
 	 * @param  int|null $height      Preferred height in pixels (null = default).
+	 * @param  array    $params      Optional Strava embed-page query params.
 	 * @return string                Iframe HTML.
 	 */
-	private static function build_iframe( string $embed_type, string $activity_id, ?int $width = null, ?int $height = null ): string {
+	private static function build_iframe( string $embed_type, string $activity_id, ?int $width = null, ?int $height = null, array $params = array() ): string {
 		$src = sprintf(
 			'https://strava-embeds.com/%s/%s',
 			rawurlencode( $embed_type ),
 			rawurlencode( $activity_id )
 		);
+		if ( ! empty( $params ) ) {
+			$src .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
+		}
 
 		return sprintf(
 			'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
