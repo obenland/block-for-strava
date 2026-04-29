@@ -28,8 +28,9 @@ import { createBlock } from '@wordpress/blocks';
 /*
  * Plural URL path Strava uses for each embed type, keyed by the singular
  * form Strava's snippet `data-embed-type` attribute carries. Mirrors the
- * inverse mapping in `block_for_strava_parse_strava_url`; if Strava ever
- * adds a new embeddable type, both sides need updating in lockstep.
+ * inverse mapping in `Block_For_Strava_Embed::parse_strava_url()`; if
+ * Strava ever adds a new embeddable type, both sides need updating in
+ * lockstep.
  */
 const SINGULAR_TO_PLURAL: Record< string, string > = {
 	activity: 'activities',

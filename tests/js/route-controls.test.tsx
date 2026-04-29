@@ -990,6 +990,22 @@ describe( 'buildEmbedUrl', () => {
 		expect( url.searchParams.get( 'token' ) ).toBe( 'rOuTeToken' );
 		expect( url.searchParams.get( 'style' ) ).toBe( 'satellite' );
 	} );
+
+	it( 'omits default `style=standard` when only the token is set on a route', () => {
+		/*
+		 * PHP's `route_params_from_attrs()` returns `[]` when only the
+		 * default `style` would be emitted, then adds the token. The
+		 * editor must do the same so a route block with a token but no
+		 * route customization renders byte-identical iframe URLs on
+		 * both sides.
+		 */
+		expect(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{ stravaEmbedToken: 'rOuTeToken' }
+			)
+		).toBe( 'https://strava-embeds.com/route/456?token=rOuTeToken' );
+	} );
 } );
 
 describe( 'parseStravaHeightMessage', () => {

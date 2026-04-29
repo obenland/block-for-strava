@@ -213,8 +213,16 @@ class Block_For_Strava_Embed {
 		 * iframe shape: it works for public-Everyone activities and renders
 		 * Strava's "Error code: EEE" page for restricted ones (which the
 		 * editor's preflight surfaces as a notice before the post is saved).
+		 *
+		 * Strict `is_string` check (rather than a plain cast) so a hand-
+		 * edited block storing a non-scalar value — an array would cast
+		 * to "Array" and emit `token=Array` into the iframe — falls
+		 * through cleanly to the URL-only shape.
 		 */
-		$token = isset( $attrs['stravaEmbedToken'] ) ? (string) $attrs['stravaEmbedToken'] : '';
+		$token = '';
+		if ( isset( $attrs['stravaEmbedToken'] ) && is_string( $attrs['stravaEmbedToken'] ) ) {
+			$token = $attrs['stravaEmbedToken'];
+		}
 		if ( '' !== $token ) {
 			$params['token'] = $token;
 		}

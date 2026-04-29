@@ -193,55 +193,57 @@ export function buildEmbedUrl(
 	const showDirt = clampBool( attrs.stravaRouteShowDirt, false );
 
 	/*
-	 * `style` is always set so the URL stays in lockstep with the PHP-side
-	 * `route_params_from_attrs`, then dropped only when it would be the
-	 * sole param at its default. Without this the editor preview would
-	 * render `?terrain=3d` while the published page renders
-	 * `?style=standard&terrain=3d` for the same saved attributes — a
-	 * minor URL-string drift that a CDN cache or analytics pixel can
-	 * surface as two distinct requests.
-	 *
-	 * Track non-default additions in an explicit counter rather than
-	 * reading `URLSearchParams.size`. Mainstream browsers ship `.size`
-	 * today, but the property is recent (2022–23) and an integer
-	 * counter is one less compatibility footgun for old environments.
+	 * Collect non-default route params first so we can decide whether
+	 * `style=standard` belongs in the URL at all. PHP's
+	 * `route_params_from_attrs` returns an empty array when only the
+	 * default `style` would be set; matching that here keeps editor and
+	 * front-end URLs byte-identical (including for the token-only case,
+	 * where both sides should produce `?token=…` without a stray
+	 * `style=standard`).
 	 */
-	const params = new URLSearchParams();
-	let nonDefaultParamCount = 0;
-	params.set( 'style', mapStyle );
+	const nonDefaults: Array< [ string, string ] > = [];
 	if ( ! showElevation ) {
-		params.set( 'hideElevation', 'true' );
-		nonDefaultParamCount++;
+		nonDefaults.push( [ 'hideElevation', 'true' ] );
 	}
 	if ( 'auto' !== units ) {
-		params.set( 'units', units );
-		nonDefaultParamCount++;
+		nonDefaults.push( [ 'units', units ] );
 	}
 	if ( fullWidth ) {
-		params.set( 'fullWidth', 'true' );
-		nonDefaultParamCount++;
+		nonDefaults.push( [ 'fullWidth', 'true' ] );
 	}
 	if ( 'auto' !== terrain ) {
-		params.set( 'terrain', terrain );
-		nonDefaultParamCount++;
+		nonDefaults.push( [ 'terrain', terrain ] );
 	}
 	if ( showDirt ) {
-		params.set( 'surfaceType', 'true' );
-		nonDefaultParamCount++;
+		nonDefaults.push( [ 'surfaceType', 'true' ] );
 	}
 
-	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle && ! token ) {
-		return base;
+	/*
+	 * URLSearchParams preserves insertion order; PHP's `http_build_query`
+	 * does too with `style` listed first by construction in
+	 * `route_params_from_attrs`. Set `style` first when emitted, then
+	 * the non-default params, then the token last — same order on both
+	 * sides.
+	 */
+	const params = new URLSearchParams();
+	if ( 'standard' !== mapStyle || nonDefaults.length > 0 ) {
+		params.set( 'style', mapStyle );
+	}
+	for ( const [ key, value ] of nonDefaults ) {
+		params.set( key, value );
 	}
 	if ( token ) {
 		/*
-		 * Routes won't 403 like tokenized activities do, but Strava accepts
-		 * the param either way and the snippet path could carry one through
-		 * for routes. Round-trip it so editor/server URLs match exactly.
+		 * Routes won't 403 like tokenized activities do, but Strava
+		 * accepts the param either way and the snippet path could carry
+		 * one through for routes. Round-trip it so editor/server URLs
+		 * match exactly.
 		 */
 		params.set( 'token', token );
 	}
-	return `${ base }?${ params.toString() }`;
+
+	const query = params.toString();
+	return query ? `${ base }?${ query }` : base;
 }
 
 addFilter(
@@ -519,7 +521,18 @@ export function StravaCustomEdit(
 	 * guaranteed to render.
 	 */
 	const { attributes, resolved } = props;
-	const storedToken = attributes.stravaEmbedToken ?? '';
+	/*
+	 * Match `buildEmbedUrl`'s clamp: only treat a non-empty *string* as a
+	 * stored token. Hand-edited block markup can persist arbitrary types
+	 * for any attribute; `?? ''` would let a `false`/`0`/object slip
+	 * through as truthy and skip the preflight while `buildEmbedUrl`
+	 * normalized the same value to an empty token, suppressing the
+	 * 403 notice for an iframe that's actually broken.
+	 */
+	const storedToken =
+		typeof attributes.stravaEmbedToken === 'string'
+			? attributes.stravaEmbedToken
+			: '';
 	const [ embedStatus, setEmbedStatus ] = useState<
 		'unknown' | 'ok' | 'needs-token'
 	>( 'unknown' );
@@ -692,6 +705,16 @@ export function StravaCustomEdit(
 					{
 						'data-testid': 'strava-embed-notice',
 						className: 'block-for-strava-notice',
+						/*
+						 * `role="status"` + `aria-live="polite"` so screen
+						 * readers announce the notice when the preflight
+						 * resolves to 'needs-token', without the more
+						 * intrusive `role="alert"` semantics that would
+						 * preempt the user's current focus. The notice is
+						 * informational, not time-critical.
+						 */
+						role: 'status',
+						'aria-live': 'polite',
 						style: {
 							padding: '12px 16px',
 							marginBottom: '8px',
