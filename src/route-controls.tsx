@@ -165,26 +165,37 @@ export function buildEmbedUrl(
 	 * `?style=standard&terrain=3d` for the same saved attributes — a
 	 * minor URL-string drift that a CDN cache or analytics pixel can
 	 * surface as two distinct requests.
+	 *
+	 * Track non-default additions in an explicit counter rather than
+	 * reading `URLSearchParams.size`. Mainstream browsers ship `.size`
+	 * today, but the property is recent (2022–23) and an integer
+	 * counter is one less compatibility footgun for old environments.
 	 */
 	const params = new URLSearchParams();
+	let nonDefaultParamCount = 0;
 	params.set( 'style', mapStyle );
 	if ( ! showElevation ) {
 		params.set( 'hideElevation', 'true' );
+		nonDefaultParamCount++;
 	}
 	if ( 'auto' !== units ) {
 		params.set( 'units', units );
+		nonDefaultParamCount++;
 	}
 	if ( fullWidth ) {
 		params.set( 'fullWidth', 'true' );
+		nonDefaultParamCount++;
 	}
 	if ( 'auto' !== terrain ) {
 		params.set( 'terrain', terrain );
+		nonDefaultParamCount++;
 	}
 	if ( showDirt ) {
 		params.set( 'surfaceType', 'true' );
+		nonDefaultParamCount++;
 	}
 
-	if ( 1 === params.size && 'standard' === params.get( 'style' ) ) {
+	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle ) {
 		return base;
 	}
 	return `${ base }?${ params.toString() }`;
