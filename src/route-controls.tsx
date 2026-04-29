@@ -461,7 +461,7 @@ export function parseStravaHeightMessage( data: unknown ): number | null {
  * @param props Block edit props plus the URL-resolved {type, id}.
  */
 export function StravaCustomEdit(
-	props: BlockEditProps & { resolved: ResolvedStravaUrl }
+	props: BlockEditProps & { resolved: ResolvedStravaUrl; url: string }
 ) {
 	const blockProps = useBlockProps( {
 		className:
@@ -483,7 +483,7 @@ export function StravaCustomEdit(
 	 * stored URL untouched.
 	 */
 	const [ isEditingURL, setIsEditingURL ] = useState( false );
-	const [ urlInput, setUrlInput ] = useState( props.attributes.url ?? '' );
+	const [ urlInput, setUrlInput ] = useState( props.url );
 
 	const submitURL = ( event: FormEvent< HTMLFormElement > ) => {
 		event.preventDefault();
@@ -492,7 +492,7 @@ export function StravaCustomEdit(
 	};
 
 	const toggleEditingURL = () => {
-		setUrlInput( props.attributes.url ?? '' );
+		setUrlInput( props.url );
 		setIsEditingURL( ( prev ) => ! prev );
 	};
 
@@ -646,15 +646,20 @@ addFilter(
 	'block-for-strava/route-controls',
 	( BlockEdit: ComponentType< BlockEditProps > ) => {
 		function StravaRouteEdit( props: BlockEditProps ) {
+			const url = props.attributes.url ?? '';
 			const resolved =
 				'core/embed' === props.name &&
 				'strava' === props.attributes.providerNameSlug
-					? parseStravaUrl( props.attributes.url ?? '' )
+					? parseStravaUrl( url )
 					: null;
 			if ( null === resolved ) {
 				return createElement( BlockEdit, props );
 			}
-			return createElement( StravaCustomEdit, { ...props, resolved } );
+			return createElement( StravaCustomEdit, {
+				...props,
+				resolved,
+				url,
+			} );
 		}
 		StravaRouteEdit.displayName = 'StravaRouteEdit';
 		return StravaRouteEdit;
