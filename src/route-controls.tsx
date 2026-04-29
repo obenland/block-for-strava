@@ -474,6 +474,23 @@ export function StravaCustomEdit(
 	}, [ src ] );
 
 	useEffect( () => {
+		/*
+		 * Gutenberg's iframe-based block canvas (default since WP 6.3) puts
+		 * the block's DOM inside an `editor-canvas` iframe while the React
+		 * tree itself stays in the top-level admin window — so `window`
+		 * here is the *admin* window, not the canvas. Strava posts to its
+		 * own `window.parent`, which is the canvas window, so a listener on
+		 * `window` would never fire. Hooking onto the iframe's owner window
+		 * lands on the right document in either layout (iframe-canvas or
+		 * legacy in-place).
+		 *
+		 * `iframeRef.current` is guaranteed non-null here: refs commit
+		 * before effects run, and the iframe is part of this component's
+		 * own render output. `ownerDocument.defaultView` is non-null for
+		 * any document attached to a browsing context — including jsdom's
+		 * default document. Asserting both lets us keep the effect linear.
+		 */
+		const targetWindow = iframeRef.current!.ownerDocument.defaultView!;
 		const handler = ( event: MessageEvent ) => {
 			/*
 			 * Source-window check rather than origin: a sandboxed iframe's
@@ -489,8 +506,8 @@ export function StravaCustomEdit(
 				setHeight( next );
 			}
 		};
-		window.addEventListener( 'message', handler );
-		return () => window.removeEventListener( 'message', handler );
+		targetWindow.addEventListener( 'message', handler );
+		return () => targetWindow.removeEventListener( 'message', handler );
 	}, [] );
 
 	/*
