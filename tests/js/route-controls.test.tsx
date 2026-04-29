@@ -182,6 +182,68 @@ describe( 'BlockEdit HOC', () => {
 		expect( iframe?.style.pointerEvents ).toBe( 'none' );
 	} );
 
+	it( "routes the listener through the iframe's owner window so Gutenberg's canvas iframe receives broadcasts", () => {
+		// Regression: in Gutenberg's iframe-canvas mode (default since WP
+		// 6.3) the block's DOM lives in a child iframe while React stays
+		// in the admin window. Strava posts to its own `window.parent` =
+		// the canvas window — a listener on `window` never fires. To
+		// reproduce the canvas/admin split in jsdom we mount the React
+		// tree inside a nested iframe's document and assert that the
+		// listener attaches to *that* iframe's window, not the outer one.
+		const hostIframe = document.createElement( 'iframe' );
+		document.body.appendChild( hostIframe );
+		const hostDoc = hostIframe.contentDocument as Document;
+		const hostWindow = hostIframe.contentWindow as Window;
+		const mountPoint = hostDoc.createElement( 'div' );
+		hostDoc.body.appendChild( mountPoint );
+
+		// Track addEventListener('message', …) calls on each candidate
+		// window. With the bug, the outer `window` would record the call;
+		// with the fix, only `hostWindow` does.
+		const outerCalls: string[] = [];
+		const hostCalls: string[] = [];
+		const outerOriginal = window.addEventListener.bind( window );
+		const hostOriginal = hostWindow.addEventListener.bind( hostWindow );
+		window.addEventListener = ( ( ...args: unknown[] ) => {
+			if ( 'message' === args[ 0 ] ) {
+				outerCalls.push( 'outer' );
+			}
+			return outerOriginal(
+				...( args as Parameters< typeof outerOriginal > )
+			);
+		} ) as typeof window.addEventListener;
+		hostWindow.addEventListener = ( ( ...args: unknown[] ) => {
+			if ( 'message' === args[ 0 ] ) {
+				hostCalls.push( 'host' );
+			}
+			return hostOriginal(
+				...( args as Parameters< typeof hostOriginal > )
+			);
+		} ) as typeof hostWindow.addEventListener;
+
+		try {
+			const Wrapped = applyBlockEditFilter( FakeEdit );
+			render(
+				createElement( Wrapped, {
+					name: 'core/embed',
+					attributes: {
+						providerNameSlug: 'strava',
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} ),
+				{ container: mountPoint }
+			);
+
+			expect( hostCalls.length ).toBeGreaterThan( 0 );
+			expect( outerCalls.length ).toBe( 0 );
+		} finally {
+			window.addEventListener = outerOriginal;
+			hostWindow.addEventListener = hostOriginal;
+			document.body.removeChild( hostIframe );
+		}
+	} );
+
 	it( 'sizes the editor preview iframe from BROADCAST_IFRAME_HEIGHT messages', () => {
 		const Wrapped = applyBlockEditFilter( FakeEdit );
 		const { container } = render(
