@@ -369,6 +369,47 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Short-URL resolution can fire `wp_safe_remote_head()` (up to 5 hops),
+	 * and `render_strava_embed` runs on every front-end render. Without
+	 * caching, a single saved short-URL embed would cost five HTTP requests
+	 * per page view; this test pins that the second resolution comes from
+	 * the transient.
+	 *
+	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 */
+	public function test_short_url_resolution_is_cached(): void {
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
+			if ( str_contains( $url, 'strava.app.link' ) ) {
+				++$http_calls;
+				return array(
+					'response' => array(
+						'code'    => 302,
+						'message' => 'Found',
+					),
+					'headers'  => array( 'location' => 'https://www.strava.com/activities/77777' ),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$short  = 'https://strava.app.link/cached-' . wp_generate_uuid4();
+		$first  = apply_filters( 'pre_oembed_result', null, $short, array() );
+		$second = apply_filters( 'pre_oembed_result', null, $short, array() );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_resolved_' . md5( $short ) );
+
+		$this->assertIsString( $first );
+		$this->assertIsString( $second );
+		$this->assertSame( 1, $http_calls, 'Second call should hit the cache instead of HTTP.' );
+	}
+
+	/**
 	 * Hand-edited block comments can persist non-boolean truthy values
 	 * (e.g. the string "false") for boolean attributes; the strict-equals
 	 * gate must reject them so the rendered iframe matches what the editor

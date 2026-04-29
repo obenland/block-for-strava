@@ -100,6 +100,9 @@ describe( 'core/paragraph → core/embed transform', () => {
 			],
 			// Lookalike host.
 			[ 'https://evilstrava.com/activities/123' ],
+			// Anchor whose href is non-Strava — the autolinker shape matches
+			// but the URL doesn't, so we should refuse.
+			[ '<a href="https://example.com/foo">https://example.com/foo</a>' ],
 		] )( 'rejects non-Strava-URL content: %s', ( content ) => {
 			expect( isMatch( { content } ) ).toBe( false );
 		} );
@@ -142,6 +145,23 @@ describe( 'core/paragraph → core/embed transform', () => {
 				'core/embed',
 				expect.objectContaining( {
 					url: 'https://www.strava.com/routes/456',
+				} )
+			);
+		} );
+
+		it( 'decodes HTML entities from the anchor href before saving', () => {
+			// RichText serializes `&` in attribute values as `&amp;`, so a
+			// pasted query-string URL round-trips with entity-encoded
+			// ampersands. Storing the encoded form would persist a URL
+			// that doesn't match what the user actually pasted.
+			transformFn( {
+				content:
+					'<a href="https://www.strava.com/activities/789?foo=1&amp;bar=2">https://www.strava.com/activities/789?foo=1&amp;bar=2</a>',
+			} );
+			expect( createBlock ).toHaveBeenCalledWith(
+				'core/embed',
+				expect.objectContaining( {
+					url: 'https://www.strava.com/activities/789?foo=1&bar=2',
 				} )
 			);
 		} );

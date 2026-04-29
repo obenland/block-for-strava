@@ -328,7 +328,11 @@ class Block_For_Strava_Embed {
 	 * Resolves any supported Strava URL form to a canonical {type, id}.
 	 *
 	 * For strava.app.link short URLs, performs a remote lookup gated by the
-	 * SSRF-safe helper inside `block_for_strava_resolve_strava_url`.
+	 * SSRF-safe helper inside `block_for_strava_resolve_strava_url`. The
+	 * lookup result (positive or negative) is memoized in a transient
+	 * because `render_strava_embed` runs on every front-end render of the
+	 * post — without the cache, a saved short-URL embed would trigger up
+	 * to five `wp_safe_remote_head()` requests per page view.
 	 *
 	 * @param  string $url The URL to resolve.
 	 * @return array|null  ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or null.
@@ -339,12 +343,27 @@ class Block_For_Strava_Embed {
 			return $parsed;
 		}
 
+		$cache_key = 'block_for_strava_resolved_' . md5( $url );
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			// Sentinel `0` records a previously-failed resolution so we
+			// don't keep re-fetching for the same broken short URL.
+			return is_array( $cached ) ? $cached : null;
+		}
+
 		$resolved = block_for_strava_resolve_strava_url( $url );
 		if ( is_wp_error( $resolved ) ) {
+			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
 			return null;
 		}
 		$parsed = block_for_strava_parse_strava_url( $resolved );
-		return false === $parsed ? null : $parsed;
+		if ( false === $parsed ) {
+			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
+			return null;
+		}
+
+		set_transient( $cache_key, $parsed, DAY_IN_SECONDS );
+		return $parsed;
 	}
 
 	/**

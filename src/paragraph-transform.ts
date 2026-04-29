@@ -31,6 +31,31 @@ const STRAVA_FULL_PATTERNS: ReadonlyArray< RegExp > = [
  */
 const ANCHOR_ONLY_RE = /^<a\b[^>]*\shref="([^"]+)"[^>]*>[^<]*<\/a>$/i;
 
+/*
+ * RichText serializes anchor `href` attributes with HTML entities, so a URL
+ * like `…?foo=1&bar=2` round-trips as `…?foo=1&amp;bar=2`. Storing that
+ * unmodified would leave the embed block carrying a malformed URL — the
+ * persisted string wouldn't match the URL the user pasted. Decode the
+ * handful of entities the editor's autolinker actually produces (it
+ * doesn't emit the numeric `&#x..;` forms) before we hand the string back.
+ */
+const HTML_ENTITY_MAP: Record< string, string > = {
+	'&amp;': '&',
+	'&lt;': '<',
+	'&gt;': '>',
+	'&quot;': '"',
+	'&#39;': "'",
+};
+
+function decodeHrefEntities( href: string ): string {
+	// The regex only matches keys we have in `HTML_ENTITY_MAP`, so the
+	// non-null assertion is safe — there's no fallback path to test for.
+	return href.replace(
+		/&(?:amp|lt|gt|quot|#39);/g,
+		( match ) => HTML_ENTITY_MAP[ match ] as string
+	);
+}
+
 /**
  * Extracts a single Strava URL from paragraph content, or returns null.
  *
@@ -55,11 +80,11 @@ export function extractStravaUrl( content: unknown ): string | null {
 		return trimmed;
 	}
 	const anchor = ANCHOR_ONLY_RE.exec( trimmed );
-	if (
-		anchor &&
-		STRAVA_FULL_PATTERNS.some( ( re ) => re.test( anchor[ 1 ] ) )
-	) {
-		return anchor[ 1 ];
+	if ( anchor ) {
+		const href = decodeHrefEntities( anchor[ 1 ] );
+		if ( STRAVA_FULL_PATTERNS.some( ( re ) => re.test( href ) ) ) {
+			return href;
+		}
 	}
 	return null;
 }
