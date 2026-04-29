@@ -1,5 +1,7 @@
 export const registerBlockType = jest.fn();
 
+export const registerBlockVariation = jest.fn();
+
 export const createBlock = jest.fn(
 	( name: string, attributes: Record< string, unknown > = {} ) => ( {
 		name,

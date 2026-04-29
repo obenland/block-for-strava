@@ -24,11 +24,13 @@ define( 'BLOCK_FOR_STRAVA_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once BLOCK_FOR_STRAVA_DIR . 'includes/functions.php';
 require_once BLOCK_FOR_STRAVA_DIR . 'includes/class-block-for-strava.php';
+require_once BLOCK_FOR_STRAVA_DIR . 'includes/class-strava-embed.php';
 
 /**
  * Initializes the plugin.
  */
 function block_for_strava_init(): void {
 	Block_For_Strava::get_instance();
+	Block_For_Strava_Embed::init();
 }
 add_action( 'init', 'block_for_strava_init' );

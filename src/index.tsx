@@ -1,4 +1,5 @@
 import './style.scss';
+import './embed-variation';
 import { registerBlockType } from '@wordpress/blocks';
 import { __ } from '@wordpress/i18n';
 import { chartBar as activityIcon } from '@wordpress/icons';
