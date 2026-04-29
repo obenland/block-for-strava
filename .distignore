@@ -3,6 +3,7 @@
 .gitignore
 .github/
 .nvmrc
+.prettierignore
 .wp-env.json
 .wp-env.override.json
 composer.json
