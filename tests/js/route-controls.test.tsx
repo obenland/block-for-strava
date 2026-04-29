@@ -10,11 +10,15 @@
  *   universally would clutter every embed block in the inserter.
  */
 import { applyFilters } from '@wordpress/hooks';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentType } from 'react';
 
-import { buildEmbedUrl, StravaRouteInspector } from '../../src/route-controls';
+import {
+	buildEmbedUrl,
+	parseStravaHeightMessage,
+	StravaRouteInspector,
+} from '../../src/route-controls';
 
 interface AttributeSpec {
 	type: 'string' | 'boolean';
@@ -153,6 +157,126 @@ describe( 'BlockEdit HOC', () => {
 		expect( iframe?.getAttribute( 'src' ) ).toBe(
 			'https://strava-embeds.com/activity/123'
 		);
+	} );
+
+	it( 'disables pointer events on the editor preview iframe so the block stays selectable', () => {
+		// Without `pointer-events: none`, clicks land on the cross-origin
+		// strava-embeds.com document and never reach the figure that holds
+		// `useBlockProps`'s selection handler — the user can no longer pick
+		// the block after pasting a Strava URL.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector< HTMLIFrameElement >(
+			'iframe.strava-embed-iframe'
+		);
+		expect( iframe ).not.toBeNull();
+		expect( iframe?.style.pointerEvents ).toBe( 'none' );
+	} );
+
+	it( 'sizes the editor preview iframe from BROADCAST_IFRAME_HEIGHT messages', () => {
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector< HTMLIFrameElement >(
+			'iframe.strava-embed-iframe'
+		);
+		expect( iframe ).not.toBeNull();
+
+		// strava-embeds.com posts `[id, 'BROADCAST_IFRAME_HEIGHT', height]`
+		// to its parent. Without source-window verification the listener
+		// would obey any frame on the page; firing the event with the
+		// iframe's contentWindow as `source` proves the wired path works.
+		act( () => {
+			fireEvent(
+				window,
+				new MessageEvent( 'message', {
+					data: [ 0, 'BROADCAST_IFRAME_HEIGHT', 405 ],
+					source: iframe?.contentWindow,
+				} )
+			);
+		} );
+		expect( iframe?.style.height ).toBe( '405px' );
+	} );
+
+	it( 'ignores non-height messages from the iframe (e.g. analytics chatter)', () => {
+		// The iframe may post unrelated messages for its own bookkeeping;
+		// the listener must hold its current height when the payload isn't
+		// a `BROADCAST_IFRAME_HEIGHT` array, instead of falling back to a
+		// default that would cancel out a recent valid broadcast.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector< HTMLIFrameElement >(
+			'iframe.strava-embed-iframe'
+		);
+		const initialHeight = iframe?.style.height;
+		act( () => {
+			fireEvent(
+				window,
+				new MessageEvent( 'message', {
+					data: { unrelated: 'analytics' },
+					source: iframe?.contentWindow,
+				} )
+			);
+		} );
+		expect( iframe?.style.height ).toBe( initialHeight );
+	} );
+
+	it( 'ignores BROADCAST_IFRAME_HEIGHT messages from other windows', () => {
+		// A third-party iframe on the same page (e.g. a Twitter embed below)
+		// could otherwise dictate our preview height. The listener gates on
+		// `event.source` being our own iframe's contentWindow.
+		const Wrapped = applyBlockEditFilter( FakeEdit );
+		const { container } = render(
+			createElement( Wrapped, {
+				name: 'core/embed',
+				attributes: {
+					providerNameSlug: 'strava',
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		const iframe = container.querySelector< HTMLIFrameElement >(
+			'iframe.strava-embed-iframe'
+		);
+		const initialHeight = iframe?.style.height;
+		act( () => {
+			fireEvent(
+				window,
+				new MessageEvent( 'message', {
+					data: [ 0, 'BROADCAST_IFRAME_HEIGHT', 405 ],
+					// Deliberately not iframe.contentWindow; should be ignored.
+					source: window,
+				} )
+			);
+		} );
+		expect( iframe?.style.height ).toBe( initialHeight );
 	} );
 
 	it( 'renders our iframe + the inspector for Strava route URLs', () => {
@@ -334,6 +458,74 @@ describe( 'buildEmbedUrl', () => {
 		);
 		expect( url.searchParams.get( 'style' ) ).toBe( 'standard' );
 		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+	} );
+} );
+
+describe( 'parseStravaHeightMessage', () => {
+	it( 'returns the height for a well-formed BROADCAST_IFRAME_HEIGHT array', () => {
+		expect(
+			parseStravaHeightMessage( [ 0, 'BROADCAST_IFRAME_HEIGHT', 412 ] )
+		).toBe( 412 );
+	} );
+
+	it( 'clamps unreasonably small heights up to the floor', () => {
+		// A 10px broadcast almost certainly indicates Strava measured the
+		// iframe before its content rendered; honoring it would crush the
+		// preview to a sliver. Clamp to a usable minimum instead.
+		expect(
+			parseStravaHeightMessage( [ 0, 'BROADCAST_IFRAME_HEIGHT', 10 ] )
+		).toBe( 100 );
+	} );
+
+	it( 'clamps unreasonably large heights down to the ceiling', () => {
+		// Symmetric guard: a runaway height (e.g. measurement bug, malicious
+		// frame) would otherwise turn the editor preview into a giant
+		// scrolling void.
+		expect(
+			parseStravaHeightMessage( [ 0, 'BROADCAST_IFRAME_HEIGHT', 99999 ] )
+		).toBe( 5000 );
+	} );
+
+	it( 'rejects non-array payloads', () => {
+		expect(
+			parseStravaHeightMessage( 'BROADCAST_IFRAME_HEIGHT' )
+		).toBeNull();
+		expect(
+			parseStravaHeightMessage( {
+				stravaEmbedHeight: 500,
+			} )
+		).toBeNull();
+		expect( parseStravaHeightMessage( null ) ).toBeNull();
+	} );
+
+	it( 'rejects arrays with the wrong tag', () => {
+		expect(
+			parseStravaHeightMessage( [ 0, 'OTHER_MESSAGE', 500 ] )
+		).toBeNull();
+	} );
+
+	it( 'rejects non-numeric heights', () => {
+		expect(
+			parseStravaHeightMessage( [
+				0,
+				'BROADCAST_IFRAME_HEIGHT',
+				'500px',
+			] )
+		).toBeNull();
+		expect(
+			parseStravaHeightMessage( [
+				0,
+				'BROADCAST_IFRAME_HEIGHT',
+				Number.NaN,
+			] )
+		).toBeNull();
+		expect(
+			parseStravaHeightMessage( [
+				0,
+				'BROADCAST_IFRAME_HEIGHT',
+				Number.POSITIVE_INFINITY,
+			] )
+		).toBeNull();
 	} );
 } );
 
