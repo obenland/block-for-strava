@@ -17,6 +17,11 @@ import { execSync } from 'node:child_process';
  * cookie-juggling without surfacing a different failure mode.
  */
 
+/**
+ * Runs a wp-cli command inside the wp-env container.
+ *
+ * @param args Arguments to append after `wp` in the container.
+ */
 function wp( args: string ): string {
 	return execSync( `npx wp-env run cli wp ${ args }`, {
 		stdio: [ 'ignore', 'pipe', 'inherit' ],
@@ -26,6 +31,11 @@ function wp( args: string ): string {
 		.trim();
 }
 
+/**
+ * Logs into wp-admin as the default admin user.
+ *
+ * @param page Playwright page.
+ */
 async function loginAsAdmin( page: Page ): Promise< void > {
 	await page.goto( '/wp-login.php' );
 	await page.locator( '#user_login' ).fill( 'admin' );
@@ -34,6 +44,11 @@ async function loginAsAdmin( page: Page ): Promise< void > {
 	await page.waitForURL( /wp-admin/ );
 }
 
+/**
+ * Waits for the block editor canvas iframe and dismisses the welcome guide.
+ *
+ * @param page Playwright page.
+ */
 async function waitForEditor( page: Page ): Promise< void > {
 	await page
 		.locator( 'iframe[name="editor-canvas"]' )
@@ -46,20 +61,23 @@ async function waitForEditor( page: Page ): Promise< void > {
 
 /**
  * Publishes a post with the given content and returns its ID synchronously.
- * Split from `fetchAutoembedIframeSrc` so the caller can assign the ID into
- * the test's outer `postId` *before* any async assertion runs — otherwise
- * a failed expect inside the helper would leak a published post that
- * `afterEach` can't see.
+ *
+ * Returning synchronously lets the caller assign the ID into the test's
+ * outer `postId` *before* any async assertion runs — otherwise a failed
+ * expect inside a helper would leak a published post that `afterEach`
+ * can't see.
  *
  * @param title   Post title.
  * @param content Raw post_content (typically a bare Strava URL).
  */
 function publishPostWithContent( title: string, content: string ): string {
-	const id = wp(
-		`post create --post_title="${ title }" --post_status=publish --porcelain`
+	return wp(
+		`post create --post_title=${ JSON.stringify(
+			title
+		) } --post_content=${ JSON.stringify(
+			content
+		) } --post_status=publish --porcelain`
 	);
-	wp( `post update ${ id } --post_content="${ content }"` );
-	return id;
 }
 
 /**
@@ -82,6 +100,24 @@ async function fetchAutoembedIframeSrc(
 	return ( await iframe.getAttribute( 'src' ) ) ?? '';
 }
 
+const AUTOEMBED_CASES = [
+	{
+		name: 'activity',
+		url: 'https://www.strava.com/activities/18233733854',
+		expectedSrc: 'https://strava-embeds.com/activity/18233733854',
+	},
+	{
+		name: 'route',
+		url: 'https://www.strava.com/routes/3379104463896442748',
+		expectedSrc: 'https://strava-embeds.com/route/3379104463896442748',
+	},
+	{
+		name: 'segment',
+		url: 'https://www.strava.com/segments/789',
+		expectedSrc: 'https://strava-embeds.com/segment/789',
+	},
+] as const;
+
 test.describe.serial( 'Strava core/embed variation', () => {
 	let postId: string;
 
@@ -92,41 +128,18 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		}
 	} );
 
-	test( 'frontend: bare Strava URL in post_content autoembeds via wp_embed_register_handler', async ( {
-		page,
-	} ) => {
-		// A bare URL on its own line is what classic content/autoembed turns
-		// into an embed at render time. Our handler should match it.
-		postId = publishPostWithContent(
-			'Strava autoembed',
-			'https://www.strava.com/activities/18233733854'
-		);
-		const src = await fetchAutoembedIframeSrc( page, postId );
-		expect( src ).toBe( 'https://strava-embeds.com/activity/18233733854' );
-	} );
-
-	test( 'frontend: route URL autoembeds with /route/{id}', async ( {
-		page,
-	} ) => {
-		const routeId = '3379104463896442748';
-		postId = publishPostWithContent(
-			'Strava route autoembed',
-			`https://www.strava.com/routes/${ routeId }`
-		);
-		const src = await fetchAutoembedIframeSrc( page, postId );
-		expect( src ).toBe( `https://strava-embeds.com/route/${ routeId }` );
-	} );
-
-	test( 'frontend: segment URL autoembeds with /segment/{id}', async ( {
-		page,
-	} ) => {
-		postId = publishPostWithContent(
-			'Strava segment autoembed',
-			'https://www.strava.com/segments/789'
-		);
-		const src = await fetchAutoembedIframeSrc( page, postId );
-		expect( src ).toBe( 'https://strava-embeds.com/segment/789' );
-	} );
+	for ( const { name, url, expectedSrc } of AUTOEMBED_CASES ) {
+		test( `frontend: ${ name } URL autoembeds via wp_embed_register_handler`, async ( {
+			page,
+		} ) => {
+			postId = publishPostWithContent(
+				`Strava ${ name } autoembed`,
+				url
+			);
+			const src = await fetchAutoembedIframeSrc( page, postId );
+			expect( src ).toBe( expectedSrc );
+		} );
+	}
 
 	test( 'frontend: route block_attrs append Strava URL params to the iframe', async ( {
 		page,
@@ -199,10 +212,9 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		page,
 		context,
 	} ) => {
-		// Grant clipboard permissions before login so the editor session can
-		// read/write the OS clipboard inside Playwright's headless chromium.
-		// Without this the navigator.clipboard.writeText() call below silently
-		// no-ops and the keyboard paste pulls in stale clipboard contents.
+		// Without explicit clipboard permissions the navigator.clipboard call
+		// silently no-ops in headless chromium and the keyboard paste pulls
+		// in stale clipboard contents.
 		await context.grantPermissions( [
 			'clipboard-read',
 			'clipboard-write',
@@ -222,11 +234,10 @@ test.describe.serial( 'Strava core/embed variation', () => {
 			.first();
 
 		/*
-		 * Click the canvas to materialize an empty default-block paragraph,
-		 * write the URL to the actual clipboard, then trigger a real paste
-		 * via the keyboard shortcut. Synthesizing a ClipboardEvent works for
-		 * many handlers, but Gutenberg's RichText paste pipeline relies on
-		 * the real `paste` event that Chrome dispatches for Ctrl/Meta+V.
+		 * Synthesizing a ClipboardEvent works for many handlers, but
+		 * Gutenberg's RichText paste pipeline relies on the real `paste`
+		 * event that Chrome dispatches for Ctrl/Meta+V — so write to the
+		 * actual clipboard and trigger a real keyboard paste.
 		 */
 		await canvas.locator( 'body' ).click();
 
@@ -237,9 +248,9 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		);
 		await page.keyboard.press( 'ControlOrMeta+v' );
 
-		// Wait for the data store to settle on a single core/embed block;
-		// the variation lookup runs at render time, so the visible class
-		// arrives a tick after the block name flips.
+		// The variation lookup runs at render time, so the visible class
+		// arrives a tick after the block name flips — poll the data store
+		// to settle on a single core/embed block first.
 		await expect
 			.poll(
 				async () =>

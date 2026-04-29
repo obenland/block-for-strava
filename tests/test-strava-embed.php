@@ -36,9 +36,12 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 			sprintf( 'src="https://strava-embeds.com/%s/%s"', $embed_type, $activity_id ),
 			$html
 		);
-		// Sandbox + referrer policy are the defense-in-depth line — assert
-		// them so a future tweak can't quietly drop framebust protection or
-		// start leaking the host page URL via Referer.
+
+		/*
+		 * Sandbox + referrer policy are the defense-in-depth line — assert
+		 * them so a future tweak can't quietly drop framebust protection or
+		 * start leaking the host page URL via Referer.
+		 */
 		$this->assertStringContainsString(
 			'sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"',
 			$html
@@ -47,36 +50,34 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Confirms a canonical activity URL short-circuits oEmbed with our iframe.
+	 * Provides canonical Strava URL/type/id triples for the parametrized
+	 * `pre_oembed_result` test.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @return array<string, array{0: string, 1: string, 2: string}>
 	 */
-	public function test_pre_oembed_result_returns_iframe_for_canonical_activity_url(): void {
-		$result = apply_filters( 'pre_oembed_result', null, 'https://www.strava.com/activities/18233733854', array() );
-		$this->assertIsString( $result );
-		$this->assertStravaIframe( $result, 'activity', '18233733854' );
+	public static function provide_canonical_urls(): array {
+		return array(
+			'activity' => array( 'https://www.strava.com/activities/18233733854', 'activity', '18233733854' ),
+			'route'    => array( 'https://www.strava.com/routes/3379104463896442748', 'route', '3379104463896442748' ),
+			'segment'  => array( 'https://www.strava.com/segments/789', 'segment', '789' ),
+		);
 	}
 
 	/**
-	 * Confirms a canonical route URL short-circuits oEmbed with our iframe.
+	 * Confirms canonical Strava URLs short-circuit oEmbed with our iframe.
+	 *
+	 * @dataProvider provide_canonical_urls
+	 *
+	 * @param string $url         Canonical Strava URL.
+	 * @param string $embed_type  Expected singular embed type.
+	 * @param string $activity_id Expected numeric ID.
 	 *
 	 * @covers Block_For_Strava_Embed::maybe_strava_embed
 	 */
-	public function test_pre_oembed_result_returns_iframe_for_route_url(): void {
-		$result = apply_filters( 'pre_oembed_result', null, 'https://www.strava.com/routes/3379104463896442748', array() );
+	public function test_pre_oembed_result_returns_iframe_for_canonical_url( string $url, string $embed_type, string $activity_id ): void {
+		$result = apply_filters( 'pre_oembed_result', null, $url, array() );
 		$this->assertIsString( $result );
-		$this->assertStravaIframe( $result, 'route', '3379104463896442748' );
-	}
-
-	/**
-	 * Confirms a canonical segment URL short-circuits oEmbed with our iframe.
-	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
-	 */
-	public function test_pre_oembed_result_returns_iframe_for_segment_url(): void {
-		$result = apply_filters( 'pre_oembed_result', null, 'https://www.strava.com/segments/789', array() );
-		$this->assertIsString( $result );
-		$this->assertStravaIframe( $result, 'segment', '789' );
+		$this->assertStravaIframe( $result, $embed_type, $activity_id );
 	}
 
 	/**
@@ -135,45 +136,50 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Canonical URL handler returns a Strava iframe for valid input.
+	 * Embed handler returns a Strava iframe for valid canonical input.
 	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_canonical
+	 * @covers Block_For_Strava_Embed::embed_handler
 	 */
-	public function test_embed_handler_canonical_builds_iframe(): void {
-		$html = Block_For_Strava_Embed::embed_handler_canonical(
-			array(
-				0 => 'https://www.strava.com/activities/123',
-				1 => 'activities',
-				2 => '123',
-			)
+	public function test_embed_handler_builds_iframe_for_canonical_url(): void {
+		$html = Block_For_Strava_Embed::embed_handler(
+			array( 0 => 'https://www.strava.com/activities/123' )
 		);
 		$this->assertIsString( $html );
 		$this->assertStravaIframe( $html, 'activity', '123' );
 	}
 
 	/**
-	 * Canonical URL handler must refuse paths that aren't activity/route/segment.
+	 * Embed handler must refuse paths that aren't activity/route/segment.
 	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_canonical
+	 * @covers Block_For_Strava_Embed::embed_handler
 	 */
-	public function test_embed_handler_canonical_rejects_unknown_segment(): void {
-		$result = Block_For_Strava_Embed::embed_handler_canonical(
-			array(
-				0 => 'https://www.strava.com/clubs/1',
-				1 => 'clubs',
-				2 => '1',
-			)
+	public function test_embed_handler_rejects_unknown_path(): void {
+		$result = Block_For_Strava_Embed::embed_handler(
+			array( 0 => 'https://www.strava.com/clubs/1' )
 		);
 		$this->assertFalse( $result );
 	}
 
 	/**
-	 * Short URL handler must return false (not bad HTML) when resolution fails,
-	 * so `WP_Embed::shortcode()` falls through to leaving the URL bare.
+	 * Embed handler must refuse non-numeric ids that embed.js can't render.
 	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_short
+	 * @covers Block_For_Strava_Embed::embed_handler
 	 */
-	public function test_embed_handler_short_returns_false_on_resolve_failure(): void {
+	public function test_embed_handler_rejects_non_numeric_id(): void {
+		$result = Block_For_Strava_Embed::embed_handler(
+			array( 0 => 'https://www.strava.com/activities/abc' )
+		);
+		$this->assertFalse( $result );
+	}
+
+	/**
+	 * Embed handler must return false (not bad HTML) when short-URL
+	 * resolution fails, so `WP_Embed::shortcode()` falls through to leaving
+	 * the URL bare.
+	 *
+	 * @covers Block_For_Strava_Embed::embed_handler
+	 */
+	public function test_embed_handler_returns_false_on_short_url_resolve_failure(): void {
 		$callback = static function ( $preempt, $args, $url ) {
 			if ( str_contains( $url, 'strava.app.link' ) ) {
 				return new WP_Error( 'http_failed', 'simulated network error' );
@@ -182,7 +188,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		};
 		add_filter( 'pre_http_request', $callback, 10, 3 );
 
-		$result = Block_For_Strava_Embed::embed_handler_short(
+		$result = Block_For_Strava_Embed::embed_handler(
 			array( 0 => 'https://strava.app.link/broken' )
 		);
 
@@ -192,28 +198,12 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Canonical URL handler must refuse non-numeric ids that embed.js can't render.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_canonical
-	 */
-	public function test_embed_handler_canonical_rejects_non_numeric_id(): void {
-		$result = Block_For_Strava_Embed::embed_handler_canonical(
-			array(
-				0 => 'https://www.strava.com/activities/abc',
-				1 => 'activities',
-				2 => 'abc',
-			)
-		);
-		$this->assertFalse( $result );
-	}
-
-	/**
-	 * Boundary check: the handler regex must not accept a URL whose ID
+	 * Boundary check: the registered regex must not accept a URL whose ID
 	 * segment is followed by extra characters (e.g. /123abc) — without a
 	 * trailing delimiter assertion, the `\d+` would greedily match `123`
 	 * and we'd embed the wrong activity.
 	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_canonical
+	 * @covers Block_For_Strava_Embed::embed_handler
 	 */
 	public function test_autoembed_rejects_id_followed_by_letters(): void {
 		global $wp_embed;
@@ -229,7 +219,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * contains a bare URL. This integration test runs the URL through
 	 * `WP_Embed::shortcode()` like autoembed does.
 	 *
-	 * @covers Block_For_Strava_Embed::embed_handler_canonical
+	 * @covers Block_For_Strava_Embed::embed_handler
 	 */
 	public function test_autoembed_replaces_bare_canonical_url(): void {
 		global $wp_embed;
@@ -249,9 +239,11 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
 		wp_set_current_user( $user_id );
 
-		// Core's get_proxy_item iterates `$wp_scripts->queue` when an embed
-		// handler matches; lazily-init the global so the test doesn't depend
-		// on an earlier test having enqueued anything.
+		/*
+		 * Core's get_proxy_item iterates `$wp_scripts->queue` when an embed
+		 * handler matches; lazily-init the global so the test doesn't depend
+		 * on an earlier test having enqueued anything.
+		 */
 		wp_scripts();
 
 		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
