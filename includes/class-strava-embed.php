@@ -200,7 +200,7 @@ class Block_For_Strava_Embed {
 			return false;
 		}
 		$id = (string) ( $matches[2] ?? '' );
-		if ( ! preg_match( '/^\d+$/', $id ) ) {
+		if ( '' === $id || ! ctype_digit( $id ) ) {
 			return false;
 		}
 		return self::build_iframe( $plural_to_singular[ $key ], $id );
@@ -273,7 +273,7 @@ class Block_For_Strava_Embed {
 		if ( ! in_array( $embed_type, self::EMBED_TYPES, true ) ) {
 			$embed_type = 'activity';
 		}
-		if ( ! preg_match( '/^\d+$/', $activity_id ) ) {
+		if ( '' === $activity_id || ! ctype_digit( $activity_id ) ) {
 			return '';
 		}
 
