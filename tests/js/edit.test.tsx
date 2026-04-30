@@ -502,15 +502,30 @@ describe( 'Edit', () => {
 			);
 		} );
 
-		it( 'suppresses the notice for non-activity 403s (snippet workaround does not apply)', async () => {
+		it( 'leaves status unknown when the response is null', async () => {
+			// Defensive: a misconfigured proxy or auth flow could return a
+			// null body. The optional-chain on `response?.status` keeps the
+			// component from crashing; pin it so a future "tighten the
+			// types" pass doesn't drop the guard.
+			mockedApiFetch.mockResolvedValueOnce( null );
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			await act( async () => {} );
+			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
+		} );
+
+		it( 'skips the preflight entirely for routes and segments', () => {
 			// Routes/segments don't have a per-resource share token; even
 			// if Strava 403'd a route URL, the "paste the share-dialog
-			// snippet" advice wouldn't help. Stay in the unknown state and
-			// let the iframe surface Strava's actual response.
-			mockedApiFetch.mockResolvedValueOnce( {
-				embeddable: false,
-				status: 403,
-			} );
+			// snippet" advice wouldn't help. Avoid the wasted REST call
+			// (and the corresponding remote HEAD) by gating the preflight
+			// to activities.
 			render(
 				createElement( Edit, {
 					attributes: {
@@ -519,10 +534,7 @@ describe( 'Edit', () => {
 					setAttributes: jest.fn(),
 				} )
 			);
-			// Flush the apiFetch microtask + the setEmbedStatus update
-			// inside act so React's "did you wrap state update?" warning
-			// (turned into a failure by jest-console) doesn't fire.
-			await act( async () => {} );
+			expect( mockedApiFetch ).not.toHaveBeenCalled();
 			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
 		} );
 

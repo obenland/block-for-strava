@@ -204,10 +204,14 @@ describe( 'snippet raw transform transform', () => {
 		);
 	} );
 
-	it( 'omits stravaEmbedToken when the placeholder has no data-token', () => {
-		// Strava only ships data-token on tokenized activities. A public
-		// activity's snippet has no token attribute — fall back to the
-		// URL-only iframe shape (empty string carries through).
+	it( 'normalizes a missing data-token to an empty string attribute', () => {
+		// Strava only ships data-token on tokenized activities. For a
+		// public-Everyone snippet (no token attr), we still set the block
+		// attribute — to ''. That round-trips identically to "missing"
+		// through block.json's `default: ''`, but keeping the attribute
+		// always-present in the createBlock call simplifies the
+		// always-string contract that buildEmbedUrl + the PHP renderer
+		// both rely on for their `'' !== token` gate.
 		const node = makePlaceholder( {
 			'embed-type': 'segment',
 			'embed-id': '789',

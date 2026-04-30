@@ -519,13 +519,12 @@ function StravaCanonicalPreview( {
 	 * the only actionable signal we can give is "this URL paste won't
 	 * work — paste the embed code from Strava's share dialog instead."
 	 *
-	 * That message is only correct for activities that 403 (the EEE
-	 * "needs token" page). 404s, 5xxs, transport failures, and route /
-	 * segment URLs share the same `embeddable: false` payload but
-	 * shouldn't trigger the snippet notice — the snippet workaround
-	 * doesn't apply to those cases. Treat anything other than
-	 * `status === 403 && type === 'activity'` as `unknown` so the iframe
-	 * just renders and the user sees Strava's actual response.
+	 * Gated to `resolved.type === 'activity'` because the snippet
+	 * workaround only applies there: routes/segments don't ship a
+	 * per-resource share token, and we'd surface no notice for those even
+	 * if the preflight 403'd. Skipping the fetch saves a REST round-trip
+	 * (and the corresponding remote HEAD on the server) for every
+	 * route/segment paste.
 	 *
 	 * Skip the fetch entirely when a token is already stored — the
 	 * snippet-paste flow is the other source of one and its iframe is
@@ -537,6 +536,9 @@ function StravaCanonicalPreview( {
 			return;
 		}
 		setEmbedStatus( 'unknown' );
+		if ( 'activity' !== resolved.type ) {
+			return;
+		}
 		let cancelled = false;
 		apiFetch< { embeddable: boolean; status: number } >( {
 			path: `/block-for-strava/v1/embed-status?type=${ encodeURIComponent(
@@ -552,16 +554,13 @@ function StravaCanonicalPreview( {
 					return;
 				}
 				/*
-				 * Only the activity-403 case has an actionable user
-				 * recovery (paste the share-dialog snippet). Everything
-				 * else stays `unknown`, the iframe renders, and the user
-				 * sees Strava's real response — better than a notice
-				 * giving advice that doesn't apply.
+				 * Only 403 has an actionable user recovery (paste the
+				 * share-dialog snippet). 404s, 5xxs, and transport
+				 * failures stay `unknown`, the iframe renders, and the
+				 * user sees Strava's real response — better than a
+				 * notice giving advice that doesn't apply.
 				 */
-				if (
-					'activity' === resolved.type &&
-					403 === response?.status
-				) {
+				if ( 403 === response?.status ) {
 					setEmbedStatus( 'needs-token' );
 				}
 			} )
