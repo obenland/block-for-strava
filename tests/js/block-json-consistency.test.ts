@@ -87,4 +87,12 @@ describe( 'block.json schema', () => {
 	it( 'sets the block category to embed for inserter placement', () => {
 		expect( metadata.category ).toBe( 'embed' );
 	} );
+
+	it( 'declares "Strava" as the source-language title', () => {
+		// The Block Directory listing renders block.json's title verbatim;
+		// the in-editor title comes through `__()` which can be translated.
+		// This test pins the source-language invariant — locale-dependent
+		// runtime checks belong in e2e against `getBlockType().title`.
+		expect( metadata.title ).toBe( 'Strava' );
+	} );
 } );

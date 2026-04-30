@@ -13,15 +13,16 @@ interface UseBlockPropsMock {
 	save: ( props?: BlockPropsArg ) => { className: string };
 }
 
+function mergeBlockProps( props?: BlockPropsArg ): { className: string } {
+	const provided = props?.className?.trim();
+	return {
+		className: provided ? `wp-block ${ provided }` : 'wp-block',
+	};
+}
+
 const useBlockPropsImpl: UseBlockPropsMock = Object.assign(
-	jest.fn( ( props?: BlockPropsArg ) => ( {
-		className: props?.className ?? 'wp-block',
-	} ) ),
-	{
-		save: jest.fn( ( props?: BlockPropsArg ) => ( {
-			className: props?.className ?? 'wp-block',
-		} ) ),
-	}
+	jest.fn( mergeBlockProps ),
+	{ save: jest.fn( mergeBlockProps ) }
 ) as unknown as UseBlockPropsMock;
 
 export const useBlockProps = useBlockPropsImpl;

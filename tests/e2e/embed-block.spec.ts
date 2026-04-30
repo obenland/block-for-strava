@@ -215,11 +215,10 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		expect( blockType ).toBeTruthy();
 		expect( blockType.name ).toBe( 'block-for-strava/embed' );
 		expect( blockType.category ).toBe( 'embed' );
-		expect( blockType.title ).toBe( 'Strava' );
-		// The save/edit functions are present (they're React components,
-		// so we just check they're truthy — the JSON pass through
-		// `getBlockType` may strip function bodies depending on the
-		// version, but the property survives).
+		// Title is wrapped in `__()` for translation, so the literal value
+		// shifts with locale. Pin "is non-empty" here; the source-language
+		// string is asserted in tests/js/block-json-consistency.test.ts.
+		expect( blockType.title ).toBeTruthy();
 		expect( typeof blockType.attributes ).toBe( 'object' );
 		expect( blockType.attributes.url ).toBeTruthy();
 	} );
