@@ -59,6 +59,10 @@
 		"stravaRouteShowElevation": {
 			"type": "boolean",
 			"default": true
+		},
+		"stravaEmbedToken": {
+			"type": "string",
+			"default": ""
 		}
 	},
 	"editorScript": "file:./index.js",

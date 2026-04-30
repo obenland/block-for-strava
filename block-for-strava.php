@@ -35,3 +35,5 @@ function block_for_strava_init(): void {
 	register_block_type_from_metadata( BLOCK_FOR_STRAVA_DIR . 'build' );
 }
 add_action( 'init', 'block_for_strava_init' );
+
+add_action( 'rest_api_init', array( 'Block_For_Strava_Embed', 'register_rest_routes' ) );

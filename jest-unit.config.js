@@ -12,6 +12,8 @@ module.exports = {
 			'<rootDir>/tests/js/__mocks__/wordpress-block-editor.tsx',
 		'^@wordpress/components$':
 			'<rootDir>/tests/js/__mocks__/wordpress-components.tsx',
+		'^@wordpress/api-fetch$':
+			'<rootDir>/tests/js/__mocks__/wordpress-api-fetch.ts',
 	},
 	setupFilesAfterEnv: [ '<rootDir>/tests/js/setup.ts' ],
 	collectCoverageFrom: [ 'src/**/*.{ts,tsx}', '!src/**/*.d.ts' ],

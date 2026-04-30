@@ -37,6 +37,7 @@ import {
 import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
+import apiFetch from '@wordpress/api-fetch';
 
 type RouteMapStyle =
 	| 'standard'
@@ -47,6 +48,8 @@ type RouteMapStyle =
 	| 'light';
 type RouteUnits = 'auto' | 'metric' | 'imperial';
 type RouteTerrain = 'auto' | '2d' | '3d';
+
+type PreflightStatus = 'unknown' | 'needs-token';
 
 /*
  * Block.json declares `enum` constraints for the route attributes, so on
@@ -64,6 +67,22 @@ export interface StravaBlockAttributes {
 	stravaRouteFullWidth?: boolean;
 	stravaRouteShowDirt?: boolean;
 	stravaRouteShowElevation?: boolean;
+	/*
+	 * Strava share token used for non-public embeds. Activities are the
+	 * motivating case (Strava 403s a tokenless iframe URL for any activity
+	 * not visibility=Everyone), but the token is also threaded through
+	 * for routes and segments when the snippet-paste flow carries one —
+	 * `buildEmbedUrl` and the PHP renderer both round-trip it for any
+	 * type so editor and front-end URLs match exactly.
+	 *
+	 * Only the snippet-paste path (`src/snippet-transform`) writes it —
+	 * the token isn't discoverable server-side from a URL alone, so a
+	 * URL-only paste leaves this empty and the preflight effect below
+	 * (activity-only) surfaces a notice instructing the user to paste
+	 * the share-dialog snippet instead. Empty string also covers
+	 * public-Everyone embeds, which don't need a token at all.
+	 */
+	stravaEmbedToken?: string;
 }
 
 export interface BlockEditProps {
@@ -132,8 +151,13 @@ export function buildEmbedUrl(
 	attrs: StravaBlockAttributes
 ): string {
 	const base = `https://strava-embeds.com/${ resolved.type }/${ resolved.id }`;
+	const token = clampString( attrs.stravaEmbedToken );
+
 	if ( 'route' !== resolved.type ) {
-		return base;
+		// Activities and segments only ever take the token.
+		return token
+			? `${ base }?token=${ encodeURIComponent( token ) }`
+			: base;
 	}
 
 	const mapStyle = clampEnum(
@@ -185,7 +209,12 @@ export function buildEmbedUrl(
 	}
 
 	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle ) {
-		return base;
+		return token
+			? `${ base }?token=${ encodeURIComponent( token ) }`
+			: base;
+	}
+	if ( token ) {
+		params.set( 'token', token );
 	}
 	return `${ base }?${ params.toString() }`;
 }
@@ -211,6 +240,10 @@ function clampEnum< T extends string >(
 
 function clampBool( value: unknown, fallback: boolean ): boolean {
 	return typeof value === 'boolean' ? value : fallback;
+}
+
+function clampString( value: unknown ): string {
+	return typeof value === 'string' ? value : '';
 }
 
 export function StravaRouteInspector( {
@@ -463,6 +496,65 @@ function StravaCanonicalPreview( {
 	attributes,
 	setAttributes,
 }: BlockEditProps & { resolved: ResolvedStravaUrl } ) {
+	const storedToken = clampString( attributes.stravaEmbedToken );
+	const [ preflight, setPreflight ] =
+		useState< PreflightStatus >( 'unknown' );
+
+	/*
+	 * Preflight Strava's iframe URL on the user's behalf so we can warn
+	 * before save when an activity URL alone won't render. Strava's
+	 * per-activity share token isn't discoverable server-side (it's only
+	 * minted into the share dialog for a logged-in browser session), so
+	 * the only actionable signal we can give is "this URL paste won't
+	 * work — paste the embed code from Strava's share dialog instead."
+	 *
+	 * Gated to activities because the snippet workaround only applies
+	 * there. Skipped when a token is already stored — the snippet-paste
+	 * flow is the other source of one and its iframe is guaranteed to
+	 * render.
+	 */
+	useEffect( () => {
+		setPreflight( 'unknown' );
+		if ( '' !== storedToken || 'activity' !== resolved.type ) {
+			return;
+		}
+		let cancelled = false;
+		apiFetch< { embeddable: boolean; status: number } >( {
+			path: `/block-for-strava/v1/embed-status?type=${ encodeURIComponent(
+				resolved.type
+			) }&id=${ encodeURIComponent( resolved.id ) }`,
+		} )
+			.then( ( response ) => {
+				if ( cancelled ) {
+					return;
+				}
+				/*
+				 * Only 403 has an actionable user recovery (paste the
+				 * share-dialog snippet). 404s, 5xxs, and transport
+				 * failures stay `unknown`, the iframe renders, and the
+				 * user sees Strava's real response — better than a
+				 * notice giving advice that doesn't apply.
+				 */
+				if ( 403 === response?.status ) {
+					setPreflight( 'needs-token' );
+				}
+			} )
+			.catch( () => {
+				// Transport failure: stay `unknown`, let the iframe try.
+			} );
+		return () => {
+			cancelled = true;
+		};
+	}, [ resolved.type, resolved.id, storedToken ] );
+
+	/*
+	 * `needs-token` only fires when storedToken is empty, so deriving
+	 * the rendered status from preflight directly is correct: when a
+	 * token is set the effect early-returns without touching state, and
+	 * we already know the iframe will render.
+	 */
+	const showNeedsTokenNotice = 'needs-token' === preflight;
+
 	const src = buildEmbedUrl( resolved, attributes );
 
 	const iframeRef = useRef< HTMLIFrameElement | null >( null );
@@ -536,6 +628,38 @@ function StravaCanonicalPreview( {
 					attributes,
 					setAttributes,
 			  } )
+			: null,
+		showNeedsTokenNotice
+			? createElement(
+					'div',
+					{
+						'data-testid': 'strava-embed-notice',
+						className: 'block-for-strava-notice',
+						/*
+						 * `role="status"` + `aria-live="polite"` so screen
+						 * readers announce the notice when the preflight
+						 * resolves to 'needs-token', without the more
+						 * intrusive `role="alert"` semantics that would
+						 * preempt the user's current focus. The notice is
+						 * informational, not time-critical.
+						 */
+						role: 'status',
+						'aria-live': 'polite',
+						style: {
+							padding: '12px 16px',
+							marginBottom: '8px',
+							border: '1px solid #ddd',
+							borderLeft: '4px solid #fc5200',
+							background: '#fff8f3',
+							fontSize: '13px',
+							lineHeight: '1.5',
+						},
+					},
+					__(
+						'This Strava activity isn’t set to public visibility, so the URL alone won’t embed. Open the activity on Strava, click Share → Embed, and paste the embed code here instead of the URL.',
+						'block-for-strava'
+					)
+			  )
 			: null,
 		createElement(
 			'div',
@@ -615,7 +739,28 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	const [ isEditingURL, setIsEditingURL ] = useState( ! url );
 
 	const submitURL = ( next: string ) => {
-		setAttributes( { url: next } );
+		/*
+		 * Clear the token only when the canonical resource changes.
+		 * Tokens are per-resource (Strava mints one per activity / route
+		 * / segment), so a token left over from a previous activity would
+		 * silently get appended to the new iframe URL — and
+		 * `'' !== storedToken` would skip the preflight, suppressing the
+		 * "needs token" notice for an iframe that's actually broken.
+		 * Re-submitting the same resource (e.g. fixing a typo, adding a
+		 * tracking query param that doesn't change the parsed type+id)
+		 * preserves a valid token. The snippet-paste flow sets url +
+		 * token together via `createBlock`, so it isn't affected.
+		 */
+		const previousResolved = parseStravaUrl( url );
+		const nextResolved = parseStravaUrl( next );
+		const isSameResource =
+			null !== previousResolved &&
+			null !== nextResolved &&
+			previousResolved.type === nextResolved.type &&
+			previousResolved.id === nextResolved.id;
+		setAttributes(
+			isSameResource ? { url: next } : { url: next, stravaEmbedToken: '' }
+		);
 		setIsEditingURL( false );
 	};
 
