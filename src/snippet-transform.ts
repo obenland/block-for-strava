@@ -71,7 +71,17 @@ function parsePlaceholder( node: Node ): ParsedPlaceholder | null {
 		return null;
 	}
 	const type = node.getAttribute( 'data-embed-type' );
-	if ( null === type || ! ( type in SINGULAR_TO_PLURAL ) ) {
+	/*
+	 * `type in SINGULAR_TO_PLURAL` would also accept inherited keys like
+	 * `toString` / `constructor` and return their prototype values for
+	 * `SINGULAR_TO_PLURAL[type]` — a function that stringifies to its
+	 * `[native code]` body in the template literal below. Use an
+	 * own-property check so only the three documented types pass.
+	 */
+	if (
+		null === type ||
+		! Object.prototype.hasOwnProperty.call( SINGULAR_TO_PLURAL, type )
+	) {
 		return null;
 	}
 	/*

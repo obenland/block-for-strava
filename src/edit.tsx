@@ -768,15 +768,27 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 
 	const submitURL = ( next: string ) => {
 		/*
-		 * Clear the token whenever the URL is replaced. Tokens are
-		 * per-resource (Strava mints one per activity/route/segment), so
-		 * a token left over from a previous activity would silently get
-		 * appended to the new iframe URL — and `'' !== storedToken` would
-		 * skip the preflight, suppressing the "needs token" notice for
-		 * an iframe that's actually broken. The snippet-paste flow sets
-		 * url + token together via `createBlock`, so it isn't affected.
+		 * Clear the token only when the canonical resource changes.
+		 * Tokens are per-resource (Strava mints one per activity / route
+		 * / segment), so a token left over from a previous activity would
+		 * silently get appended to the new iframe URL — and
+		 * `'' !== storedToken` would skip the preflight, suppressing the
+		 * "needs token" notice for an iframe that's actually broken.
+		 * Re-submitting the same resource (e.g. fixing a typo, adding a
+		 * tracking query param that doesn't change the parsed type+id)
+		 * preserves a valid token. The snippet-paste flow sets url +
+		 * token together via `createBlock`, so it isn't affected.
 		 */
-		setAttributes( { url: next, stravaEmbedToken: '' } );
+		const previousResolved = parseStravaUrl( url );
+		const nextResolved = parseStravaUrl( next );
+		const isSameResource =
+			null !== previousResolved &&
+			null !== nextResolved &&
+			previousResolved.type === nextResolved.type &&
+			previousResolved.id === nextResolved.id;
+		setAttributes(
+			isSameResource ? { url: next } : { url: next, stravaEmbedToken: '' }
+		);
 		setIsEditingURL( false );
 	};
 

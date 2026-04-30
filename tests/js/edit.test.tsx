@@ -69,7 +69,7 @@ describe( 'Edit', () => {
 		).toBeNull();
 	} );
 
-	it( 'commits the typed URL via setAttributes on submit and clears any stale token', async () => {
+	it( 'commits the typed URL via setAttributes on submit', async () => {
 		const setAttributes = jest.fn();
 		render( createElement( Edit, { attributes: {}, setAttributes } ) );
 		const input = screen.getByRole( 'textbox', { name: /embed url/i } );
@@ -77,9 +77,9 @@ describe( 'Edit', () => {
 		await userEvent.click(
 			screen.getByRole( 'button', { name: /^embed$/i } )
 		);
-		// stravaEmbedToken is cleared on every URL submit because the
-		// token is per-resource — keeping a previous activity's token
-		// would silently get appended to the new iframe URL.
+		// First-time URL submit (no previous resource) — token is cleared
+		// because the previous-vs-next resource comparison treats a
+		// missing previous URL as a resource change.
 		expect( setAttributes ).toHaveBeenCalledWith( {
 			url: 'https://www.strava.com/activities/123',
 			stravaEmbedToken: '',
@@ -103,13 +103,13 @@ describe( 'Edit', () => {
 		} );
 	} );
 
-	it( 'clears a stale stravaEmbedToken when the URL is edited via the toolbar', async () => {
+	it( 'clears a stale stravaEmbedToken when the URL points to a different resource', async () => {
 		// Tokens are per-resource. Without this clear, editing the URL on
-		// an existing block would leave the old activity's token attached
-		// to the new iframe URL — and the preflight would be skipped (the
-		// stored token short-circuits to `embedStatus === 'ok'`),
-		// suppressing the "needs token" notice for an iframe that's
-		// actually broken.
+		// an existing block to point at a different activity would leave
+		// the old activity's token attached to the new iframe URL — and
+		// the preflight would be skipped (the stored token short-circuits
+		// to `embedStatus === 'ok'`), suppressing the "needs token"
+		// notice for an iframe that's actually broken.
 		const setAttributes = jest.fn();
 		render(
 			createElement( Edit, {
@@ -132,6 +132,39 @@ describe( 'Edit', () => {
 		expect( setAttributes ).toHaveBeenCalledWith( {
 			url: 'https://www.strava.com/activities/999',
 			stravaEmbedToken: '',
+		} );
+	} );
+
+	it( 'preserves the token when the resubmitted URL resolves to the same resource', async () => {
+		// A user fixing a typo or adding a tracking query param to the
+		// same activity URL shouldn't lose a working token. The
+		// `previousResolved == nextResolved` check in submitURL keeps
+		// the token attached when the canonical {type,id} is unchanged.
+		const setAttributes = jest.fn();
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					stravaEmbedToken: 'still-valid-token',
+				},
+				setAttributes,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		const input = screen.getByRole( 'textbox', { name: /embed url/i } );
+		await userEvent.clear( input );
+		// Same /activities/123, but with a tracking query param appended.
+		await userEvent.type(
+			input,
+			'https://www.strava.com/activities/123?utm_source=newsletter'
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /^embed$/i } )
+		);
+		expect( setAttributes ).toHaveBeenCalledWith( {
+			url: 'https://www.strava.com/activities/123?utm_source=newsletter',
 		} );
 	} );
 
