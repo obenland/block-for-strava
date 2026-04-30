@@ -2,13 +2,11 @@ import { addFilter } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
 
 /*
- * URL-on-its-own-line paste already routes through `core/embed`'s built-in
- * raw transform. This filter covers the second path: a user who typed a
- * Strava URL into a paragraph and now wants to convert it via the block
- * toolbar's "Transform to..." menu. We add a `to core/embed` transform on
- * `core/paragraph` whose `isMatch` recognizes Strava URLs; the resulting
- * embed block carries `providerNameSlug: 'strava'` so the Strava embed
- * variation registered in `src/index.tsx` matches on save.
+ * Adds a `core/paragraph` → `block-for-strava/embed` transform so a user
+ * who has typed (or pasted-into-text) a Strava URL inside a paragraph can
+ * convert it to the Strava block via the toolbar's "Transform to..." menu.
+ * The inserter handles the from-scratch path; this filter covers the case
+ * where the URL is already living inside paragraph content.
  */
 
 /*
@@ -48,8 +46,6 @@ const HTML_ENTITY_MAP: Record< string, string > = {
 };
 
 function decodeHrefEntities( href: string ): string {
-	// The regex only matches keys we have in `HTML_ENTITY_MAP`, so the
-	// non-null assertion is safe — there's no fallback path to test for.
 	return href.replace(
 		/&(?:amp|lt|gt|quot|#39);/g,
 		( match ) => HTML_ENTITY_MAP[ match ] as string
@@ -118,15 +114,11 @@ addFilter(
 		const existingTo = settings.transforms?.to ?? [];
 		const stravaTransform: BlockTransform = {
 			type: 'block',
-			blocks: [ 'core/embed' ],
+			blocks: [ 'block-for-strava/embed' ],
 			isMatch: ( { content } ) => null !== extractStravaUrl( content ),
 			transform: ( { content } ) => {
 				const url = extractStravaUrl( content ) ?? '';
-				return createBlock( 'core/embed', {
-					url,
-					providerNameSlug: 'strava',
-					responsive: true,
-				} );
+				return createBlock( 'block-for-strava/embed', { url } );
 			},
 		};
 		return {

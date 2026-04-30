@@ -6,9 +6,26 @@ import {
 	type Ref,
 } from 'react';
 
-export const useBlockProps = jest.fn( () => ( {
-	className: 'wp-block',
-} ) );
+type BlockPropsArg = { className?: string } | undefined;
+
+interface UseBlockPropsMock {
+	( props?: BlockPropsArg ): { className: string };
+	save: ( props?: BlockPropsArg ) => { className: string };
+}
+
+function mergeBlockProps( props?: BlockPropsArg ): { className: string } {
+	const provided = props?.className?.trim();
+	return {
+		className: provided ? `wp-block ${ provided }` : 'wp-block',
+	};
+}
+
+const useBlockPropsImpl: UseBlockPropsMock = Object.assign(
+	jest.fn( mergeBlockProps ),
+	{ save: jest.fn( mergeBlockProps ) }
+) as unknown as UseBlockPropsMock;
+
+export const useBlockProps = useBlockPropsImpl;
 
 export function BlockControls( { children }: { children: ReactNode } ) {
 	return createElement(
