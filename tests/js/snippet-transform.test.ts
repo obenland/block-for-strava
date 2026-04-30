@@ -19,6 +19,7 @@ interface RawTransform {
 	type: 'raw';
 	isMatch: ( node: Node ) => boolean;
 	transform: ( node: Node ) => unknown;
+	schema?: () => Record< string, unknown >;
 	[ key: string ]: unknown;
 }
 
@@ -221,5 +222,39 @@ describe( 'snippet raw transform transform', () => {
 			url: 'https://www.strava.com/segments/789',
 			stravaEmbedToken: '',
 		} );
+	} );
+} );
+
+describe( 'snippet raw transform schema', () => {
+	const result = runFilter( {}, 'block-for-strava/embed' );
+	const transforms = result.transforms?.from ?? [];
+	const snippet = transforms.find( ( t ) => 'raw' === t.type );
+	if ( ! snippet ) {
+		throw new Error( 'snippet raw transform missing' );
+	}
+
+	it( 'whitelists the placeholder div + data-* attrs through removeInvalidHTML', () => {
+		// Gutenberg's `pasteHandler` strips tags/attributes not declared by
+		// any raw transform's `schema` BEFORE it asks `isMatch`. Without
+		// this entry, the placeholder div arrives at `parsePlaceholder`
+		// missing every `data-*` attribute and gets rejected — the snippet
+		// path is dead in the real paste pipeline. Pin the exact shape
+		// here so a future refactor of `schema()` can't silently regress
+		// what the e2e test catches end-to-end.
+		expect( snippet.schema ).toBeDefined();
+		const schema = ( snippet.schema as () => Record< string, unknown > )();
+		const div = schema.div as {
+			attributes: string[];
+			classes: string[];
+		};
+		expect( div.classes ).toEqual( [ 'strava-embed-placeholder' ] );
+		expect( div.attributes ).toEqual(
+			expect.arrayContaining( [
+				'class',
+				'data-embed-type',
+				'data-embed-id',
+				'data-token',
+			] )
+		);
 	} );
 } );
