@@ -2,19 +2,20 @@
 /**
  * Server-side render callback for the Strava embed block.
  *
- * Strava does not publish an oEmbed endpoint, so we generate the iframe
- * markup deterministically from the saved URL and route attributes. The
- * actual rendering lives in `Block_For_Strava_Embed::render_block`; this
- * file is the entry point referenced from `block.json`'s `render` field.
+ * The block is dynamic: `save` returns null, so the JS bundle persists
+ * only the block-comment with attributes and this file rebuilds the
+ * front-end markup from those attributes. Strava has no public oEmbed
+ * endpoint, so generating the iframe deterministically from the saved
+ * URL is the only way to get a stable embed.
  *
  * @package BlockForStrava
  *
- * @var array $attributes Block attributes.
- * @var string $content   Save-component output (figure/wrapper/url).
+ * @var array $attributes Block attributes (`url` plus optional
+ *                        `stravaRoute*` overrides).
  */
 
 declare( strict_types = 1 );
 
 defined( 'ABSPATH' ) || exit;
 
-echo Block_For_Strava_Embed::render_block( $attributes, $content ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+echo Block_For_Strava_Embed::render_block( $attributes ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

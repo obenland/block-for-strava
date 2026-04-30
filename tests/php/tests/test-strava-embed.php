@@ -48,9 +48,12 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Block Directory reviewers explicitly check that align supports work.
 	 */
 	public function test_render_through_do_blocks_preserves_align(): void {
-		$block_markup = '<!-- wp:block-for-strava/embed {"url":"https://www.strava.com/activities/123","align":"wide"} --><figure class="wp-block-embed alignwide is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">' . "\n" . 'https://www.strava.com/activities/123' . "\n" . '</div></figure><!-- /wp:block-for-strava/embed -->';
-
-		$rendered = do_blocks( $block_markup );
+		$rendered = $this->renderBlock(
+			array(
+				'url'   => 'https://www.strava.com/activities/123',
+				'align' => 'wide',
+			)
+		);
 
 		$this->assertStringContainsString( 'alignwide', $rendered );
 		$this->assertStringContainsString( '<iframe', $rendered );
@@ -99,19 +102,23 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Routing through `do_blocks` matters because the render callback
 	 * calls `get_block_wrapper_attributes()`, which reads from a global
 	 * set by `WP_Block::render` — calling the static method directly
-	 * crashes on a null `block_to_render`.
+	 * outside that context returns just the supplied class string with no
+	 * support for `align`, `className`, or `anchor`. The block is dynamic
+	 * (save returns null), so the comment carries only attributes.
 	 *
 	 * @param  array $attributes Block attributes (must include `url`).
 	 * @return string            Front-end HTML for the rendered block.
 	 */
 	private function renderBlock( array $attributes ): string {
-		$url    = isset( $attributes['url'] ) ? (string) $attributes['url'] : '';
+		/*
+		 * Cast to object so empty attributes JSON-encode as `{}` rather
+		 * than `[]` — that's the shape Gutenberg's serializer emits for
+		 * an empty-attribute block, and `do_blocks` returns the comment
+		 * unchanged when the attrs payload is a JSON array instead.
+		 */
 		$markup = sprintf(
-			'<!-- wp:block-for-strava/embed %s --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">%s%s%s</div></figure><!-- /wp:block-for-strava/embed -->',
-			wp_json_encode( $attributes ),
-			"\n",
-			$url,
-			"\n"
+			'<!-- wp:block-for-strava/embed %s /-->',
+			wp_json_encode( (object) $attributes )
 		);
 		return do_blocks( $markup );
 	}
@@ -150,45 +157,42 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Boundary check: a URL whose ID segment is followed by extra
 	 * characters (e.g. /123abc) must not match — without a trailing
 	 * delimiter assertion, the `\d+` would greedily match `123` and we'd
-	 * embed the wrong activity. The render callback returns the original
-	 * save content unchanged so the URL stays visible (rather than
-	 * silently disappearing) on the front end.
+	 * embed the wrong activity.
 	 *
 	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_block_returns_content_unchanged_for_id_with_suffix(): void {
+	public function test_render_block_emits_nothing_for_id_with_suffix(): void {
 		$url    = 'https://www.strava.com/activities/123abc';
 		$result = $this->renderBlock( array( 'url' => $url ) );
-		// Saved URL passes through to the rendered output; no iframe is
-		// emitted because the URL didn't resolve.
-		$this->assertStringContainsString( $url, $result );
-		$this->assertStringNotContainsString( '<iframe', $result );
+		// The Edit component already warned the author; on the front end
+		// we render nothing rather than leak a bare URL the user thought
+		// would be embedded.
+		$this->assertSame( '', trim( $result ) );
 	}
 
 	/**
-	 * Non-Strava URLs (e.g. a typo, a stale paste) leave the saved URL
-	 * visible in the rendered output. We don't try to embed unknown
-	 * providers, but we also don't drop the block.
+	 * Non-Strava URLs (e.g. a typo, a stale paste) emit nothing. We don't
+	 * try to embed unknown providers, and the URL is preserved in the
+	 * block-comment JSON so the author can recover by re-editing.
 	 *
 	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_block_returns_content_unchanged_for_non_strava_url(): void {
+	public function test_render_block_emits_nothing_for_non_strava_url(): void {
 		$url    = 'https://example.com/foo';
 		$result = $this->renderBlock( array( 'url' => $url ) );
-		$this->assertStringContainsString( $url, $result );
-		$this->assertStringNotContainsString( '<iframe', $result );
+		$this->assertSame( '', trim( $result ) );
 	}
 
 	/**
-	 * Empty `url` attribute leaves the saved markup alone. (This shouldn't
-	 * happen in practice — the editor doesn't let you save without a URL —
-	 * but a hand-edited block comment could.)
+	 * Empty `url` attribute emits nothing. (Shouldn't happen in practice
+	 * — the editor's placeholder requires a URL — but a hand-edited block
+	 * comment could remove it.)
 	 *
 	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_block_returns_content_unchanged_for_empty_url(): void {
+	public function test_render_block_emits_nothing_for_empty_url(): void {
 		$result = $this->renderBlock( array() );
-		$this->assertStringNotContainsString( '<iframe', $result );
+		$this->assertSame( '', trim( $result ) );
 	}
 
 	/**

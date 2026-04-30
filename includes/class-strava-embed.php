@@ -38,28 +38,29 @@ class Block_For_Strava_Embed {
 	 * Block render callback. Resolves the saved URL to a canonical
 	 * type+id and builds the iframe.
 	 *
-	 * Preserves the alignment, custom className, and anchor wrappers from
-	 * the saved block by routing them through `get_block_wrapper_attributes()`
-	 * — without that call, `align: ['wide', 'full']` declared in `block.json`
-	 * would silently get stripped on the front end because we replace the
-	 * entire `<figure>` rather than augmenting `$content`.
+	 * The block has no `save` (it's dynamic) so attributes are the only
+	 * input — `$content` arrives empty. Routes the figure wrapper through
+	 * `get_block_wrapper_attributes()` so `align: ['wide', 'full']`
+	 * declared in `block.json`, custom classNames, and anchor IDs reach
+	 * the rendered HTML.
 	 *
-	 * Returns the saved block content (the `<figure>` with the bare URL)
-	 * when the URL can't be resolved — preserves the URL in markup so a
-	 * later edit can recover it, rather than silently dropping the block.
+	 * Returns an empty string when the URL can't be resolved (missing,
+	 * non-Strava, malformed, or short-URL resolution failure) — the
+	 * editor's `Edit` component already surfaces the unrecognized state
+	 * to the author, so emitting nothing on the front end is honest about
+	 * the broken state and avoids leaking a bare URL onto the page.
 	 *
-	 * @param  array  $attributes Block attributes (carries `url` and optional
-	 *                            `stravaRoute*` overrides).
-	 * @param  string $content    The save-component output.
-	 * @return string             Iframe HTML wrapped in the standard
-	 *                            `wp-block-embed` figure, or the original
-	 *                            content if the URL didn't resolve.
+	 * @param  array $attributes Block attributes (carries `url` and optional
+	 *                           `stravaRoute*` overrides).
+	 * @return string            Iframe HTML wrapped in the standard
+	 *                           `wp-block-embed` figure, or '' if the URL
+	 *                           didn't resolve.
 	 */
-	public static function render_block( array $attributes, string $content ): string {
+	public static function render_block( array $attributes ): string {
 		$url      = isset( $attributes['url'] ) ? (string) $attributes['url'] : '';
 		$resolved = self::resolve_to_canonical( $url );
 		if ( null === $resolved ) {
-			return $content;
+			return '';
 		}
 
 		$params = 'route' === $resolved['type']

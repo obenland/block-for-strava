@@ -1,9 +1,10 @@
 /**
  * Block registration entry point.
  *
- * Registers `block-for-strava/embed` as a standalone Gutenberg block. The
- * block is the canonical way to embed Strava content in this plugin —
- * pasting a URL into a paragraph and using "Transform to" routes through
+ * Registers `block-for-strava/embed` as a dynamic Gutenberg block — the
+ * `save` callback returns `null` because the PHP `render_callback` (wired
+ * through `block.json`) generates the front-end iframe from attributes.
+ * Pasting a URL into a paragraph and using "Transform to" routes through
  * `paragraph-transform.ts`.
  */
 import { registerBlockType } from '@wordpress/blocks';
@@ -12,7 +13,6 @@ import { chartBar as stravaIcon } from '@wordpress/icons';
 
 import metadata from './block.json';
 import { Edit } from './edit';
-import { save } from './save';
 import './paragraph-transform';
 
 registerBlockType( metadata.name, {
@@ -24,5 +24,5 @@ registerBlockType( metadata.name, {
 		'block-for-strava'
 	),
 	edit: Edit,
-	save,
+	save: () => null,
 } );

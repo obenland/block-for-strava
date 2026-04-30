@@ -6,10 +6,10 @@ import { execSync } from 'node:child_process';
  *
  * Two seams to pin:
  *
- * 1. A saved post containing a Strava URL inside the block's wrapper
- *    renders as an iframe pointing directly at strava-embeds.com via the
- *    block's `render_callback`, with the defense-in-depth sandbox flags
- *    and `referrerpolicy=origin` intact.
+ * 1. A saved post containing a Strava URL in the block-comment
+ *    attributes renders as an iframe pointing directly at
+ *    strava-embeds.com via the block's `render_callback`, with the
+ *    defense-in-depth sandbox flags and `referrerpolicy=origin` intact.
  * 2. The standalone block is discoverable in the inserter and accepts a
  *    URL through its placeholder.
  */
@@ -70,11 +70,11 @@ function publishStravaBlock(
 	title: string,
 	attrs: Record< string, unknown >
 ): string {
+	// Dynamic block: `save` returns null, so the persisted comment carries
+	// only attributes — the PHP render callback rebuilds the figure.
 	const blockComment = `<!-- wp:block-for-strava/embed ${ JSON.stringify(
 		attrs
-	) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">\n${
-		attrs.url
-	}\n</div></figure><!-- /wp:block-for-strava/embed -->`;
+	) } /-->`;
 	const postId = wp(
 		`post create --post_title=${ JSON.stringify(
 			title
