@@ -210,8 +210,12 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		await page.goto( '/wp-admin/post-new.php' );
 		await waitForEditor( page );
 
+		// Synthetic ID + token: the test only validates that the paste
+		// pipeline survives the schema filter and the transform's
+		// attribute mapping is correct — no network request is made, so
+		// real Strava values would only risk leaking a share token.
 		const snippet =
-			'<div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="18233733854" data-style="standard" data-from-embed="false" data-token="gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc"></div><script src="https://strava-embeds.com/embed.js"></script>';
+			'<div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="99999999999" data-style="standard" data-from-embed="false" data-token="TEST-TOKEN-NOT-A-REAL-SHARE-TOKEN"></div><script src="https://strava-embeds.com/embed.js"></script>';
 
 		const blocks = await page.evaluate( ( html: string ) => {
 			const wpAny = ( window as { wp?: any } ).wp;
@@ -229,10 +233,10 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		expect( blocks ).toHaveLength( 1 );
 		expect( blocks[ 0 ].name ).toBe( 'block-for-strava/embed' );
 		expect( blocks[ 0 ].attributes.url ).toBe(
-			'https://www.strava.com/activities/18233733854'
+			'https://www.strava.com/activities/99999999999'
 		);
 		expect( blocks[ 0 ].attributes.stravaEmbedToken ).toBe(
-			'gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc'
+			'TEST-TOKEN-NOT-A-REAL-SHARE-TOKEN'
 		);
 	} );
 
