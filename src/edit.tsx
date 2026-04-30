@@ -66,13 +66,19 @@ export interface StravaBlockAttributes {
 	stravaRouteShowDirt?: boolean;
 	stravaRouteShowElevation?: boolean;
 	/*
-	 * Per-activity share token Strava issues for non-public activities.
+	 * Strava share token used for non-public embeds. Activities are the
+	 * motivating case (Strava 403s a tokenless iframe URL for any activity
+	 * not visibility=Everyone), but the token is also threaded through
+	 * for routes and segments when the snippet-paste flow carries one —
+	 * `buildEmbedUrl` and the PHP renderer both round-trip it for any
+	 * type so editor and front-end URLs match exactly.
+	 *
 	 * Only the snippet-paste path (`src/snippet-transform`) writes it —
 	 * the token isn't discoverable server-side from a URL alone, so a
 	 * URL-only paste leaves this empty and the preflight effect below
-	 * surfaces a notice instructing the user to paste the share-dialog
-	 * snippet instead. Empty string also covers public-Everyone
-	 * activities, which don't need a token at all.
+	 * (activity-only) surfaces a notice instructing the user to paste
+	 * the share-dialog snippet instead. Empty string also covers
+	 * public-Everyone embeds, which don't need a token at all.
 	 */
 	stravaEmbedToken?: string;
 }
@@ -761,7 +767,16 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	const [ isEditingURL, setIsEditingURL ] = useState( ! url );
 
 	const submitURL = ( next: string ) => {
-		setAttributes( { url: next } );
+		/*
+		 * Clear the token whenever the URL is replaced. Tokens are
+		 * per-resource (Strava mints one per activity/route/segment), so
+		 * a token left over from a previous activity would silently get
+		 * appended to the new iframe URL — and `'' !== storedToken` would
+		 * skip the preflight, suppressing the "needs token" notice for
+		 * an iframe that's actually broken. The snippet-paste flow sets
+		 * url + token together via `createBlock`, so it isn't affected.
+		 */
+		setAttributes( { url: next, stravaEmbedToken: '' } );
 		setIsEditingURL( false );
 	};
 

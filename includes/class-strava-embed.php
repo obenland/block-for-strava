@@ -68,16 +68,19 @@ class Block_For_Strava_Embed {
 			: array();
 
 		/*
-		 * Tokenized activities (anything not visibility=Everyone) 403 from
-		 * strava-embeds.com without a `?token=…`. The token only enters
-		 * the system via the snippet-paste path (`src/snippet-transform`)
-		 * — Strava doesn't surface it in the unauthenticated activity HTML,
-		 * so there's no server-side path to discover one for a URL-only
-		 * paste. When the attribute is empty, fall through to the URL-only
-		 * iframe shape: it works for public-Everyone activities and renders
-		 * Strava's "Error code: EEE" page for restricted ones (which the
-		 * editor's preflight surfaces as a notice before the post is
-		 * saved).
+		 * The token is appended to the iframe URL for any resolved embed
+		 * type when `stravaEmbedToken` is a non-empty string — activities
+		 * are the motivating case (Strava 403s a tokenless URL for any
+		 * activity not visibility=Everyone), but routes and segments
+		 * round-trip the token too when the snippet-paste flow carries
+		 * one. The token only enters the system via the snippet-paste
+		 * path (`src/snippet-transform`); Strava doesn't surface it in
+		 * the unauthenticated activity HTML, so there's no server-side
+		 * path to discover one for a URL-only paste. When the attribute
+		 * is empty, fall through to the URL-only iframe shape: it works
+		 * for public-Everyone embeds and renders Strava's "Error code:
+		 * EEE" page for restricted activities (which the editor's
+		 * preflight surfaces as a notice before the post is saved).
 		 *
 		 * Strict `is_string` check (rather than a plain cast) so a hand-
 		 * edited block storing a non-scalar value — an array would cast
