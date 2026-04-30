@@ -1,11 +1,11 @@
 <?php
 /**
- * Tests for the Strava oEmbed hijack.
+ * Tests for the server-side render callback of the Strava embed block.
  *
- * Covers the three integration points that make a pasted Strava URL flow
- * through `core/embed` without Strava providing oEmbed: the
- * `pre_oembed_result` short-circuit, the `/oembed/1.0/proxy` REST fallback,
- * and the `wp_embed_register_handler` autoembed callbacks.
+ * The render callback is the only PHP that runs at request time for the
+ * block (registered in `block.json`), so these tests pin its behavior
+ * across canonical URLs, route attribute clamping, short-URL resolution,
+ * and the iframe shape PR #22 settled on.
  *
  * @package BlockForStrava
  */
@@ -13,9 +13,48 @@
 declare( strict_types = 1 );
 
 /**
- * Tests for Block_For_Strava_Embed.
+ * Tests for Block_For_Strava_Embed::render_block.
  */
 class Test_Strava_Embed extends WP_UnitTestCase {
+
+	/**
+	 * Pins that `register_block_type_from_metadata` actually fired during
+	 * `init`. The Block Directory listing depends on the block being
+	 * registered under the canonical name; if `block-for-strava.php`'s
+	 * init action ever silently breaks (path drift, missing build/, action
+	 * priority change), the rest of the suite still passes while the
+	 * production block disappears from the inserter.
+	 */
+	public function test_block_is_registered(): void {
+		$registry = WP_Block_Type_Registry::get_instance();
+		$this->assertTrue(
+			$registry->is_registered( 'block-for-strava/embed' ),
+			'block-for-strava/embed must be registered after init.'
+		);
+		$type = $registry->get_registered( 'block-for-strava/embed' );
+		$this->assertIsCallable(
+			$type->render_callback,
+			'Block must have a callable render_callback wired through block.json.'
+		);
+		$this->assertSame( 'embed', $type->category );
+	}
+
+	/**
+	 * `align: 'wide'` declared in block.json must reach the rendered figure
+	 * — `render_block` runs through `get_block_wrapper_attributes()` so that
+	 * core's block-supports machinery gets a chance to add `alignwide` and
+	 * any custom className before the figure goes out. Replacing the figure
+	 * wholesale (without the wrapper helper) silently strips alignment, and
+	 * Block Directory reviewers explicitly check that align supports work.
+	 */
+	public function test_render_through_do_blocks_preserves_align(): void {
+		$block_markup = '<!-- wp:block-for-strava/embed {"url":"https://www.strava.com/activities/123","align":"wide"} --><figure class="wp-block-embed alignwide is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">' . "\n" . 'https://www.strava.com/activities/123' . "\n" . '</div></figure><!-- /wp:block-for-strava/embed -->';
+
+		$rendered = do_blocks( $block_markup );
+
+		$this->assertStringContainsString( 'alignwide', $rendered );
+		$this->assertStringContainsString( '<iframe', $rendered );
+	}
 
 	/**
 	 * Asserts the iframe HTML loads the expected Strava embed page directly.
@@ -30,7 +69,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param  string $activity_id Expected URL ID segment.
 	 */
 	private function assertStravaIframe( string $html, string $embed_type, string $activity_id ): void {
-		$this->assertMatchesRegularExpression( '/^<iframe\s/', $html );
+		$this->assertStringContainsString( '<iframe', $html );
 		$this->assertStringContainsString( 'class="strava-embed-iframe"', $html );
 		$this->assertStringContainsString(
 			sprintf( 'src="https://strava-embeds.com/%s/%s"', $embed_type, $activity_id ),
@@ -54,8 +93,31 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Provides canonical Strava URL/type/id triples for the parametrized
-	 * `pre_oembed_result` test.
+	 * Renders a `block-for-strava/embed` block with the given attributes
+	 * through the full `do_blocks` pipeline.
+	 *
+	 * Routing through `do_blocks` matters because the render callback
+	 * calls `get_block_wrapper_attributes()`, which reads from a global
+	 * set by `WP_Block::render` — calling the static method directly
+	 * crashes on a null `block_to_render`.
+	 *
+	 * @param  array $attributes Block attributes (must include `url`).
+	 * @return string            Front-end HTML for the rendered block.
+	 */
+	private function renderBlock( array $attributes ): string {
+		$url    = isset( $attributes['url'] ) ? (string) $attributes['url'] : '';
+		$markup = sprintf(
+			'<!-- wp:block-for-strava/embed %s --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">%s%s%s</div></figure><!-- /wp:block-for-strava/embed -->',
+			wp_json_encode( $attributes ),
+			"\n",
+			$url,
+			"\n"
+		);
+		return do_blocks( $markup );
+	}
+
+	/**
+	 * Provides canonical Strava URL/type/id triples for the parametrized test.
 	 *
 	 * @return array<string, array{0: string, 1: string, 2: string}>
 	 */
@@ -68,7 +130,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Confirms canonical Strava URLs short-circuit oEmbed with our iframe.
+	 * Confirms canonical Strava URLs render to a sandboxed iframe pointing
+	 * directly at the right strava-embeds.com path.
 	 *
 	 * @dataProvider provide_canonical_urls
 	 *
@@ -76,44 +139,65 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $embed_type  Expected singular embed type.
 	 * @param string $activity_id Expected numeric ID.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_pre_oembed_result_returns_iframe_for_canonical_url( string $url, string $embed_type, string $activity_id ): void {
-		$result = apply_filters( 'pre_oembed_result', null, $url, array() );
-		$this->assertIsString( $result );
+	public function test_render_block_returns_iframe_for_canonical_url( string $url, string $embed_type, string $activity_id ): void {
+		$result = $this->renderBlock( array( 'url' => $url ) );
 		$this->assertStravaIframe( $result, $embed_type, $activity_id );
 	}
 
 	/**
-	 * Non-Strava URLs must fall through so other providers/handlers can run.
+	 * Boundary check: a URL whose ID segment is followed by extra
+	 * characters (e.g. /123abc) must not match — without a trailing
+	 * delimiter assertion, the `\d+` would greedily match `123` and we'd
+	 * embed the wrong activity. The render callback returns the original
+	 * save content unchanged so the URL stays visible (rather than
+	 * silently disappearing) on the front end.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_pre_oembed_result_passes_through_non_strava_url(): void {
-		$result = apply_filters( 'pre_oembed_result', null, 'https://example.com/foo', array() );
-		$this->assertNull( $result );
+	public function test_render_block_returns_content_unchanged_for_id_with_suffix(): void {
+		$url    = 'https://www.strava.com/activities/123abc';
+		$result = $this->renderBlock( array( 'url' => $url ) );
+		// Saved URL passes through to the rendered output; no iframe is
+		// emitted because the URL didn't resolve.
+		$this->assertStringContainsString( $url, $result );
+		$this->assertStringNotContainsString( '<iframe', $result );
 	}
 
 	/**
-	 * The filter contract is "return null to fall through, return string to
-	 * short-circuit". A previously-set non-null result must survive — without
-	 * this short-circuit our handler would clobber a faster cache hit.
+	 * Non-Strava URLs (e.g. a typo, a stale paste) leave the saved URL
+	 * visible in the rendered output. We don't try to embed unknown
+	 * providers, but we also don't drop the block.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_pre_oembed_result_does_not_clobber_existing_result(): void {
-		$existing = '<iframe src="https://example.com/oembed"></iframe>';
-		$result   = apply_filters( 'pre_oembed_result', $existing, 'https://www.strava.com/activities/123', array() );
-		$this->assertSame( $existing, $result );
+	public function test_render_block_returns_content_unchanged_for_non_strava_url(): void {
+		$url    = 'https://example.com/foo';
+		$result = $this->renderBlock( array( 'url' => $url ) );
+		$this->assertStringContainsString( $url, $result );
+		$this->assertStringNotContainsString( '<iframe', $result );
+	}
+
+	/**
+	 * Empty `url` attribute leaves the saved markup alone. (This shouldn't
+	 * happen in practice — the editor doesn't let you save without a URL —
+	 * but a hand-edited block comment could.)
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_returns_content_unchanged_for_empty_url(): void {
+		$result = $this->renderBlock( array() );
+		$this->assertStringNotContainsString( '<iframe', $result );
 	}
 
 	/**
 	 * Short URLs follow a remote redirect chain via `wp_safe_remote_head`.
 	 * Stub HTTP so the test stays deterministic and offline.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_pre_oembed_result_resolves_short_url(): void {
+	public function test_render_block_resolves_short_url(): void {
 		$callback = static function ( $preempt, $args, $url ) {
 			if ( str_contains( $url, 'strava.app.link' ) ) {
 				return array(
@@ -131,251 +215,22 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		};
 		add_filter( 'pre_http_request', $callback, 10, 3 );
 
-		$result = apply_filters( 'pre_oembed_result', null, 'https://strava.app.link/abcd', array() );
+		$short  = 'https://strava.app.link/abcd';
+		$result = $this->renderBlock( array( 'url' => $short ) );
 
 		remove_filter( 'pre_http_request', $callback, 10 );
 
-		$this->assertIsString( $result );
 		$this->assertStravaIframe( $result, 'activity', '99999' );
 	}
 
 	/**
-	 * Embed handler returns a Strava iframe for valid canonical input.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_embed_handler_builds_iframe_for_canonical_url(): void {
-		$html = Block_For_Strava_Embed::embed_handler(
-			array( 0 => 'https://www.strava.com/activities/123' )
-		);
-		$this->assertIsString( $html );
-		$this->assertStravaIframe( $html, 'activity', '123' );
-	}
-
-	/**
-	 * Embed handler must refuse paths that aren't activity/route/segment.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_embed_handler_rejects_unknown_path(): void {
-		$result = Block_For_Strava_Embed::embed_handler(
-			array( 0 => 'https://www.strava.com/clubs/1' )
-		);
-		$this->assertFalse( $result );
-	}
-
-	/**
-	 * Embed handler must refuse non-numeric ids that embed.js can't render.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_embed_handler_rejects_non_numeric_id(): void {
-		$result = Block_For_Strava_Embed::embed_handler(
-			array( 0 => 'https://www.strava.com/activities/abc' )
-		);
-		$this->assertFalse( $result );
-	}
-
-	/**
-	 * Embed handler must return false (not bad HTML) when short-URL
-	 * resolution fails, so `WP_Embed::shortcode()` falls through to leaving
-	 * the URL bare.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_embed_handler_returns_false_on_short_url_resolve_failure(): void {
-		$callback = static function ( $preempt, $args, $url ) {
-			if ( str_contains( $url, 'strava.app.link' ) ) {
-				return new WP_Error( 'http_failed', 'simulated network error' );
-			}
-			return $preempt;
-		};
-		add_filter( 'pre_http_request', $callback, 10, 3 );
-
-		$result = Block_For_Strava_Embed::embed_handler(
-			array( 0 => 'https://strava.app.link/broken' )
-		);
-
-		remove_filter( 'pre_http_request', $callback, 10 );
-
-		$this->assertFalse( $result );
-	}
-
-	/**
-	 * Boundary check: the registered regex must not accept a URL whose ID
-	 * segment is followed by extra characters (e.g. /123abc) — without a
-	 * trailing delimiter assertion, the `\d+` would greedily match `123`
-	 * and we'd embed the wrong activity.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_autoembed_rejects_id_followed_by_letters(): void {
-		global $wp_embed;
-		$url    = 'https://www.strava.com/activities/123abc';
-		$result = $wp_embed->shortcode( array(), $url );
-		// `WP_Embed::shortcode()` returns the original URL when no handler
-		// matches, so the absence of an iframe is what we assert.
-		$this->assertStringNotContainsString( '<iframe', $result );
-	}
-
-	/**
-	 * `wp_embed_register_handler` returns autoembed HTML when post content
-	 * contains a bare URL. This integration test runs the URL through
-	 * `WP_Embed::shortcode()` like autoembed does.
-	 *
-	 * @covers Block_For_Strava_Embed::embed_handler
-	 */
-	public function test_autoembed_replaces_bare_canonical_url(): void {
-		global $wp_embed;
-		$html = $wp_embed->shortcode( array(), 'https://www.strava.com/activities/18233733854' );
-		$this->assertIsString( $html );
-		$this->assertStravaIframe( $html, 'activity', '18233733854' );
-	}
-
-	/**
-	 * Confirms the REST proxy fallback rewrites a 404 oEmbed response into
-	 * a valid embed payload for Strava URLs. Without this, the editor's
-	 * paste-URL flow throws "Sorry, this content could not be embedded."
-	 *
-	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
-	 */
-	public function test_rest_proxy_fallback_rewrites_strava_response(): void {
-		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
-		wp_set_current_user( $user_id );
-
-		/*
-		 * Core's get_proxy_item iterates `$wp_scripts->queue` when an embed
-		 * handler matches; lazily-init the global so the test doesn't depend
-		 * on an earlier test having enqueued anything.
-		 */
-		wp_scripts();
-
-		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
-		$request->set_param( 'url', 'https://www.strava.com/activities/18233733854' );
-		$request->set_param( '_wpnonce', wp_create_nonce( 'wp_rest' ) );
-
-		$response = rest_get_server()->dispatch( $request );
-
-		$this->assertSame( 200, $response->get_status() );
-		$data = $response->get_data();
-		$this->assertIsObject( $data );
-		$this->assertSame( 'rich', $data->type );
-		$this->assertSame( 'Strava', $data->provider_name );
-		$this->assertStravaIframe( $data->html, 'activity', '18233733854' );
-	}
-
-	/**
-	 * Other REST endpoints must not see their responses mutated by the filter.
-	 *
-	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
-	 */
-	public function test_rest_proxy_fallback_ignores_non_proxy_routes(): void {
-		$response = new WP_REST_Response( array( 'foo' => 'bar' ) );
-		$request  = new WP_REST_Request( 'GET', '/wp/v2/posts' );
-
-		$result = Block_For_Strava_Embed::rest_proxy_fallback( $response, array(), $request );
-
-		$this->assertSame( $response, $result );
-	}
-
-	/**
-	 * If a previous filter already set valid HTML we must leave it alone.
-	 *
-	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
-	 */
-	public function test_rest_proxy_fallback_passes_through_when_html_already_present(): void {
-		$existing = (object) array( 'html' => '<iframe src="https://example.com"></iframe>' );
-		$response = new WP_REST_Response( $existing );
-		$request  = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
-		$request->set_param( 'url', 'https://www.strava.com/activities/123' );
-
-		$result = Block_For_Strava_Embed::rest_proxy_fallback( $response, array(), $request );
-
-		$this->assertSame( $response, $result );
-		$this->assertSame( $existing, $result->get_data() );
-	}
-
-	/**
-	 * Auth/permission errors on Strava URLs must propagate so the editor
-	 * can react (re-auth, retry) instead of seeing a synthesized success
-	 * payload that hides the real failure.
-	 *
-	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
-	 */
-	public function test_rest_proxy_fallback_propagates_non_oembed_errors_for_strava_urls(): void {
-		$err     = new WP_Error( 'rest_cookie_invalid_nonce', 'nope', array( 'status' => 403 ) );
-		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
-		$request->set_param( 'url', 'https://www.strava.com/activities/18233733854' );
-
-		$result = Block_For_Strava_Embed::rest_proxy_fallback( $err, array(), $request );
-
-		$this->assertSame( $err, $result );
-	}
-
-	/**
-	 * Builds a baseline core/embed-shaped block content string the way the
-	 * production filter receives it: an iframe wrapped in core's figure.
-	 *
-	 * @param  string $url Bare URL the editor would have stored.
-	 */
-	private function makeEmbedBlockContent( string $url ): string {
-		return sprintf(
-			'<figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">%s%s%s</div></figure>',
-			"\n",
-			$url,
-			"\n"
-		);
-	}
-
-	/**
-	 * Strava URL params land on the iframe `src` when route attrs are set.
-	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
-	 */
-	public function test_render_strava_embed_appends_route_params(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug'         => 'strava',
-				'url'                      => 'https://www.strava.com/routes/456',
-				'stravaRouteMapStyle'      => 'satellite',
-				'stravaRouteUnits'         => 'metric',
-				'stravaRouteFullWidth'     => true,
-				'stravaRouteShowDirt'      => true,
-				'stravaRouteTerrain'       => '3d',
-				'stravaRouteShowElevation' => false,
-			),
-		);
-
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
-
-		$this->assertStringContainsString( 'class="wp-block-embed__wrapper"', $result );
-		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
-		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
-		$parts       = wp_parse_url( $decoded_src );
-		$this->assertSame( '/route/456', $parts['path'] );
-		parse_str( $parts['query'] ?? '', $query );
-		$this->assertSame(
-			array(
-				'style'         => 'satellite',
-				'hideElevation' => 'true',
-				'units'         => 'metric',
-				'fullWidth'     => 'true',
-				'terrain'       => '3d',
-				'surfaceType'   => 'true',
-			),
-			$query
-		);
-	}
-
-	/**
 	 * Short-URL resolution can fire `wp_safe_remote_head()` (up to 5 hops),
-	 * and `render_strava_embed` runs on every front-end render. Without
-	 * caching, a single saved short-URL embed would cost five HTTP requests
-	 * per page view; this test pins that the second resolution comes from
-	 * the transient.
+	 * and `render_block` runs on every front-end render. Without caching,
+	 * a single saved short-URL embed would cost five HTTP requests per
+	 * page view; this test pins that the second resolution comes from the
+	 * transient.
 	 *
-	 * @covers Block_For_Strava_Embed::maybe_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
 	public function test_short_url_resolution_is_cached(): void {
 		$http_calls = 0;
@@ -398,15 +253,52 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		add_filter( 'pre_http_request', $callback, 10, 3 );
 
 		$short  = 'https://strava.app.link/cached-' . wp_generate_uuid4();
-		$first  = apply_filters( 'pre_oembed_result', null, $short, array() );
-		$second = apply_filters( 'pre_oembed_result', null, $short, array() );
+		$first  = $this->renderBlock( array( 'url' => $short ) );
+		$second = $this->renderBlock( array( 'url' => $short ) );
 
 		remove_filter( 'pre_http_request', $callback, 10 );
 		delete_transient( 'block_for_strava_resolved_' . md5( $short ) );
 
-		$this->assertIsString( $first );
-		$this->assertIsString( $second );
+		$this->assertStringContainsString( '<iframe', $first );
+		$this->assertStringContainsString( '<iframe', $second );
 		$this->assertSame( 1, $http_calls, 'Second call should hit the cache instead of HTTP.' );
+	}
+
+	/**
+	 * Strava URL params land on the iframe `src` when route attrs are set.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_appends_route_params(): void {
+		$attrs = array(
+			'url'                      => 'https://www.strava.com/routes/456',
+			'stravaRouteMapStyle'      => 'satellite',
+			'stravaRouteUnits'         => 'metric',
+			'stravaRouteFullWidth'     => true,
+			'stravaRouteShowDirt'      => true,
+			'stravaRouteTerrain'       => '3d',
+			'stravaRouteShowElevation' => false,
+		);
+
+		$result = $this->renderBlock( $attrs );
+
+		$this->assertStringContainsString( 'class="wp-block-embed__wrapper"', $result );
+		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
+		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
+		$parts       = wp_parse_url( $decoded_src );
+		$this->assertSame( '/route/456', $parts['path'] );
+		parse_str( $parts['query'] ?? '', $query );
+		$this->assertSame(
+			array(
+				'style'         => 'satellite',
+				'hideElevation' => 'true',
+				'units'         => 'metric',
+				'fullWidth'     => 'true',
+				'terrain'       => '3d',
+				'surfaceType'   => 'true',
+			),
+			$query
+		);
 	}
 
 	/**
@@ -415,22 +307,18 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * gate must reject them so the rendered iframe matches what the editor
 	 * actually displays.
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_strict_bool_attrs(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug'     => 'strava',
-				'url'                  => 'https://www.strava.com/routes/456',
-				// Both of these are truthy under `! empty()` but neither is
-				// a real `true` — the URL must come out clean.
-				'stravaRouteFullWidth' => 'false',
-				'stravaRouteShowDirt'  => 1,
-			),
+	public function test_render_block_strict_bool_attrs(): void {
+		$attrs = array(
+			'url'                  => 'https://www.strava.com/routes/456',
+			// Both of these are truthy under `! empty()` but neither is
+			// a real `true` — the URL must come out clean.
+			'stravaRouteFullWidth' => 'false',
+			'stravaRouteShowDirt'  => 1,
 		);
 
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+		$result = $this->renderBlock( $attrs );
 
 		$this->assertStringContainsString(
 			'src="https://strava-embeds.com/route/456"',
@@ -457,10 +345,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	/**
 	 * Pins the `in_array(..., true)` allowlist guards in
 	 * `route_params_from_attrs()` as the security boundary for any route
-	 * attribute that carries arbitrary string content. An adversarial value
-	 * must never reach the iframe `src` verbatim — the rendered URL stays
-	 * clean because the unknown value falls back to the default and the
-	 * default-only `style=standard` case is dropped.
+	 * attribute that carries arbitrary string content. An adversarial
+	 * value must never reach the iframe `src` verbatim — the rendered URL
+	 * stays clean because the unknown value falls back to the default
+	 * and the default-only `style=standard` case is dropped.
 	 *
 	 * @dataProvider provide_adversarial_route_enums
 	 *
@@ -468,19 +356,15 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $payload          Adversarial string the attribute could carry.
 	 * @param string $forbidden_param  Iframe URL param name that must not appear.
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_rejects_unknown_enum_values( string $attr_name, string $payload, string $forbidden_param ): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug' => 'strava',
-				'url'              => 'https://www.strava.com/routes/456',
-				$attr_name         => $payload,
-			),
+	public function test_render_block_rejects_unknown_enum_values( string $attr_name, string $payload, string $forbidden_param ): void {
+		$attrs = array(
+			'url'      => 'https://www.strava.com/routes/456',
+			$attr_name => $payload,
 		);
 
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+		$result = $this->renderBlock( $attrs );
 
 		// Adversarial value never reaches the rendered HTML.
 		$this->assertStringNotContainsString( $payload, $result );
@@ -500,18 +384,12 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Routes at defaults render a clean URL (no params) — keeps caches and
 	 * the iframe URL stable when nothing has been customized.
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_clean_url_at_defaults(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug' => 'strava',
-				'url'              => 'https://www.strava.com/routes/456',
-			),
+	public function test_render_block_clean_url_at_defaults(): void {
+		$result = $this->renderBlock(
+			array( 'url' => 'https://www.strava.com/routes/456' )
 		);
-
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
 		$this->assertStringContainsString(
 			'src="https://strava-embeds.com/route/456"',
@@ -521,24 +399,20 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Activity URLs render the iframe with no route params, matching the
-	 * autoembed handler's output exactly.
+	 * Activity URLs render the iframe with no route params (the route
+	 * options on a non-route URL are silently ignored).
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_activity_url(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/activities/123' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug'     => 'strava',
-				'url'                  => 'https://www.strava.com/activities/123',
-				// Route attrs on a non-route URL are ignored.
-				'stravaRouteMapStyle'  => 'satellite',
-				'stravaRouteFullWidth' => true,
-			),
+	public function test_render_block_activity_url(): void {
+		$attrs = array(
+			'url'                  => 'https://www.strava.com/activities/123',
+			// Route attrs on a non-route URL are ignored.
+			'stravaRouteMapStyle'  => 'satellite',
+			'stravaRouteFullWidth' => true,
 		);
 
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+		$result = $this->renderBlock( $attrs );
 
 		$this->assertStringContainsString(
 			'src="https://strava-embeds.com/activity/123"',
@@ -547,24 +421,20 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * `stravaRouteFullWidth=true` must drop the `max-width:600px` clamp on the
-	 * outer iframe element — without this, the inner Strava embed page goes
-	 * responsive while the iframe element itself stays pinned to 600px and
-	 * the user-visible width never changes.
+	 * `stravaRouteFullWidth=true` must drop the `max-width:600px` clamp on
+	 * the outer iframe element — without this, the inner Strava embed page
+	 * goes responsive while the iframe element itself stays pinned to
+	 * 600px and the user-visible width never changes.
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_full_width_drops_max_width(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug'     => 'strava',
-				'url'                  => 'https://www.strava.com/routes/456',
-				'stravaRouteFullWidth' => true,
-			),
+	public function test_render_block_full_width_drops_max_width(): void {
+		$attrs = array(
+			'url'                  => 'https://www.strava.com/routes/456',
+			'stravaRouteFullWidth' => true,
 		);
 
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
+		$result = $this->renderBlock( $attrs );
 
 		$this->assertStringContainsString( 'fullWidth=true', $result );
 		$this->assertStringContainsString( 'style="width:100%;display:block;border:0;"', $result );
@@ -575,53 +445,13 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Routes without `stravaRouteFullWidth` keep the legacy `max-width:600px`
 	 * clamp so they don't overflow narrow containers.
 	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
+	 * @covers Block_For_Strava_Embed::render_block
 	 */
-	public function test_render_strava_embed_default_keeps_max_width(): void {
-		$content = $this->makeEmbedBlockContent( 'https://www.strava.com/routes/456' );
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug' => 'strava',
-				'url'              => 'https://www.strava.com/routes/456',
-			),
+	public function test_render_block_default_keeps_max_width(): void {
+		$result = $this->renderBlock(
+			array( 'url' => 'https://www.strava.com/routes/456' )
 		);
-
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
 
 		$this->assertStringContainsString( 'style="width:100%;max-width:600px;display:block;border:0;"', $result );
-	}
-
-	/**
-	 * Non-Strava embeds (e.g. YouTube) must pass through untouched.
-	 *
-	 * @covers Block_For_Strava_Embed::render_strava_embed
-	 */
-	public function test_render_strava_embed_skips_non_strava_embeds(): void {
-		$content = '<figure class="wp-block-embed is-provider-youtube"><div class="wp-block-embed__wrapper"><iframe src="https://www.youtube.com/embed/abc"></iframe></div></figure>';
-		$block   = array(
-			'attrs' => array(
-				'providerNameSlug' => 'youtube',
-				'url'              => 'https://www.youtube.com/watch?v=abc',
-			),
-		);
-
-		$result = Block_For_Strava_Embed::render_strava_embed( $content, $block );
-
-		$this->assertSame( $content, $result );
-	}
-
-	/**
-	 * Errors for non-Strava URLs must propagate untouched.
-	 *
-	 * @covers Block_For_Strava_Embed::rest_proxy_fallback
-	 */
-	public function test_rest_proxy_fallback_passes_through_non_strava_error(): void {
-		$err     = new WP_Error( 'oembed_invalid_url', 'nope', array( 'status' => 404 ) );
-		$request = new WP_REST_Request( 'GET', '/oembed/1.0/proxy' );
-		$request->set_param( 'url', 'https://example.com/post/1' );
-
-		$result = Block_For_Strava_Embed::rest_proxy_fallback( $err, array(), $request );
-
-		$this->assertSame( $err, $result );
 	}
 }

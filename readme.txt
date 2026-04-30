@@ -8,17 +8,19 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-Embed public Strava activities, routes, and segments on your WordPress site with a simple block.
+A single Gutenberg block for embedding public Strava activities, routes, and segments on your WordPress site.
 
 == Description ==
 
-Block for Strava extends WordPress's core Embed block so any public Strava URL just works — paste the URL into a post and it converts into a Strava embed automatically. No new block type to learn, no API keys.
+Block for Strava adds a single block to the editor that embeds any public Strava URL — paste an activity, route, or segment link and the block renders the official Strava embed inside a sandboxed iframe.
 
 **Features:**
 
-* Paste any public Strava activity, route, or segment URL on its own line — the editor turns it into an embed automatically
+* One Gutenberg block — find "Strava" in the inserter, paste a URL, done
 * Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`) and short share links (`strava.app.link/…`)
-* Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a sandboxed iframe
+* Per-route options for map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle
+* Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a cross-origin sandboxed iframe with `referrerpolicy=origin`
+* Live in-editor preview with route options applied
 * No Strava account or API key needed
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
@@ -27,8 +29,10 @@ Block for Strava extends WordPress's core Embed block so any public Strava URL j
 
 1. Upload the plugin files to `/wp-content/plugins/block-for-strava/`, or install directly from the WordPress Plugins screen.
 2. Activate the plugin.
-3. In the block editor, paste any Strava activity, route, or segment URL onto its own line — it auto-converts to a Strava embed.
-4. Or open the block inserter, search for "Strava", and pick the variation; then paste a URL into the embed block's prompt.
+3. In the block editor, open the inserter, search for "Strava", and pick the block.
+4. Paste any Strava activity, route, or segment URL into the placeholder. For routes, use the Inspector panel to tweak map style, terrain, units, and so on.
+
+You can also paste a Strava URL on its own line into a paragraph block and use the block toolbar's "Transform to → Strava" option.
 
 == Frequently Asked Questions ==
 
@@ -43,6 +47,10 @@ No account or API key is required. The block uses Strava's public embed feature.
 = What URL formats are supported? =
 
 Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://www.strava.com/routes/12345`, `https://www.strava.com/segments/67890` — and Strava short share links (`https://strava.app.link/…`).
+
+= Why does this plugin run server-side PHP? =
+
+Strava does not publish a public oEmbed endpoint. The block's render callback (registered through `block.json`) generates the iframe markup deterministically from the saved URL and route attributes. There are no admin pages, options screens, REST endpoints, or scheduled tasks — the PHP runs only when a post containing the block is rendered.
 
 == External services ==
 
@@ -67,8 +75,9 @@ Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
 The human-readable source files and build tooling are maintained in the
 [Block for Strava GitHub repository](https://github.com/obenland/block-for-strava).
 
-The WordPress.org package includes the compiled `build/index.js` asset. To
-rebuild it from source, clone the repository and run:
+The WordPress.org package includes the compiled `build/index.js` asset and the
+`build/block.json` / `build/render.php` files that the block registers from. To
+rebuild the assets from source, clone the repository and run:
 
 1. `npm ci`
 2. `npm run build`

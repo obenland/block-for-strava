@@ -1,10 +1,11 @@
 /**
- * Verifies the `core/paragraph` → `core/embed` transform that lets a user
- * convert a typed paragraph containing a Strava URL via the block toolbar.
+ * Verifies the `core/paragraph` → `block-for-strava/embed` transform that
+ * lets a user convert a typed paragraph containing a Strava URL via the
+ * block toolbar.
  *
- * The paste-on-its-own-line path goes through core/embed's built-in raw
- * transform; this filter covers the case where the URL is already inside a
- * paragraph and the user picks "Transform to Embed".
+ * Inserter discovery covers the cold-start path; this filter covers the
+ * case where the URL is already inside a paragraph and the user picks
+ * "Transform to Strava".
  */
 import { applyFilters } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
@@ -33,19 +34,19 @@ function runFilter(
 	) as ParagraphSettings;
 }
 
-describe( 'core/paragraph → core/embed transform', () => {
+describe( 'core/paragraph → block-for-strava/embed transform', () => {
 	it( 'leaves non-paragraph block settings untouched', () => {
 		const settings = { transforms: { to: [] } };
 		const result = runFilter( settings, 'core/heading' );
 		expect( result ).toBe( settings );
 	} );
 
-	it( 'adds a single block transform targeting core/embed', () => {
+	it( 'adds a single block transform targeting block-for-strava/embed', () => {
 		const result = runFilter( {}, 'core/paragraph' );
 		const to = result.transforms?.to ?? [];
 		expect( to ).toHaveLength( 1 );
 		expect( to[ 0 ].type ).toBe( 'block' );
-		expect( to[ 0 ].blocks ).toEqual( [ 'core/embed' ] );
+		expect( to[ 0 ].blocks ).toEqual( [ 'block-for-strava/embed' ] );
 	} );
 
 	it( 'preserves existing transforms', () => {
@@ -125,15 +126,16 @@ describe( 'core/paragraph → core/embed transform', () => {
 			( createBlock as jest.Mock ).mockClear();
 		} );
 
-		it( 'creates a core/embed block with the Strava provider slug', () => {
+		it( 'creates a block-for-strava/embed block with the URL', () => {
 			transformFn( {
 				content: 'https://www.strava.com/activities/18233733854',
 			} );
-			expect( createBlock ).toHaveBeenCalledWith( 'core/embed', {
-				url: 'https://www.strava.com/activities/18233733854',
-				providerNameSlug: 'strava',
-				responsive: true,
-			} );
+			expect( createBlock ).toHaveBeenCalledWith(
+				'block-for-strava/embed',
+				{
+					url: 'https://www.strava.com/activities/18233733854',
+				}
+			);
 		} );
 
 		it( 'unwraps anchor markup before storing the URL', () => {
@@ -142,7 +144,7 @@ describe( 'core/paragraph → core/embed transform', () => {
 					'<a href="https://www.strava.com/routes/456">https://www.strava.com/routes/456</a>',
 			} );
 			expect( createBlock ).toHaveBeenCalledWith(
-				'core/embed',
+				'block-for-strava/embed',
 				expect.objectContaining( {
 					url: 'https://www.strava.com/routes/456',
 				} )
@@ -159,7 +161,7 @@ describe( 'core/paragraph → core/embed transform', () => {
 					'<a href="https://www.strava.com/activities/789?foo=1&amp;bar=2">https://www.strava.com/activities/789?foo=1&amp;bar=2</a>',
 			} );
 			expect( createBlock ).toHaveBeenCalledWith(
-				'core/embed',
+				'block-for-strava/embed',
 				expect.objectContaining( {
 					url: 'https://www.strava.com/activities/789?foo=1&bar=2',
 				} )
@@ -172,7 +174,7 @@ describe( 'core/paragraph → core/embed transform', () => {
 			// it anyway so the fallback can't silently emit `null` as a URL.
 			transformFn( { content: 'not a strava url at all' } );
 			expect( createBlock ).toHaveBeenCalledWith(
-				'core/embed',
+				'block-for-strava/embed',
 				expect.objectContaining( { url: '' } )
 			);
 		} );

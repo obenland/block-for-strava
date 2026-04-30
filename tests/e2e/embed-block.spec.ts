@@ -2,19 +2,16 @@ import { test, expect, type Page } from '@playwright/test';
 import { execSync } from 'node:child_process';
 
 /**
- * End-to-end coverage for the Strava core/embed variation flow.
+ * End-to-end coverage for the `block-for-strava/embed` block.
  *
- * Exercises the two seams that turn a pasted Strava URL into a working embed:
+ * Two seams to pin:
  *
- * 1. Paste a Strava URL into a fresh post → core/embed picks up the
- *    `strava` variation (`is-provider-strava` class on the block).
- * 2. Saved post renders an iframe pointing directly at strava-embeds.com
- *    via `wp_embed_register_handler`, with the defense-in-depth sandbox
- *    flags and `referrerpolicy=origin` intact.
- *
- * The REST `/oembed/1.0/proxy` rewrite is covered by the PHP integration
- * test in tests/test-strava-embed.php; replicating it here would only add
- * cookie-juggling without surfacing a different failure mode.
+ * 1. A saved post containing a Strava URL inside the block's wrapper
+ *    renders as an iframe pointing directly at strava-embeds.com via the
+ *    block's `render_callback`, with the defense-in-depth sandbox flags
+ *    and `referrerpolicy=origin` intact.
+ * 2. The standalone block is discoverable in the inserter and accepts a
+ *    URL through its placeholder.
  */
 
 /**
@@ -60,24 +57,35 @@ async function waitForEditor( page: Page ): Promise< void > {
 }
 
 /**
- * Publishes a post with the given content and returns its ID synchronously.
+ * Publishes a post with a serialized `block-for-strava/embed` block carrying
+ * the supplied attributes. Returning the post ID synchronously lets the
+ * caller assign it into the test's outer `postId` *before* any async assert
+ * runs — otherwise a failed expect inside a helper would leak a published
+ * post that `afterEach` can't see.
  *
- * Returning synchronously lets the caller assign the ID into the test's
- * outer `postId` *before* any async assertion runs — otherwise a failed
- * expect inside a helper would leak a published post that `afterEach`
- * can't see.
- *
- * @param title   Post title.
- * @param content Raw post_content (typically a bare Strava URL).
+ * @param title Post title.
+ * @param attrs Block attributes (must include `url`).
  */
-function publishPostWithContent( title: string, content: string ): string {
-	return wp(
+function publishStravaBlock(
+	title: string,
+	attrs: Record< string, unknown >
+): string {
+	const blockComment = `<!-- wp:block-for-strava/embed ${ JSON.stringify(
+		attrs
+	) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">\n${
+		attrs.url
+	}\n</div></figure><!-- /wp:block-for-strava/embed -->`;
+	const postId = wp(
 		`post create --post_title=${ JSON.stringify(
 			title
-		) } --post_content=${ JSON.stringify(
-			content
 		) } --post_status=publish --porcelain`
 	);
+	wp(
+		`post update ${ postId } --post_content=${ JSON.stringify(
+			blockComment
+		) }`
+	);
+	return postId;
 }
 
 /**
@@ -86,9 +94,9 @@ function publishPostWithContent( title: string, content: string ): string {
  * page actually loading; the URL on the iframe is the contract we own.
  *
  * @param page   Playwright page.
- * @param postId Post ID returned by `publishPostWithContent`.
+ * @param postId Post ID returned by `publishStravaBlock`.
  */
-async function fetchAutoembedIframeSrc(
+async function fetchEmbedIframeSrc(
 	page: Page,
 	postId: string
 ): Promise< string > {
@@ -100,7 +108,7 @@ async function fetchAutoembedIframeSrc(
 	return ( await iframe.getAttribute( 'src' ) ) ?? '';
 }
 
-const AUTOEMBED_CASES = [
+const RENDER_CASES = [
 	{
 		name: 'activity',
 		url: 'https://www.strava.com/activities/18233733854',
@@ -118,7 +126,7 @@ const AUTOEMBED_CASES = [
 	},
 ] as const;
 
-test.describe.serial( 'Strava core/embed variation', () => {
+test.describe.serial( 'block-for-strava/embed render', () => {
 	let postId: string;
 
 	test.afterEach( () => {
@@ -128,27 +136,22 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		}
 	} );
 
-	for ( const { name, url, expectedSrc } of AUTOEMBED_CASES ) {
-		test( `frontend: ${ name } URL autoembeds via wp_embed_register_handler`, async ( {
+	for ( const { name, url, expectedSrc } of RENDER_CASES ) {
+		test( `frontend: ${ name } URL renders via render_callback`, async ( {
 			page,
 		} ) => {
-			postId = publishPostWithContent(
-				`Strava ${ name } autoembed`,
-				url
-			);
-			const src = await fetchAutoembedIframeSrc( page, postId );
+			postId = publishStravaBlock( `Strava ${ name } embed`, { url } );
+			const src = await fetchEmbedIframeSrc( page, postId );
 			expect( src ).toBe( expectedSrc );
 		} );
 	}
 
-	test( 'frontend: route block_attrs append Strava URL params to the iframe', async ( {
+	test( 'frontend: route attributes append Strava URL params to the iframe', async ( {
 		page,
 	} ) => {
 		const routeId = '3379104463896442748';
 		const attrs = {
-			providerNameSlug: 'strava',
 			url: `https://www.strava.com/routes/${ routeId }`,
-			responsive: true,
 			stravaRouteMapStyle: 'satellite',
 			stravaRouteUnits: 'metric',
 			stravaRouteFullWidth: true,
@@ -156,25 +159,7 @@ test.describe.serial( 'Strava core/embed variation', () => {
 			stravaRouteTerrain: '3d',
 			stravaRouteShowElevation: false,
 		};
-		/*
-		 * core/embed's `save()` writes the bare URL inside the wrapper; the
-		 * `render_block_core/embed` filter swaps it for our parameterized
-		 * iframe before autoembed runs. Saving in this shape mirrors what
-		 * the editor produces in production.
-		 */
-		const blockComment = `<!-- wp:embed ${ JSON.stringify(
-			attrs
-		) } --><figure class="wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava"><div class="wp-block-embed__wrapper">\n${
-			attrs.url
-		}\n</div></figure><!-- /wp:embed -->`;
-		postId = wp(
-			'post create --post_title="Strava route options" --post_status=publish --porcelain'
-		);
-		wp(
-			`post update ${ postId } --post_content=${ JSON.stringify(
-				blockComment
-			) }`
-		);
+		postId = publishStravaBlock( 'Strava route options', attrs );
 
 		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
 		await page.goto( `/?p=${ postId }` );
@@ -194,10 +179,9 @@ test.describe.serial( 'Strava core/embed variation', () => {
 	test( 'frontend: iframe carries the defense-in-depth sandbox + referrer-policy attributes', async ( {
 		page,
 	} ) => {
-		postId = publishPostWithContent(
-			'Strava sandbox attrs',
-			'https://www.strava.com/activities/18233733854'
-		);
+		postId = publishStravaBlock( 'Strava sandbox attrs', {
+			url: 'https://www.strava.com/activities/18233733854',
+		} );
 		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
 		await page.goto( `/?p=${ postId }` );
 		const iframe = page.locator( 'iframe.strava-embed-iframe' ).first();
@@ -208,68 +192,45 @@ test.describe.serial( 'Strava core/embed variation', () => {
 		await expect( iframe ).toHaveAttribute( 'referrerpolicy', 'origin' );
 	} );
 
-	test( 'editor: pasting a Strava URL creates a core/embed block on the strava variation', async ( {
+	test( 'editor: inserts the Strava block from the inserter and accepts a URL', async ( {
 		page,
-		context,
 	} ) => {
-		// Without explicit clipboard permissions the navigator.clipboard call
-		// silently no-ops in headless chromium and the keyboard paste pulls
-		// in stale clipboard contents.
-		await context.grantPermissions( [
-			'clipboard-read',
-			'clipboard-write',
-		] );
-
 		await loginAsAdmin( page );
 		await page.goto( '/wp-admin/post-new.php' );
 		await waitForEditor( page );
 
 		// Block strava-embeds.com so the inner Strava iframe doesn't stall
-		// the test waiting on embed.js. The variation match happens client-
-		// side from the URL alone, so the iframe content is irrelevant here.
+		// the test waiting on embed.js. The block render is driven by the
+		// URL alone, so the iframe content is irrelevant here.
 		await page.route( /strava-embeds\.com/, ( route ) => route.abort() );
+
+		// Open the inserter and search for our block.
+		await page
+			.getByRole( 'button', { name: /toggle block inserter/i } )
+			.click();
+		const search = page.getByRole( 'searchbox', { name: /search/i } );
+		await search.fill( 'Strava' );
+		await page
+			.getByRole( 'option', { name: /^Strava$/, exact: false } )
+			.first()
+			.click();
 
 		const canvas = page
 			.frameLocator( 'iframe[name="editor-canvas"]' )
 			.first();
 
-		/*
-		 * Synthesizing a ClipboardEvent works for many handlers, but
-		 * Gutenberg's RichText paste pipeline relies on the real `paste`
-		 * event that Chrome dispatches for Ctrl/Meta+V — so write to the
-		 * actual clipboard and trigger a real keyboard paste.
-		 */
-		await canvas.locator( 'body' ).click();
-
+		// The placeholder accepts the URL and the iframe shows up after
+		// submission. We don't validate the iframe contents (Strava is
+		// blocked by page.route), only that the block transitions states.
 		const STRAVA_URL = 'https://www.strava.com/activities/18233733854';
-		await page.evaluate(
-			( url: string ) => navigator.clipboard.writeText( url ),
-			STRAVA_URL
-		);
-		await page.keyboard.press( 'ControlOrMeta+v' );
+		const urlInput = canvas.getByRole( 'textbox', { name: /embed url/i } );
+		await urlInput.fill( STRAVA_URL );
+		await canvas.getByRole( 'button', { name: /^embed$/i } ).click();
 
-		// The variation lookup runs at render time, so the visible class
-		// arrives a tick after the block name flips — poll the data store
-		// to settle on a single core/embed block first.
-		await expect
-			.poll(
-				async () =>
-					await page.evaluate( () => {
-						const wpAny = ( window as { wp?: any } ).wp;
-						const list = wpAny?.data
-							?.select( 'core/block-editor' )
-							?.getBlocks();
-						return Array.isArray( list ) && list.length === 1
-							? list[ 0 ].name
-							: null;
-					} ),
-				{ timeout: 15000 }
-			)
-			.toBe( 'core/embed' );
-
-		const embedBlock = canvas.locator(
-			'.wp-block-embed.is-provider-strava'
+		const iframe = canvas.locator( 'iframe.strava-embed-iframe' ).first();
+		await expect( iframe ).toBeAttached( { timeout: 15000 } );
+		expect( await iframe.getAttribute( 'src' ) ).toBe(
+			'https://strava-embeds.com/activity/18233733854'
 		);
-		await expect( embedBlock ).toBeVisible( { timeout: 15000 } );
 	} );
 } );

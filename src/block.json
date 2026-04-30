@@ -1,0 +1,66 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/block.json",
+	"apiVersion": 3,
+	"name": "block-for-strava/embed",
+	"version": "1.0.0",
+	"title": "Strava",
+	"category": "embed",
+	"description": "Embed a public Strava activity, route, or segment.",
+	"keywords": [
+		"strava",
+		"activity",
+		"route",
+		"segment",
+		"fitness",
+		"running",
+		"cycling"
+	],
+	"textdomain": "block-for-strava",
+	"icon": "chart-line",
+	"supports": {
+		"align": [ "wide", "full" ],
+		"html": false,
+		"interactivity": { "clientNavigation": true }
+	},
+	"attributes": {
+		"url": {
+			"type": "string"
+		},
+		"stravaRouteMapStyle": {
+			"type": "string",
+			"default": "standard",
+			"enum": [
+				"standard",
+				"satellite",
+				"hybrid",
+				"dark",
+				"winter",
+				"light"
+			]
+		},
+		"stravaRouteTerrain": {
+			"type": "string",
+			"default": "auto",
+			"enum": [ "auto", "2d", "3d" ]
+		},
+		"stravaRouteUnits": {
+			"type": "string",
+			"default": "auto",
+			"enum": [ "auto", "metric", "imperial" ]
+		},
+		"stravaRouteFullWidth": {
+			"type": "boolean",
+			"default": false
+		},
+		"stravaRouteShowDirt": {
+			"type": "boolean",
+			"default": false
+		},
+		"stravaRouteShowElevation": {
+			"type": "boolean",
+			"default": true
+		}
+	},
+	"editorScript": "file:./index.js",
+	"render": "file:./render.php"
+}
