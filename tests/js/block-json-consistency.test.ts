@@ -16,9 +16,10 @@ interface AttributeSpec {
 const ATTRS = metadata.attributes as Record< string, AttributeSpec >;
 
 describe( 'block.json schema', () => {
-	it( 'declares the six route attributes the editor + render callback both read', () => {
+	it( 'declares the route + token attributes the editor + render callback both read', () => {
 		expect( Object.keys( ATTRS ).sort() ).toEqual(
 			[
+				'stravaEmbedToken',
 				'stravaRouteFullWidth',
 				'stravaRouteMapStyle',
 				'stravaRouteShowDirt',
@@ -28,6 +29,19 @@ describe( 'block.json schema', () => {
 				'url',
 			].sort()
 		);
+	} );
+
+	it( 'declares stravaEmbedToken as a string defaulting to empty', () => {
+		// The snippet-paste path writes this attribute; URL-only pastes
+		// leave it empty. The default has to be `''` (not `undefined`)
+		// because both the JS `buildEmbedUrl` and the PHP render callback
+		// gate on a strict `'' !== token` check — `undefined` would
+		// short-circuit to "no token" but a hand-edited block storing
+		// `null` could slip through into the iframe URL otherwise.
+		expect( ATTRS.stravaEmbedToken ).toMatchObject( {
+			type: 'string',
+			default: '',
+		} );
 	} );
 
 	it( 'declares the map-style enum the inspector renders', () => {

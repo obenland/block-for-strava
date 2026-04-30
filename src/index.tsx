@@ -19,6 +19,7 @@ import { __ } from '@wordpress/i18n';
 import metadata from './block.json';
 import { Edit } from './edit';
 import './paragraph-transform';
+import './snippet-transform';
 
 registerBlockType( metadata.name, {
 	...metadata,

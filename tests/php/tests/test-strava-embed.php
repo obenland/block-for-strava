@@ -458,4 +458,486 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'style="width:100%;max-width:600px;display:block;border:0;"', $result );
 	}
+
+	/**
+	 * Activities whose visibility isn't "Everyone" need a `?token=…` on the
+	 * iframe URL or strava-embeds.com 403s. The token reaches the block via
+	 * the snippet-paste flow, and the renderer must thread it through.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_appends_token_for_activity(): void {
+		$result = $this->renderBlock(
+			array(
+				'url'              => 'https://www.strava.com/activities/18233733854',
+				'stravaEmbedToken' => 'gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc',
+			)
+		);
+
+		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
+		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
+		$parts       = wp_parse_url( $decoded_src );
+		$this->assertSame( '/activity/18233733854', $parts['path'] );
+		parse_str( $parts['query'] ?? '', $query );
+		$this->assertSame( 'gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc', $query['token'] ?? null );
+	}
+
+	/**
+	 * The token must coexist with route params on the same iframe URL.
+	 * Strava's share dialog can ship a `data-token` for routes too, and
+	 * the snippet-paste path round-trips it; this test pins that the
+	 * renderer doesn't drop one in favor of the other.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_token_coexists_with_route_params(): void {
+		$result = $this->renderBlock(
+			array(
+				'url'                 => 'https://www.strava.com/routes/456',
+				'stravaEmbedToken'    => 'rOuTeToken',
+				'stravaRouteMapStyle' => 'satellite',
+			)
+		);
+
+		$this->assertSame( 1, preg_match( '~<iframe[^>]+src="([^"]+)"~', $result, $matches ) );
+		$decoded_src = html_entity_decode( $matches[1], ENT_QUOTES );
+		parse_str( wp_parse_url( $decoded_src, PHP_URL_QUERY ) ?? '', $query );
+		$this->assertSame( 'satellite', $query['style'] ?? null );
+		$this->assertSame( 'rOuTeToken', $query['token'] ?? null );
+	}
+
+	/**
+	 * An empty token must not produce `?token=` on the iframe URL — that
+	 * would render `https://strava-embeds.com/activity/123?token=` which
+	 * Strava's embed page handles inconsistently. Stay with the clean URL
+	 * shape when no token has been resolved.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_skips_empty_token(): void {
+		$result = $this->renderBlock(
+			array(
+				'url'              => 'https://www.strava.com/activities/123',
+				'stravaEmbedToken' => '',
+			)
+		);
+
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/activity/123"',
+			$result
+		);
+		$this->assertStringNotContainsString( 'token=', $result );
+	}
+
+	/**
+	 * Without a stored token, an activity URL must render the clean iframe
+	 * shape (no `?token=`). For tokenized activities the iframe will 403
+	 * client-side — the editor's preflight surfaces that as a notice. For
+	 * public-Everyone activities, this is exactly what works.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_url_only_when_no_token_attribute(): void {
+		$result = $this->renderBlock(
+			array( 'url' => 'https://www.strava.com/activities/12345' )
+		);
+
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/activity/12345"',
+			$result
+		);
+		$this->assertStringNotContainsString( 'token=', $result );
+	}
+
+	/**
+	 * The render path must NOT make outbound HTTP calls for activity URLs
+	 * — token discovery isn't possible without auth, and a per-render
+	 * scrape would burn a network round-trip per page view to learn
+	 * nothing useful.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_makes_no_http_calls_for_activities(): void {
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
+			if ( str_contains( $url, 'strava.com' ) || str_contains( $url, 'strava-embeds.com' ) ) {
+				++$http_calls;
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$this->renderBlock(
+			array( 'url' => 'https://www.strava.com/activities/123' )
+		);
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+
+		$this->assertSame( 0, $http_calls, 'Render must not trigger any outbound HTTP for activity URLs.' );
+	}
+
+	/**
+	 * Hand-edited block markup can persist a non-string `stravaEmbedToken`
+	 * value (e.g. an array). The strict `is_string` guard in `render_block`
+	 * must reject it so the iframe URL doesn't get a literal `token=Array`
+	 * appended.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_render_block_rejects_non_string_token(): void {
+		$result = $this->renderBlock(
+			array(
+				'url'              => 'https://www.strava.com/activities/123',
+				'stravaEmbedToken' => array( 'not', 'a', 'string' ),
+			)
+		);
+
+		$this->assertStringContainsString(
+			'src="https://strava-embeds.com/activity/123"',
+			$result
+		);
+		$this->assertStringNotContainsString( 'token=', $result );
+	}
+
+	/**
+	 * Editor's URL-paste flow calls `/embed-status` to learn whether the
+	 * activity URL alone produces a working iframe. Strava 200 → embeddable.
+	 * Strava 403 → not embeddable; editor surfaces a notice instructing the
+	 * user to paste the share-dialog snippet instead. Stub HTTP so the test
+	 * stays deterministic and offline.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_reports_embeddable_for_public_activity(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$activity_id = '44444444444';
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$callback = static function ( $preempt, $args, $url ) use ( $activity_id ) {
+			if ( str_contains( $url, 'strava-embeds.com/activity/' . $activity_id ) ) {
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', $activity_id );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame(
+			array(
+				'embeddable' => true,
+				'status'     => 200,
+			),
+			$response->get_data()
+		);
+	}
+
+	/**
+	 * 403 from strava-embeds.com is the "needs token" signal — the
+	 * endpoint must report `embeddable: false` so the editor can show its
+	 * notice.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_reports_not_embeddable_on_403(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$activity_id = '55555555555';
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$callback = static function ( $preempt, $args, $url ) use ( $activity_id ) {
+			if ( str_contains( $url, 'strava-embeds.com/activity/' . $activity_id ) ) {
+				return array(
+					'response' => array(
+						'code'    => 403,
+						'message' => 'Forbidden',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', $activity_id );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame(
+			array(
+				'embeddable' => false,
+				'status'     => 403,
+			),
+			$response->get_data()
+		);
+	}
+
+	/**
+	 * Endpoint must reject anonymous traffic — the preflight causes
+	 * outbound HTTP, so leaving it open to unauthenticated callers would
+	 * hand the world a free reflective fetch.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_requires_editor_capability(): void {
+		wp_set_current_user( 0 );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', '12345' );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		// Either 401 or 403 is acceptable here; both signal "go authenticate".
+		$this->assertContains( $response->get_status(), array( 401, 403 ) );
+	}
+
+	/**
+	 * Subscribers are logged in but lack `edit_posts`, so the gate must
+	 * reject them. Without this, a future "fix" relaxing the check to
+	 * `is_user_logged_in()` would expose the reflective HEAD probe to
+	 * every customer on a WooCommerce site.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_rejects_subscriber(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'subscriber' ) );
+		wp_set_current_user( $user_id );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', '12345' );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertContains( $response->get_status(), array( 401, 403 ) );
+	}
+
+	/**
+	 * A non-numeric ID must 400 before any HTTP fan-out.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_rejects_non_numeric_id(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', 'abc' );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+	}
+
+	/**
+	 * Unsupported `type` (anything outside activity/route/segment) must 400
+	 * — Strava's iframe paths are limited to those three.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_rejects_unknown_type(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'club' );
+		$request->set_param( 'id', '123' );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+	}
+
+	/**
+	 * Network failure during the preflight reports `embeddable: false` with
+	 * status 0 — no false-positives on a transient blip.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_reports_zero_on_transport_failure(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$activity_id = '66666666666';
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$callback = static function ( $preempt, $args, $url ) use ( $activity_id ) {
+			if ( str_contains( $url, 'strava-embeds.com/activity/' . $activity_id ) ) {
+				return new WP_Error( 'http_failed', 'simulated' );
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', $activity_id );
+
+		$response = rest_get_server()->dispatch( $request );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame(
+			array(
+				'embeddable' => false,
+				'status'     => 0,
+			),
+			$response->get_data()
+		);
+	}
+
+	/**
+	 * Cache keys must include the embed type, not just the resource ID —
+	 * a route and an activity can share a numeric ID space (Strava doesn't
+	 * promise otherwise) and a key collision would silently serve the
+	 * wrong probe result across types. Pins the type prefix before someone
+	 * "simplifies" `md5( $type . ':' . $id )` to `md5( $id )`.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_does_not_collide_across_types(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$shared_id = '99999999999';
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $shared_id ) );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'route:' . $shared_id ) );
+
+		$callback = static function ( $preempt, $args, $url ) use ( $shared_id ) {
+			if ( str_contains( $url, '/activity/' . $shared_id ) ) {
+				return array(
+					'response' => array(
+						'code'    => 403,
+						'message' => 'Forbidden',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			if ( str_contains( $url, '/route/' . $shared_id ) ) {
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$req_a = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$req_a->set_param( 'type', 'activity' );
+		$req_a->set_param( 'id', $shared_id );
+		$req_r = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$req_r->set_param( 'type', 'route' );
+		$req_r->set_param( 'id', $shared_id );
+
+		$activity_data = rest_get_server()->dispatch( $req_a )->get_data();
+		$route_data    = rest_get_server()->dispatch( $req_r )->get_data();
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $shared_id ) );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'route:' . $shared_id ) );
+
+		$this->assertSame(
+			array(
+				'embeddable' => false,
+				'status'     => 403,
+			),
+			$activity_data
+		);
+		$this->assertSame(
+			array(
+				'embeddable' => true,
+				'status'     => 200,
+			),
+			$route_data
+		);
+	}
+
+	/**
+	 * Status results must be cached in a transient so a typing user (who
+	 * triggers the editor's effect on every URL change) doesn't fan out
+	 * into one HTTP HEAD per keystroke.
+	 *
+	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 */
+	public function test_rest_embed_status_caches_result(): void {
+		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $user_id );
+
+		$activity_id = '77777777777';
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( $activity_id, &$http_calls ) {
+			if ( str_contains( $url, 'strava-embeds.com/activity/' . $activity_id ) ) {
+				++$http_calls;
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$request = new WP_REST_Request( 'GET', '/block-for-strava/v1/embed-status' );
+		$request->set_param( 'type', 'activity' );
+		$request->set_param( 'id', $activity_id );
+
+		rest_get_server()->dispatch( $request );
+		rest_get_server()->dispatch( $request );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_embed_status_' . md5( 'activity:' . $activity_id ) );
+
+		$this->assertSame( 1, $http_calls, 'Second dispatch should hit the cache.' );
+	}
 }

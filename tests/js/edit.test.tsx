@@ -7,9 +7,10 @@
  *   route options inspector for /routes URLs.
  * - Short URL (`strava.app.link/...`) → notice (server resolves on render).
  */
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement } from 'react';
+import apiFetch from '@wordpress/api-fetch';
 
 import {
 	Edit,
@@ -18,6 +19,8 @@ import {
 	parseStravaUrl,
 	StravaRouteInspector,
 } from '../../src/edit';
+
+const mockedApiFetch = apiFetch as unknown as jest.Mock;
 
 interface EditProps {
 	attributes: {
@@ -28,9 +31,20 @@ interface EditProps {
 		stravaRouteFullWidth?: boolean;
 		stravaRouteShowDirt?: boolean;
 		stravaRouteShowElevation?: boolean;
+		stravaEmbedToken?: string;
 	};
 	setAttributes: ( attrs: Partial< EditProps[ 'attributes' ] > ) => void;
 }
+
+beforeEach( () => {
+	mockedApiFetch.mockReset();
+	// Default: never-resolving promise so unrelated tests don't fall
+	// through into setState-after-unmount warnings (the project's
+	// jest-console setup turns those into failures).
+	mockedApiFetch.mockImplementation(
+		() => new Promise< unknown >( () => {} )
+	);
+} );
 
 describe( 'Edit', () => {
 	it( 'shows the URL placeholder when the URL is empty', () => {
@@ -413,6 +427,157 @@ describe( 'Edit', () => {
 			}
 		} );
 	} );
+
+	describe( 'token threading', () => {
+		it( 'appends ?token=… to the iframe src for activity URLs with a stored token', () => {
+			const { container } = render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+						stravaEmbedToken: 'abc-XYZ_42',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			const iframe = container.querySelector( 'iframe.strava-embed-iframe' );
+			expect( iframe?.getAttribute( 'src' ) ).toBe(
+				'https://strava-embeds.com/activity/123?token=abc-XYZ_42'
+			);
+		} );
+
+		it( 'skips the preflight call when a token is already stored', () => {
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+						stravaEmbedToken: 'abc',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			expect( mockedApiFetch ).not.toHaveBeenCalled();
+		} );
+	} );
+
+	describe( 'URL preflight', () => {
+		it( 'calls the REST endpoint with the resolved type+id when no token is stored', () => {
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			expect( mockedApiFetch ).toHaveBeenCalledWith( {
+				path: '/block-for-strava/v1/embed-status?type=activity&id=123',
+			} );
+		} );
+
+		it( 'shows the snippet notice when the activity URL preflight returns 403', async () => {
+			mockedApiFetch.mockResolvedValueOnce( {
+				embeddable: false,
+				status: 403,
+			} );
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			await waitFor( () =>
+				expect(
+					screen.getByTestId( 'strava-embed-notice' )
+				).toBeInTheDocument()
+			);
+		} );
+
+		it( 'suppresses the notice for non-activity 403s (snippet workaround does not apply)', async () => {
+			// Routes/segments don't have a per-resource share token; even
+			// if Strava 403'd a route URL, the "paste the share-dialog
+			// snippet" advice wouldn't help. Stay in the unknown state and
+			// let the iframe surface Strava's actual response.
+			mockedApiFetch.mockResolvedValueOnce( {
+				embeddable: false,
+				status: 403,
+			} );
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/routes/456',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			// Flush the apiFetch microtask + the setEmbedStatus update
+			// inside act so React's "did you wrap state update?" warning
+			// (turned into a failure by jest-console) doesn't fire.
+			await act( async () => {} );
+			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
+		} );
+
+		it( 'suppresses the notice on transport failure (status: 0)', async () => {
+			mockedApiFetch.mockRejectedValueOnce( new Error( 'network down' ) );
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			await act( async () => {} );
+			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
+		} );
+
+		it( 'does not surface the notice for 200 OK preflight responses', async () => {
+			mockedApiFetch.mockResolvedValueOnce( {
+				embeddable: true,
+				status: 200,
+			} );
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			await act( async () => {} );
+			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
+		} );
+
+		it( 'ignores a late preflight response after the component unmounts', async () => {
+			// The cancellation flag prevents `setEmbedStatus` from firing
+			// after unmount — without it React logs the "perform a state
+			// update on an unmounted component" warning, which jest-console
+			// turns into a failure.
+			let resolveFetch: ( value: unknown ) => void = () => {};
+			mockedApiFetch.mockImplementationOnce(
+				() =>
+					new Promise( ( resolve ) => {
+						resolveFetch = resolve;
+					} )
+			);
+			const { unmount } = render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
+			unmount();
+			await act( async () => {
+				resolveFetch( { embeddable: false, status: 403 } );
+			} );
+			// No assertion on the DOM (the component is unmounted); the
+			// real assertion is "no console.error from jest-console" — if
+			// the cancellation guard breaks, this test fails the suite.
+		} );
+	} );
 } );
 
 describe( 'parseStravaUrl', () => {
@@ -534,6 +699,66 @@ describe( 'buildEmbedUrl', () => {
 		);
 		expect( url.searchParams.get( 'style' ) ).toBe( 'standard' );
 		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+	} );
+
+	it( 'appends ?token=… for activities and segments at defaults', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'activity', id: '123' },
+				{ stravaEmbedToken: 'abc-XYZ_42' }
+			)
+		).toBe( 'https://strava-embeds.com/activity/123?token=abc-XYZ_42' );
+		expect(
+			buildEmbedUrl(
+				{ type: 'segment', id: '789' },
+				{ stravaEmbedToken: 'tkn' }
+			)
+		).toBe( 'https://strava-embeds.com/segment/789?token=tkn' );
+	} );
+
+	it( 'URL-encodes a token containing reserved characters', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'activity', id: '123' },
+				{ stravaEmbedToken: 'a&b=c d' }
+			)
+		).toBe( 'https://strava-embeds.com/activity/123?token=a%26b%3Dc%20d' );
+	} );
+
+	it( 'appends ?token=… on routes at defaults (no other params)', () => {
+		expect(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{ stravaEmbedToken: 'tkn' }
+			)
+		).toBe( 'https://strava-embeds.com/route/456?token=tkn' );
+	} );
+
+	it( 'merges token alongside non-default route params', () => {
+		const url = new URL(
+			buildEmbedUrl(
+				{ type: 'route', id: '456' },
+				{
+					stravaRouteTerrain: '3d',
+					stravaEmbedToken: 'tkn',
+				}
+			)
+		);
+		expect( url.searchParams.get( 'style' ) ).toBe( 'standard' );
+		expect( url.searchParams.get( 'terrain' ) ).toBe( '3d' );
+		expect( url.searchParams.get( 'token' ) ).toBe( 'tkn' );
+	} );
+
+	it( 'ignores non-string stored tokens', () => {
+		// Hand-edited block markup can persist arbitrary types. The clamp
+		// in `buildEmbedUrl` mirrors the preflight effect in `Edit` so
+		// neither side trusts a non-string `stravaEmbedToken`.
+		expect(
+			buildEmbedUrl(
+				{ type: 'activity', id: '123' },
+				{ stravaEmbedToken: 0 as unknown as string }
+			)
+		).toBe( 'https://strava-embeds.com/activity/123' );
 	} );
 } );
 
