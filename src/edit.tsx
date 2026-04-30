@@ -49,6 +49,8 @@ type RouteMapStyle =
 type RouteUnits = 'auto' | 'metric' | 'imperial';
 type RouteTerrain = 'auto' | '2d' | '3d';
 
+type PreflightStatus = 'unknown' | 'needs-token';
+
 /*
  * Block.json declares `enum` constraints for the route attributes, so on
  * happy-path inputs the strings that reach this component are within the
@@ -149,16 +151,10 @@ export function buildEmbedUrl(
 	attrs: StravaBlockAttributes
 ): string {
 	const base = `https://strava-embeds.com/${ resolved.type }/${ resolved.id }`;
-	const token =
-		typeof attrs.stravaEmbedToken === 'string'
-			? attrs.stravaEmbedToken
-			: '';
+	const token = clampString( attrs.stravaEmbedToken );
 
 	if ( 'route' !== resolved.type ) {
-		/*
-		 * Activities and segments only ever take the token; short-circuit
-		 * past the route-params machinery.
-		 */
+		// Activities and segments only ever take the token.
 		return token
 			? `${ base }?token=${ encodeURIComponent( token ) }`
 			: base;
@@ -213,11 +209,6 @@ export function buildEmbedUrl(
 	}
 
 	if ( 0 === nonDefaultParamCount && 'standard' === mapStyle ) {
-		/*
-		 * Routes won't 403 like tokenized activities do, but the snippet-
-		 * paste path can still carry a token through for any embed type;
-		 * round-trip it so editor and server URLs match exactly.
-		 */
 		return token
 			? `${ base }?token=${ encodeURIComponent( token ) }`
 			: base;
@@ -249,6 +240,10 @@ function clampEnum< T extends string >(
 
 function clampBool( value: unknown, fallback: boolean ): boolean {
 	return typeof value === 'boolean' ? value : fallback;
+}
+
+function clampString( value: unknown ): string {
+	return typeof value === 'string' ? value : '';
 }
 
 export function StravaRouteInspector( {
@@ -501,21 +496,9 @@ function StravaCanonicalPreview( {
 	attributes,
 	setAttributes,
 }: BlockEditProps & { resolved: ResolvedStravaUrl } ) {
-	/*
-	 * Match `buildEmbedUrl`'s clamp: only treat a non-empty *string* as a
-	 * stored token. Hand-edited block markup can persist arbitrary types
-	 * for any attribute; `?? ''` would let a `false`/`0`/object slip
-	 * through as truthy and skip the preflight while `buildEmbedUrl`
-	 * normalized the same value to an empty token, suppressing the
-	 * 403 notice for an iframe that's actually broken.
-	 */
-	const storedToken =
-		typeof attributes.stravaEmbedToken === 'string'
-			? attributes.stravaEmbedToken
-			: '';
-	const [ embedStatus, setEmbedStatus ] = useState<
-		'unknown' | 'ok' | 'needs-token'
-	>( 'unknown' );
+	const storedToken = clampString( attributes.stravaEmbedToken );
+	const [ preflight, setPreflight ] =
+		useState< PreflightStatus >( 'unknown' );
 
 	/*
 	 * Preflight Strava's iframe URL on the user's behalf so we can warn
@@ -525,24 +508,14 @@ function StravaCanonicalPreview( {
 	 * the only actionable signal we can give is "this URL paste won't
 	 * work — paste the embed code from Strava's share dialog instead."
 	 *
-	 * Gated to `resolved.type === 'activity'` because the snippet
-	 * workaround only applies there: routes/segments don't ship a
-	 * per-resource share token, and we'd surface no notice for those even
-	 * if the preflight 403'd. Skipping the fetch saves a REST round-trip
-	 * (and the corresponding remote HEAD on the server) for every
-	 * route/segment paste.
-	 *
-	 * Skip the fetch entirely when a token is already stored — the
-	 * snippet-paste flow is the other source of one and its iframe is
-	 * guaranteed to render.
+	 * Gated to activities because the snippet workaround only applies
+	 * there. Skipped when a token is already stored — the snippet-paste
+	 * flow is the other source of one and its iframe is guaranteed to
+	 * render.
 	 */
 	useEffect( () => {
-		if ( '' !== storedToken ) {
-			setEmbedStatus( 'ok' );
-			return;
-		}
-		setEmbedStatus( 'unknown' );
-		if ( 'activity' !== resolved.type ) {
+		setPreflight( 'unknown' );
+		if ( '' !== storedToken || 'activity' !== resolved.type ) {
 			return;
 		}
 		let cancelled = false;
@@ -555,10 +528,6 @@ function StravaCanonicalPreview( {
 				if ( cancelled ) {
 					return;
 				}
-				if ( response?.embeddable ) {
-					setEmbedStatus( 'ok' );
-					return;
-				}
 				/*
 				 * Only 403 has an actionable user recovery (paste the
 				 * share-dialog snippet). 404s, 5xxs, and transport
@@ -567,21 +536,24 @@ function StravaCanonicalPreview( {
 				 * notice giving advice that doesn't apply.
 				 */
 				if ( 403 === response?.status ) {
-					setEmbedStatus( 'needs-token' );
+					setPreflight( 'needs-token' );
 				}
 			} )
 			.catch( () => {
-				/*
-				 * Network failure is non-fatal: leave status as `unknown`
-				 * so we don't surface a misleading notice over a transient
-				 * blip. The iframe still renders; the user sees Strava's
-				 * response directly.
-				 */
+				// Transport failure: stay `unknown`, let the iframe try.
 			} );
 		return () => {
 			cancelled = true;
 		};
 	}, [ resolved.type, resolved.id, storedToken ] );
+
+	/*
+	 * `needs-token` only fires when storedToken is empty, so deriving
+	 * the rendered status from preflight directly is correct: when a
+	 * token is set the effect early-returns without touching state, and
+	 * we already know the iframe will render.
+	 */
+	const showNeedsTokenNotice = 'needs-token' === preflight;
 
 	const src = buildEmbedUrl( resolved, attributes );
 
@@ -657,7 +629,7 @@ function StravaCanonicalPreview( {
 					setAttributes,
 			  } )
 			: null,
-		'needs-token' === embedStatus
+		showNeedsTokenNotice
 			? createElement(
 					'div',
 					{
