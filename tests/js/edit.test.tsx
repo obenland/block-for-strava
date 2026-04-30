@@ -7,7 +7,13 @@
  *   route options inspector for /routes URLs.
  * - Short URL (`strava.app.link/...`) → notice (server resolves on render).
  */
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement } from 'react';
 import apiFetch from '@wordpress/api-fetch';
@@ -439,7 +445,9 @@ describe( 'Edit', () => {
 					setAttributes: jest.fn(),
 				} )
 			);
-			const iframe = container.querySelector( 'iframe.strava-embed-iframe' );
+			const iframe = container.querySelector(
+				'iframe.strava-embed-iframe'
+			);
 			expect( iframe?.getAttribute( 'src' ) ).toBe(
 				'https://strava-embeds.com/activity/123?token=abc-XYZ_42'
 			);
