@@ -48,17 +48,7 @@ const HTML_ENTITY_MAP: Record< string, string > = {
 function decodeHrefEntities( href: string ): string {
 	return href.replace(
 		/&(?:amp|lt|gt|quot|#39);/g,
-		( match ) =>
-			/*
-			 * Falling back to `match` (the literal entity) keeps the URL
-			 * recoverable if the regex and the map ever drift apart in a
-			 * future edit — better to persist `&apos;` verbatim and fail
-			 * the canonical-URL check than to silently substitute
-			 * `undefined` into a saved attribute. Unreachable today; kept
-			 * as a guardrail for the next entity addition.
-			 */
-			/* istanbul ignore next -- defensive fallback for future regex/map drift */
-			HTML_ENTITY_MAP[ match ] ?? match
+		( match ) => HTML_ENTITY_MAP[ match ] as string
 	);
 }
 
