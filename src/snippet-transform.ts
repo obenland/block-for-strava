@@ -44,6 +44,7 @@ interface RawTransform {
 	type: 'raw';
 	isMatch: ( node: Node ) => boolean;
 	transform: ( node: Node ) => unknown;
+	schema: () => Record< string, unknown >;
 }
 
 interface ParsedPlaceholder {
@@ -124,6 +125,29 @@ addFilter(
 					stravaEmbedToken: parsed.token,
 				} );
 			},
+			/*
+			 * Gutenberg's paste pipeline runs `removeInvalidHTML` against a
+			 * merged schema BEFORE asking any raw transform's `isMatch`. A
+			 * raw transform that contributes no schema entry leaves the
+			 * placeholder div with all its `data-*` attributes (and even
+			 * the div itself, when empty) stripped — `parsePlaceholder`
+			 * then sees a bare `<div>` and rejects it. Whitelist the exact
+			 * shape Strava's share dialog produces so the attributes we
+			 * read survive the filter step.
+			 */
+			schema: () => ( {
+				div: {
+					attributes: [
+						'class',
+						'data-embed-type',
+						'data-embed-id',
+						'data-token',
+						'data-style',
+						'data-from-embed',
+					],
+					classes: [ 'strava-embed-placeholder' ],
+				},
+			} ),
 		};
 
 		const existingFrom = settings.transforms?.from ?? [];
