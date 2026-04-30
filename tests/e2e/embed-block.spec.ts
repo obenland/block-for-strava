@@ -194,6 +194,48 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		await expect( iframe ).toHaveAttribute( 'referrerpolicy', 'origin' );
 	} );
 
+	test( 'editor: pasted Strava snippet survives the paste pipeline as a tokenized embed block', async ( {
+		page,
+	} ) => {
+		// The Jest unit suite calls `isMatch`/`transform` directly on a
+		// hand-built node, which bypasses Gutenberg's schema-based
+		// `removeInvalidHTML` pass. Real-world paste hands the HTML to
+		// `wp.blocks.pasteHandler`, which strips disallowed tags and
+		// attributes BEFORE walking raw transforms. A raw transform without
+		// a matching `schema` declaration sees the data-* attributes on the
+		// placeholder div removed, so `parsePlaceholder` returns null and
+		// the snippet falls through to a freeform/HTML block — token lost.
+		// This test pins the round-trip through the real handler.
+		await loginAsAdmin( page );
+		await page.goto( '/wp-admin/post-new.php' );
+		await waitForEditor( page );
+
+		const snippet =
+			'<div class="strava-embed-placeholder" data-embed-type="activity" data-embed-id="18233733854" data-style="standard" data-from-embed="false" data-token="gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc"></div><script src="https://strava-embeds.com/embed.js"></script>';
+
+		const blocks = await page.evaluate( ( html: string ) => {
+			const wpAny = ( window as { wp?: any } ).wp;
+			const result = wpAny.blocks.pasteHandler( {
+				HTML: html,
+				mode: 'BLOCKS',
+			} );
+			const arr = Array.isArray( result ) ? result : [ result ];
+			return arr.map( ( b: any ) => ( {
+				name: b.name,
+				attributes: b.attributes,
+			} ) );
+		}, snippet );
+
+		expect( blocks ).toHaveLength( 1 );
+		expect( blocks[ 0 ].name ).toBe( 'block-for-strava/embed' );
+		expect( blocks[ 0 ].attributes.url ).toBe(
+			'https://www.strava.com/activities/18233733854'
+		);
+		expect( blocks[ 0 ].attributes.stravaEmbedToken ).toBe(
+			'gS4P2FvtBZlKXOaVgke3eG1ExyfzKWW18kKuXmYX-Vc'
+		);
+	} );
+
 	test( 'editor: block is registered in the editor data store', async ( {
 		page,
 	} ) => {
