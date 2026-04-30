@@ -10,8 +10,10 @@ import { execSync } from 'node:child_process';
  *    attributes renders as an iframe pointing directly at
  *    strava-embeds.com via the block's `render_callback`, with the
  *    defense-in-depth sandbox flags and `referrerpolicy=origin` intact.
- * 2. The standalone block is discoverable in the inserter and accepts a
- *    URL through its placeholder.
+ * 2. The block is registered in the editor's `core/blocks` data store
+ *    so it shows up in the inserter — pinned via a data-store read
+ *    rather than UI clicks because inserter accessible names drift
+ *    across Gutenberg versions.
  */
 
 /**
