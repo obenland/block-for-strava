@@ -26,11 +26,19 @@ import { subscribe, select, dispatch } from '@wordpress/data';
 
 import { isStravaUrl } from './strava-url-patterns';
 
+interface SourceAttributes {
+	url?: unknown;
+	align?: unknown;
+	className?: unknown;
+	anchor?: unknown;
+	[ key: string ]: unknown;
+}
+
 interface BlockTransform {
 	type: 'block';
 	blocks: ReadonlyArray< string >;
-	isMatch: ( attrs: { url?: unknown } ) => boolean;
-	transform: ( attrs: { url?: unknown } ) => unknown;
+	isMatch: ( attrs: SourceAttributes ) => boolean;
+	transform: ( attrs: SourceAttributes ) => unknown;
 }
 
 interface BlockSettings {
@@ -39,6 +47,31 @@ interface BlockSettings {
 		to?: ReadonlyArray< unknown >;
 	};
 	[ key: string ]: unknown;
+}
+
+/*
+ * Generic block-level wrapper attributes core/embed shares with our
+ * block. These are user-visible styling (alignment, custom className)
+ * and identification (HTML anchor for permalinks) that the user has
+ * explicitly chosen on the source block — copying them through the
+ * conversion preserves the user's intent. Only listing `align`,
+ * `className`, and `anchor` because those are what `block.json`
+ * supports declares and Gutenberg accepts; passing through other
+ * core/embed-specific fields (`caption`, `allowResponsive`, etc.)
+ * would just be discarded by the schema.
+ */
+const WRAPPER_ATTR_KEYS = [ 'align', 'className', 'anchor' ] as const;
+
+function pickWrapperAttrs(
+	attrs: SourceAttributes
+): Record< string, unknown > {
+	const out: Record< string, unknown > = {};
+	for ( const key of WRAPPER_ATTR_KEYS ) {
+		if ( undefined !== attrs[ key ] ) {
+			out[ key ] = attrs[ key ];
+		}
+	}
+	return out;
 }
 
 addFilter(
@@ -52,9 +85,10 @@ addFilter(
 			type: 'block',
 			blocks: [ 'core/embed' ],
 			isMatch: ( { url } ) => isStravaUrl( url ),
-			transform: ( { url } ) =>
+			transform: ( attrs ) =>
 				createBlock( 'block-for-strava/embed', {
-					url: String( url ),
+					...pickWrapperAttrs( attrs ),
+					url: String( attrs.url ),
 				} ),
 		};
 		const existingFrom = settings.transforms?.from ?? [];
@@ -71,7 +105,7 @@ addFilter(
 interface EditorBlock {
 	clientId: string;
 	name: string;
-	attributes: { url?: unknown; [ key: string ]: unknown };
+	attributes: SourceAttributes;
 	innerBlocks?: ReadonlyArray< EditorBlock >;
 }
 
@@ -152,6 +186,7 @@ function autoReplaceStravaEmbeds(): void {
 		actions.replaceBlock(
 			block.clientId,
 			createBlock( 'block-for-strava/embed', {
+				...pickWrapperAttrs( block.attributes ),
 				url: String( block.attributes.url ),
 			} )
 		);

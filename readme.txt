@@ -39,7 +39,7 @@ For non-public activities (visibility set to "Followers" or "Only You"), copy th
 
 = Does this work with private activities, routes, or segments? =
 
-No. Only public Strava activities, routes, and segments can be embedded. Private or followers-only resources will not display.
+Public ("Everyone") resources embed from a URL alone. Followers-only and private activities require Strava's share-dialog snippet — paste the `<div class="strava-embed-placeholder" …>…</div>` block (with its `data-token` share token) on its own line and the Strava block picks it up. Strava only generates a share token if the activity owner has explicitly enabled sharing for that visibility level, so an activity with no share token cannot be embedded.
 
 = Do I need a Strava account? =
 

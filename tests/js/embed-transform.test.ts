@@ -23,8 +23,8 @@ import '../../src/embed-transform';
 interface BlockTransform {
 	type: 'block';
 	blocks: ReadonlyArray< string >;
-	isMatch: ( attrs: { url?: unknown } ) => boolean;
-	transform: ( attrs: { url?: unknown } ) => unknown;
+	isMatch: ( attrs: Record< string, unknown > ) => boolean;
+	transform: ( attrs: Record< string, unknown > ) => unknown;
 }
 
 interface BlockSettings {
@@ -49,7 +49,7 @@ function uniqueClientId( prefix: string ): string {
 interface FakeBlock {
 	clientId: string;
 	name: string;
-	attributes: { url?: unknown };
+	attributes: Record< string, unknown >;
 	innerBlocks?: FakeBlock[];
 }
 
@@ -157,14 +157,56 @@ describe( 'embed block transform transform()', () => {
 		( createBlock as jest.Mock ).mockClear();
 	} );
 
-	it( 'creates a block-for-strava/embed with the URL preserved', () => {
+	function getEmbedTransform(): BlockTransform {
 		const result = runFilter( {}, 'block-for-strava/embed' );
 		const from = ( result.transforms?.from ?? [] ) as BlockTransform[];
 		const transform = from.find(
 			( t ) => 'block' === t.type && t.blocks?.[ 0 ] === 'core/embed'
 		);
-		transform!.transform( {
+		if ( ! transform ) {
+			throw new Error( 'embed block transform missing' );
+		}
+		return transform;
+	}
+
+	it( 'creates a block-for-strava/embed with the URL preserved', () => {
+		getEmbedTransform().transform( {
 			url: 'https://www.strava.com/activities/18233733854',
+		} );
+		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
+			url: 'https://www.strava.com/activities/18233733854',
+		} );
+	} );
+
+	it( 'preserves align/className/anchor wrapper attributes through the conversion', () => {
+		// A user who has set wide alignment, a custom class, or an
+		// HTML anchor on a styled core/embed block expects those to
+		// survive when "Transform to → Strava" replaces the block.
+		// Without explicit passthrough Gutenberg's createBlock would
+		// drop everything outside the second-arg attributes object,
+		// and the user would lose their styling silently.
+		getEmbedTransform().transform( {
+			url: 'https://www.strava.com/activities/18233733854',
+			align: 'wide',
+			className: 'is-style-rounded',
+			anchor: 'my-ride',
+			caption: 'ignored: core/embed-only field',
+		} );
+		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
+			url: 'https://www.strava.com/activities/18233733854',
+			align: 'wide',
+			className: 'is-style-rounded',
+			anchor: 'my-ride',
+		} );
+	} );
+
+	it( 'omits wrapper attributes the source block did not set', () => {
+		// `undefined` should not land in the attribute object — if it
+		// did, Gutenberg would still record the key and a later editor
+		// session might serialize it as an explicit null.
+		getEmbedTransform().transform( {
+			url: 'https://www.strava.com/activities/18233733854',
+			align: undefined,
 		} );
 		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
 			url: 'https://www.strava.com/activities/18233733854',
@@ -198,6 +240,38 @@ describe( 'auto-replace subscriber', () => {
 		fireSubscribers();
 		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
 			url: 'https://www.strava.com/activities/18233733854',
+		} );
+		expect( replaceBlock ).toHaveBeenCalledWith(
+			cid,
+			expect.objectContaining( { name: 'block-for-strava/embed' } )
+		);
+	} );
+
+	it( 'preserves align/className/anchor wrapper attributes when auto-replacing', () => {
+		// The auto-replacer must round-trip the same wrapper
+		// attributes the toolbar transform copies through, otherwise a
+		// user who pasted a Strava URL into a `core/embed` they had
+		// already styled (alignment, anchor, custom class) would lose
+		// the styling during the silent auto-conversion.
+		const cid = uniqueClientId( 'wrapper' );
+		const replaceBlock = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/18233733854',
+					align: 'full',
+					className: 'is-style-rounded',
+					anchor: 'my-ride',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
+			url: 'https://www.strava.com/activities/18233733854',
+			align: 'full',
+			className: 'is-style-rounded',
+			anchor: 'my-ride',
 		} );
 		expect( replaceBlock ).toHaveBeenCalledWith(
 			cid,
