@@ -41,6 +41,7 @@ interface EditProps {
 		caption?: string;
 	};
 	setAttributes: ( attrs: Partial< EditProps[ 'attributes' ] > ) => void;
+	isSelected?: boolean;
 }
 
 beforeEach( () => {
@@ -216,6 +217,60 @@ describe( 'Edit', () => {
 		expect( setAttributes ).toHaveBeenCalledWith(
 			expect.objectContaining( { caption: expect.any( String ) } )
 		);
+	} );
+
+	it( 'hides the caption placeholder when block is unselected and caption is empty', () => {
+		/*
+		 * Without an `isSelected` gate, every Strava block in a post
+		 * with no caption set would show an always-visible "Add
+		 * caption" placeholder field. Pin that the placeholder only
+		 * appears for the active selection, mirroring core/embed's
+		 * caption UX.
+		 */
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'shows the caption placeholder when block is selected even with empty caption', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
+
+	it( 'shows the caption text on unselected blocks when caption is set', () => {
+		// Unselected + non-empty: the saved text must remain visible
+		// to the reader, otherwise unselecting the block would hide
+		// authored caption content.
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
 	} );
 
 	it( 'disables pointer events on the iframe so the block stays selectable', () => {

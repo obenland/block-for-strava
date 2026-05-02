@@ -90,6 +90,16 @@ export interface StravaBlockAttributes {
 export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
+	/*
+	 * `isSelected` is what Gutenberg passes to every block's `edit`
+	 * component to indicate whether the block is the active selection.
+	 * Caption visibility hangs off this so an unselected block with no
+	 * caption stays clean (no "Add caption" placeholder), matching
+	 * `core/embed`'s caption UX. Optional in the prop type because the
+	 * unit tests instantiate `Edit` directly without going through
+	 * `registerBlockType` — Gutenberg always passes it in production.
+	 */
+	isSelected?: boolean;
 }
 
 const ROUTE_MAP_STYLES: ReadonlyArray< RouteMapStyle > = [
@@ -730,8 +740,14 @@ function StravaShortUrlNotice( { url }: { url: string } ) {
  * @param props.attributes    Block attributes; `url` drives the dispatch.
  * @param props.setAttributes Standard Gutenberg setter for committing the
  *                            URL back when the placeholder form submits.
+ * @param props.isSelected    Whether the block is the active selection;
+ *                            gates caption-placeholder visibility.
  */
-export function Edit( { attributes, setAttributes }: BlockEditProps ) {
+export function Edit( {
+	attributes,
+	setAttributes,
+	isSelected,
+}: BlockEditProps ) {
 	const blockProps = useBlockProps( {
 		className:
 			'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
@@ -801,11 +817,13 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	/*
 	 * The caption RichText only appears once a URL is set so the
 	 * placeholder state stays focused on the URL input. Hidden when
-	 * empty AND not focused — matching `core/embed`'s caption UX —
-	 * keeps the figure tight when there's nothing to show.
+	 * empty AND the block isn't selected — matching `core/embed`'s
+	 * caption UX. Without the `isSelected` gate, every Strava block
+	 * across the post would show an always-visible "Add caption"
+	 * placeholder even when unselected, which is visually noisy.
 	 */
 	const caption = attributes.caption ?? '';
-	const showCaption = !! url && ( !! caption || isEditingURL === false );
+	const showCaption = !! url && ( !! caption || true === isSelected );
 
 	return createElement(
 		Fragment,

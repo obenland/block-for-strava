@@ -53,13 +53,22 @@ interface FakeBlock {
 	innerBlocks?: FakeBlock[];
 }
 
-function setEditorBlocks( blocks: FakeBlock[] ): jest.Mock {
-	const replaceBlock = jest.fn();
+interface EditorActions {
+	replaceBlock: jest.Mock;
+	__unstableMarkNextChangeAsNotPersistent: jest.Mock;
+	[ key: string ]: jest.Mock;
+}
+
+function setEditorBlocks( blocks: FakeBlock[] ): EditorActions {
+	const actions: EditorActions = {
+		replaceBlock: jest.fn(),
+		__unstableMarkNextChangeAsNotPersistent: jest.fn(),
+	};
 	__mockState.selectors[ 'core/block-editor' ] = {
 		getBlocks: () => blocks,
 	};
-	__mockState.actions[ 'core/block-editor' ] = { replaceBlock };
-	return replaceBlock;
+	__mockState.actions[ 'core/block-editor' ] = actions;
+	return actions;
 }
 
 function fireSubscribers(): void {
@@ -236,7 +245,7 @@ describe( 'auto-replace subscriber', () => {
 
 	it( 'replaces a core/embed block carrying a Strava URL with block-for-strava/embed', () => {
 		const cid = uniqueClientId( 'activity' );
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: cid,
 				name: 'core/embed',
@@ -255,6 +264,38 @@ describe( 'auto-replace subscriber', () => {
 		);
 	} );
 
+	it( 'marks the auto-replace as non-persistent so undo collapses paste+convert into one entry', () => {
+		/*
+		 * Pasting a Strava URL into post content fires two state
+		 * changes back-to-back: Gutenberg's URL paste creates a
+		 * `core/embed`, then our subscriber replaces it with our
+		 * block. Without `__unstableMarkNextChangeAsNotPersistent`,
+		 * those become two undo entries — the first Cmd+Z lands the
+		 * user on the broken intermediate `core/embed` instead of
+		 * undoing the paste outright. Pin that we call the marker
+		 * BEFORE `replaceBlock` so the merge happens on the correct
+		 * dispatch.
+		 */
+		const cid = uniqueClientId( 'undo' );
+		const actions = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/18233733854',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect(
+			actions.__unstableMarkNextChangeAsNotPersistent
+		).toHaveBeenCalledTimes( 1 );
+		expect(
+			actions.__unstableMarkNextChangeAsNotPersistent.mock
+				.invocationCallOrder[ 0 ]
+		).toBeLessThan( actions.replaceBlock.mock.invocationCallOrder[ 0 ] );
+	} );
+
 	it( 'preserves align/className/anchor/caption wrapper attributes when auto-replacing', () => {
 		/*
 		 * The auto-replacer must round-trip the same wrapper attributes
@@ -264,7 +305,7 @@ describe( 'auto-replace subscriber', () => {
 		 * lose that content during the silent auto-conversion.
 		 */
 		const cid = uniqueClientId( 'wrapper' );
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: cid,
 				name: 'core/embed',
@@ -296,7 +337,7 @@ describe( 'auto-replace subscriber', () => {
 		[ 'route URL', 'https://www.strava.com/routes/3379104463896442748' ],
 		[ 'segment URL', 'https://www.strava.com/segments/789' ],
 	] )( 'replaces core/embed for %s', ( _name, url ) => {
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: uniqueClientId( 'url' ),
 				name: 'core/embed',
@@ -308,7 +349,7 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'leaves non-Strava core/embed blocks alone', () => {
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: uniqueClientId( 'youtube' ),
 				name: 'core/embed',
@@ -323,7 +364,7 @@ describe( 'auto-replace subscriber', () => {
 
 	it( 'recurses into innerBlocks (e.g., embeds inside groups/columns)', () => {
 		const innerCid = uniqueClientId( 'inner' );
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: uniqueClientId( 'group' ),
 				name: 'core/group',
@@ -362,7 +403,7 @@ describe( 'auto-replace subscriber', () => {
 				},
 			},
 		];
-		const replaceBlock = setEditorBlocks( blocks );
+		const { replaceBlock } = setEditorBlocks( blocks );
 		fireSubscribers();
 		// Swap in a new array with the same content so the lastBlocks
 		// reference cache doesn't suppress the second walk.
@@ -375,7 +416,7 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'short-circuits when the block list reference is unchanged', () => {
-		const replaceBlock = setEditorBlocks( [
+		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: uniqueClientId( 'unchanged' ),
 				name: 'core/embed',

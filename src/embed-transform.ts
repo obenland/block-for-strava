@@ -122,6 +122,17 @@ interface BlockEditorSelectors {
 
 interface BlockEditorActions {
 	replaceBlock: ( clientId: string, block: unknown ) => unknown;
+	/*
+	 * Marks the next dispatch on `core/block-editor` as merging into
+	 * the previous undo entry instead of starting a new one. Without
+	 * this, pasting a Strava URL produces two history entries
+	 * (paste → core/embed, then auto-convert → block-for-strava/embed),
+	 * so the first Undo lands on the broken intermediate `core/embed`
+	 * instead of removing the paste outright. Marking the conversion
+	 * non-persistent collapses the two steps so Undo behaves like a
+	 * single transparent paste-and-convert.
+	 */
+	__unstableMarkNextChangeAsNotPersistent?: () => void;
 }
 
 /**
@@ -190,6 +201,7 @@ function autoReplaceStravaEmbeds(): void {
 			continue;
 		}
 		replaced.add( block.clientId );
+		actions.__unstableMarkNextChangeAsNotPersistent?.();
 		actions.replaceBlock(
 			block.clientId,
 			createBlock( 'block-for-strava/embed', {
