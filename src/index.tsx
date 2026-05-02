@@ -4,8 +4,16 @@
  * Registers `block-for-strava/embed` as a dynamic Gutenberg block — the
  * `save` callback returns `null` because the PHP `render_callback` (wired
  * through `block.json`) generates the front-end iframe from attributes.
- * Pasting a URL into a paragraph and using "Transform to" routes through
- * `paragraph-transform.ts`.
+ *
+ * Three transform paths are wired up alongside registration as side
+ * effects of the imports below:
+ * - `paragraph-transform.ts`: `core/paragraph` → `block-for-strava/embed`
+ *   toolbar transform when the paragraph contains a single Strava URL.
+ * - `snippet-transform.ts`: raw paste handler that converts Strava's
+ *   share-dialog snippet (with its share token) into our block.
+ * - `embed-transform.ts`: `core/embed` → `block-for-strava/embed`
+ *   toolbar transform plus a `subscribe()`-based auto-replacer that
+ *   converts any `core/embed` block whose URL is a Strava form.
  *
  * The icon is declared twice on purpose: `block.json` carries an SVG string
  * because the WordPress.org Block Directory only reads static `block.json`

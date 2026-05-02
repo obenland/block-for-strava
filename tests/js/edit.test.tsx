@@ -38,6 +38,7 @@ interface EditProps {
 		stravaRouteShowDirt?: boolean;
 		stravaRouteShowElevation?: boolean;
 		stravaEmbedToken?: string;
+		caption?: string;
 	};
 	setAttributes: ( attrs: Partial< EditProps[ 'attributes' ] > ) => void;
 }

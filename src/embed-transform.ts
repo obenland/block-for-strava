@@ -51,29 +51,29 @@ interface BlockSettings {
 }
 
 /*
- * Block-level attributes core/embed shares with our block that we want
- * to preserve through conversion. Three are user-visible styling and
- * identification (alignment, custom className, HTML anchor); `caption`
- * is the user-visible caption text below the embed. Without explicit
- * passthrough Gutenberg's `createBlock` would drop everything outside
- * the second-arg attributes object, silently discarding the user's
- * caption text and styling. Other core/embed-only fields
- * (`allowResponsive`, `responsive`, `previewable`, `providerNameSlug`)
- * are intentionally not listed — they're not part of our block's
- * schema and would be discarded anyway.
+ * Attributes core/embed shares with our block that we want to preserve
+ * through conversion. Three are figure-wrapper styling/identification
+ * (`align`, `className`, `anchor`); `caption` is the user-visible
+ * caption text below the embed. Without explicit passthrough,
+ * Gutenberg's `createBlock` would drop everything outside the
+ * second-arg attributes object, silently discarding the user's caption
+ * and styling. Other core/embed-only fields (`allowResponsive`,
+ * `responsive`, `previewable`, `providerNameSlug`) are intentionally
+ * not listed — they're not part of our block's schema and would be
+ * discarded anyway.
  */
-const WRAPPER_ATTR_KEYS = [
+const PRESERVED_ATTR_KEYS = [
 	'align',
 	'className',
 	'anchor',
 	'caption',
 ] as const;
 
-function pickWrapperAttrs(
+function pickPreservedAttrs(
 	attrs: SourceAttributes
 ): Record< string, unknown > {
 	const out: Record< string, unknown > = {};
-	for ( const key of WRAPPER_ATTR_KEYS ) {
+	for ( const key of PRESERVED_ATTR_KEYS ) {
 		if ( undefined !== attrs[ key ] ) {
 			out[ key ] = attrs[ key ];
 		}
@@ -94,7 +94,7 @@ addFilter(
 			isMatch: ( { url } ) => isStravaUrl( url ),
 			transform: ( attrs ) =>
 				createBlock( 'block-for-strava/embed', {
-					...pickWrapperAttrs( attrs ),
+					...pickPreservedAttrs( attrs ),
 					url: String( attrs.url ),
 				} ),
 		};
@@ -193,7 +193,7 @@ function autoReplaceStravaEmbeds(): void {
 		actions.replaceBlock(
 			block.clientId,
 			createBlock( 'block-for-strava/embed', {
-				...pickWrapperAttrs( block.attributes ),
+				...pickPreservedAttrs( block.attributes ),
 				url: String( block.attributes.url ),
 			} )
 		);
