@@ -25,6 +25,7 @@ import metadata from './block.json';
 import { Edit } from './edit';
 import './paragraph-transform';
 import './snippet-transform';
+import './embed-transform';
 
 registerBlockType( metadata.name, {
 	...metadata,

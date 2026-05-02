@@ -17,7 +17,8 @@ Block for Strava adds a single block to the editor that embeds any public Strava
 **Features:**
 
 * One Gutenberg block — find "Strava" in the inserter, paste a URL, done
-* Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`) and short share links (`strava.app.link/…`)
+* Pasting a Strava URL or share-dialog snippet directly into post content auto-converts to the Strava block — no manual transform required
+* Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`), short share links (`strava.app.link/…`), and the share-dialog embed snippet (with token, for non-public activities)
 * Per-route options for map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle
 * Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a cross-origin sandboxed iframe with `referrerpolicy=origin`
 * Live in-editor preview with route options applied
@@ -29,10 +30,10 @@ Block for Strava adds a single block to the editor that embeds any public Strava
 
 1. Upload the plugin files to `/wp-content/plugins/block-for-strava/`, or install directly from the WordPress Plugins screen.
 2. Activate the plugin.
-3. In the block editor, open the inserter, search for "Strava", and pick the block.
+3. In the block editor, open the inserter, search for "Strava", and pick the block. Or just paste a Strava URL onto its own line in the post — it auto-converts to a Strava block.
 4. Paste any Strava activity, route, or segment URL into the placeholder. For routes, use the Inspector panel to tweak map style, terrain, units, and so on.
 
-You can also paste a Strava URL on its own line into a paragraph block and use the block toolbar's "Transform to → Strava" option.
+For non-public activities (visibility set to "Followers" or "Only You"), copy the embed snippet from Strava's share dialog (Share → Embed) and paste it on its own line — the Strava block picks up both the activity and the per-share token so the iframe loads.
 
 == Frequently Asked Questions ==
 
@@ -46,7 +47,7 @@ No account or API key is required. The block uses Strava's public embed feature.
 
 = What URL formats are supported? =
 
-Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://www.strava.com/routes/12345`, `https://www.strava.com/segments/67890` — and Strava short share links (`https://strava.app.link/…`).
+Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://www.strava.com/routes/12345`, `https://www.strava.com/segments/67890` — and Strava short share links (`https://strava.app.link/…`). The share-dialog embed snippet (the `<div class="strava-embed-placeholder" …>…</div>` block from Strava's Share → Embed dialog) is also supported and is the path to use for non-public activities, since it carries the per-share token Strava requires for those embeds.
 
 = Why does this plugin run server-side PHP? =
 
