@@ -79,16 +79,48 @@ class Block_For_Strava_Embed {
 
 		$iframe = self::build_iframe( $resolved['type'], $resolved['id'], null, null, $params );
 
-		$wrapper_attrs = get_block_wrapper_attributes(
-			array(
-				'class' => 'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
-			)
+		$wrapper_args = array(
+			'class' => 'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
 		);
 
+		/*
+		 * `supports.anchor` declares the editor-side affordance, but
+		 * for dynamic blocks (this one's `save` is null) the
+		 * `wp_apply_anchor_support` filter doesn't reach
+		 * `get_block_wrapper_attributes()`, so we read the saved
+		 * attribute and pass `id` through ourselves. Without this,
+		 * an anchor set in the editor would round-trip to the post
+		 * comment but never reach the front-end figure, breaking
+		 * in-page jump links to the embed.
+		 */
+		if ( isset( $attributes['anchor'] ) && is_string( $attributes['anchor'] ) && '' !== $attributes['anchor'] ) {
+			$wrapper_args['id'] = $attributes['anchor'];
+		}
+		$wrapper_attrs = get_block_wrapper_attributes( $wrapper_args );
+
+		$caption_html = '';
+		if ( isset( $attributes['caption'] ) && is_string( $attributes['caption'] ) ) {
+			/*
+			 * `wp_kses_post` matches the sanitization core/embed runs on
+			 * its caption attribute — allow basic inline formatting
+			 * (`<a>`, `<em>`, `<strong>`, `<br>`) while stripping
+			 * scripts and structural tags. Empty/whitespace-only
+			 * captions emit nothing rather than a stray `<figcaption>`.
+			 */
+			$sanitized = wp_kses_post( $attributes['caption'] );
+			if ( '' !== trim( wp_strip_all_tags( $sanitized ) ) ) {
+				$caption_html = sprintf(
+					'<figcaption class="wp-element-caption">%s</figcaption>',
+					$sanitized
+				);
+			}
+		}
+
 		return sprintf(
-			'<figure %s><div class="wp-block-embed__wrapper">%s</div></figure>',
+			'<figure %s><div class="wp-block-embed__wrapper">%s</div>%s</figure>',
 			$wrapper_attrs,
-			$iframe
+			$iframe,
+			$caption_html
 		);
 	}
 

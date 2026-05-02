@@ -292,13 +292,12 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 			 * its own line: `pasteHandler` returns a `core/embed`,
 			 * `replaceBlocks` inserts it where the cursor was, then the
 			 * `subscribe`-based auto-replace fires and swaps it for our
-			 * block. The 250ms settle window is generous on purpose —
-			 * the subscriber runs on the next state tick, but Gutenberg
-			 * also dispatches a few unrelated state updates around an
-			 * insertBlocks call that could push our replacement to the
-			 * second tick.
+			 * block. Wait on the observable state — the block name
+			 * flipping to `block-for-strava/embed` — rather than a
+			 * fixed timeout, so a slower CI scheduler can take longer
+			 * without flaking the suite.
 			 */
-			const result = await page.evaluate( async ( pastedUrl: string ) => {
+			await page.evaluate( async ( pastedUrl: string ) => {
 				const wpAny = ( window as { wp?: any } ).wp;
 				const empty = wpAny.blocks.createBlock( 'core/paragraph', {
 					content: '',
@@ -315,21 +314,49 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 				await wpAny.data
 					.dispatch( 'core/block-editor' )
 					.replaceBlocks( [ empty.clientId ], arr );
-				await new Promise( ( r ) => setTimeout( r, 250 ) );
+			}, input );
+
+			const result = await expect
+				.poll(
+					async () =>
+						page.evaluate( () => {
+							const wpAny = ( window as { wp?: any } ).wp;
+							const blocks = wpAny.data
+								.select( 'core/block-editor' )
+								.getBlocks();
+							return blocks.map( ( b: any ) => ( {
+								name: b.name,
+								url: b.attributes?.url,
+								token: b.attributes?.stravaEmbedToken,
+							} ) );
+						} ),
+					{ timeout: 5000 }
+				)
+				.toEqual( [
+					expect.objectContaining( {
+						name: 'block-for-strava/embed',
+						url: expectedUrl,
+					} ),
+				] );
+
+			/*
+			 * `expect.poll(...).toEqual(...)` returns void rather than
+			 * the polled value (Playwright API), so re-read the final
+			 * state to assert on the token attribute. By the time we
+			 * reach this point the poll has confirmed the block was
+			 * replaced — this read is a single sync hop, no waiting.
+			 */
+			void result;
+			const finalState = await page.evaluate( () => {
+				const wpAny = ( window as { wp?: any } ).wp;
 				const blocks = wpAny.data
 					.select( 'core/block-editor' )
 					.getBlocks();
 				return blocks.map( ( b: any ) => ( {
-					name: b.name,
-					url: b.attributes?.url,
 					token: b.attributes?.stravaEmbedToken,
 				} ) );
-			}, input );
-
-			expect( result ).toHaveLength( 1 );
-			expect( result[ 0 ].name ).toBe( 'block-for-strava/embed' );
-			expect( result[ 0 ].url ).toBe( expectedUrl );
-			expect( result[ 0 ].token ?? '' ).toBe( expectedToken );
+			} );
+			expect( finalState[ 0 ].token ?? '' ).toBe( expectedToken );
 		} );
 	}
 
@@ -350,7 +377,7 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		await page.goto( '/wp-admin/post-new.php' );
 		await waitForEditor( page );
 
-		const result = await page.evaluate( async () => {
+		await page.evaluate( async () => {
 			const wpAny = ( window as { wp?: any } ).wp;
 			const block = wpAny.blocks.createBlock(
 				'block-for-strava/embed',
@@ -362,19 +389,38 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 				.updateBlockAttributes( block.clientId, {
 					url: 'https://www.strava.com/activities/18233733854',
 				} );
-			await new Promise( ( r ) => setTimeout( r, 200 ) );
-			const blocks = wpAny.data.select( 'core/block-editor' ).getBlocks();
-			return blocks.map( ( b: any ) => ( {
-				name: b.name,
-				url: b.attributes?.url,
-			} ) );
 		} );
 
-		expect( result ).toHaveLength( 1 );
-		expect( result[ 0 ].name ).toBe( 'block-for-strava/embed' );
-		expect( result[ 0 ].url ).toBe(
-			'https://www.strava.com/activities/18233733854'
-		);
+		/*
+		 * Poll on the observable state (block name + url) rather than a
+		 * fixed timeout. `updateBlockAttributes` resolves before the
+		 * next subscribe tick, so a slower scheduler could otherwise
+		 * leave the read happening before the new attribute is visible
+		 * via `getBlocks()`. Polling is also load-bearing if any
+		 * future filter mid-flight transforms the block — we'd see a
+		 * stable matching state, not a transient one.
+		 */
+		await expect
+			.poll(
+				async () =>
+					page.evaluate( () => {
+						const wpAny = ( window as { wp?: any } ).wp;
+						const blocks = wpAny.data
+							.select( 'core/block-editor' )
+							.getBlocks();
+						return blocks.map( ( b: any ) => ( {
+							name: b.name,
+							url: b.attributes?.url,
+						} ) );
+					} ),
+				{ timeout: 5000 }
+			)
+			.toEqual( [
+				{
+					name: 'block-for-strava/embed',
+					url: 'https://www.strava.com/activities/18233733854',
+				},
+			] );
 	} );
 
 	test( 'editor: a Strava URL inside a core/embed block is offered as a "Transform to" target', async ( {

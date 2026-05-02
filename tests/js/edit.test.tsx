@@ -186,6 +186,37 @@ describe( 'Edit', () => {
 		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
 	} );
 
+	it( 'renders an editable caption and forwards typed text via setAttributes', async () => {
+		/*
+		 * Caption support is what lets a `core/embed` block carrying a
+		 * caption survive the auto-conversion: the transform copies the
+		 * caption attribute over and Edit renders a RichText below the
+		 * iframe so the user can keep editing it. Without this hook, a
+		 * captioned Strava embed would persist the value in attrs but
+		 * never expose it for editing — the user would think the
+		 * caption was lost.
+		 */
+		const setAttributes = jest.fn();
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'Initial text',
+				},
+				setAttributes,
+			} )
+		);
+		const caption = screen.getByLabelText(
+			/strava embed caption/i
+		) as HTMLElement;
+		expect( caption ).toBeInTheDocument();
+		expect( caption.tagName.toLowerCase() ).toBe( 'figcaption' );
+		await userEvent.type( caption, 'X' );
+		expect( setAttributes ).toHaveBeenCalledWith(
+			expect.objectContaining( { caption: expect.any( String ) } )
+		);
+	} );
+
 	it( 'disables pointer events on the iframe so the block stays selectable', () => {
 		// Without `pointer-events: none`, clicks land on the cross-origin
 		// strava-embeds.com document and never reach the figure that holds

@@ -16,9 +16,10 @@ interface AttributeSpec {
 const ATTRS = metadata.attributes as Record< string, AttributeSpec >;
 
 describe( 'block.json schema', () => {
-	it( 'declares the route + token attributes the editor + render callback both read', () => {
+	it( 'declares the route + token + caption attributes the editor + render callback both read', () => {
 		expect( Object.keys( ATTRS ).sort() ).toEqual(
 			[
+				'caption',
 				'stravaEmbedToken',
 				'stravaRouteFullWidth',
 				'stravaRouteMapStyle',

@@ -60,6 +60,84 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * `anchor` declared in `block.json` supports must reach the rendered
+	 * figure as an `id` attribute. Without it, in-page jump links to the
+	 * embed (`#my-ride`) silently break for any post that imported a
+	 * `core/embed` with an anchor and was auto-converted by the plugin.
+	 * Covers the same render seam as the align test, but for anchor —
+	 * `get_block_wrapper_attributes()` is the shared mechanism so a
+	 * regression in either path would surface here first.
+	 */
+	public function test_render_through_do_blocks_preserves_anchor(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'    => 'https://www.strava.com/activities/123',
+				'anchor' => 'my-ride',
+			)
+		);
+
+		$this->assertStringContainsString( 'id="my-ride"', $rendered );
+		$this->assertStringContainsString( '<iframe', $rendered );
+	}
+
+	/**
+	 * Caption text saved on the block must reach the rendered figure as
+	 * a `<figcaption>` inside the wrapper. Empty / whitespace-only
+	 * captions emit no figcaption (so a stray empty element doesn't
+	 * inflate the figure), and basic inline formatting (`<a>`, `<em>`,
+	 * `<strong>`) survives `wp_kses_post` while scripts are stripped.
+	 */
+	public function test_render_emits_figcaption_when_caption_set(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => 'My morning ride',
+			)
+		);
+
+		$this->assertStringContainsString( '<figcaption', $rendered );
+		$this->assertStringContainsString( 'My morning ride', $rendered );
+	}
+
+	/**
+	 * Caption sanitization: `wp_kses_post` permits inline formatting
+	 * (`<a>`, `<em>`, `<strong>`, `<br>`) but strips `<script>` and
+	 * other dangerous markup. The script tag itself must not survive
+	 * — the inner text is allowed to remain as inert text content
+	 * (that's how `wp_kses_post` works) but with the tag removed it
+	 * cannot execute.
+	 */
+	public function test_render_sanitizes_caption_html(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => 'See <a href="https://example.com">my ride</a>!<script>alert(1)</script>',
+			)
+		);
+
+		$this->assertStringContainsString( '<a href="https://example.com">my ride</a>', $rendered );
+		$this->assertStringNotContainsString( '<script', $rendered );
+		$this->assertStringNotContainsString( '</script>', $rendered );
+	}
+
+	/**
+	 * An empty or whitespace-only caption attribute must produce no
+	 * `<figcaption>` element at all. Otherwise the figure would gain a
+	 * stray empty caption that styles can stretch open, leaving visible
+	 * whitespace under embeds that don't have a caption set.
+	 */
+	public function test_render_omits_figcaption_for_empty_caption(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => '   ',
+			)
+		);
+
+		$this->assertStringNotContainsString( '<figcaption', $rendered );
+	}
+
+	/**
 	 * Asserts the iframe HTML loads the expected Strava embed page directly.
 	 *
 	 * The earlier shape wrapped a placeholder div + embed.js inside a data:

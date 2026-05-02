@@ -8,11 +8,11 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-A single Gutenberg block for embedding public Strava activities, routes, and segments on your WordPress site.
+A single Gutenberg block for embedding Strava activities, routes, and segments on your WordPress site.
 
 == Description ==
 
-Block for Strava adds a single block to the editor that embeds any public Strava URL — paste an activity, route, or segment link and the block renders the official Strava embed inside a sandboxed iframe.
+Block for Strava adds a single block to the editor that embeds Strava activities, routes, and segments inside a sandboxed iframe. Public resources embed from a URL; followers-only and private activities embed via the share-dialog snippet from Strava (which carries a per-share token sent to Strava as part of the iframe URL).
 
 **Features:**
 
@@ -55,11 +55,17 @@ Strava does not publish a public oEmbed endpoint. The block's render callback (r
 
 == External services ==
 
-This plugin embeds public Strava content through Strava's public embed service.
+This plugin embeds Strava content through Strava's public embed service.
 When a visitor views a post containing a Strava embed, their browser requests
 the embed iframe from `https://strava-embeds.com/`. Strava may receive request
 data such as the visitor's IP address, browser user agent, referring site
 origin, and the Strava activity, route, or segment ID in the embed URL.
+
+For followers-only or private activities, the share-dialog snippet pasted into
+the block carries a per-share token that the plugin saves as part of the block's
+attributes and appends to the iframe URL on the front end (`?token=…`). The
+token is sent to Strava on every request for that embed and is what authorizes
+the iframe to render the non-public activity.
 
 When a Strava short share link (`https://strava.app.link/…`) is embedded, the
 site server makes a `HEAD` request to `strava.app.link` and follows redirects

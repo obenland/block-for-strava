@@ -16,6 +16,7 @@ import {
 	BlockControls,
 	useBlockProps,
 	InspectorControls,
+	RichText,
 } from '@wordpress/block-editor';
 import {
 	Button,
@@ -83,6 +84,7 @@ export interface StravaBlockAttributes {
 	 * public-Everyone embeds, which don't need a token at all.
 	 */
 	stravaEmbedToken?: string;
+	caption?: string;
 }
 
 export interface BlockEditProps {
@@ -796,6 +798,15 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 		} );
 	}
 
+	/*
+	 * The caption RichText only appears once a URL is set so the
+	 * placeholder state stays focused on the URL input. Hidden when
+	 * empty AND not focused — matching `core/embed`'s caption UX —
+	 * keeps the figure tight when there's nothing to show.
+	 */
+	const caption = attributes.caption ?? '';
+	const showCaption = !! url && ( !! caption || isEditingURL === false );
+
 	return createElement(
 		Fragment,
 		null,
@@ -815,6 +826,24 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 					)
 			  )
 			: null,
-		createElement( 'figure', blockProps, body )
+		createElement(
+			'figure',
+			blockProps,
+			body,
+			showCaption
+				? createElement( RichText, {
+						tagName: 'figcaption',
+						className: 'wp-element-caption',
+						placeholder: __( 'Add caption', 'block-for-strava' ),
+						value: caption,
+						onChange: ( value: string ) =>
+							setAttributes( { caption: value } ),
+						'aria-label': __(
+							'Strava embed caption',
+							'block-for-strava'
+						),
+				  } )
+				: null
+		)
 	);
 }

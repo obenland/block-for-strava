@@ -5,7 +5,7 @@
 	"version": "1.0.0",
 	"title": "Strava",
 	"category": "embed",
-	"description": "Embed a public Strava activity, route, or segment.",
+	"description": "Embed a Strava activity, route, or segment.",
 	"keywords": [
 		"strava",
 		"activity",
@@ -62,6 +62,10 @@
 			"default": true
 		},
 		"stravaEmbedToken": {
+			"type": "string",
+			"default": ""
+		},
+		"caption": {
 			"type": "string",
 			"default": ""
 		}

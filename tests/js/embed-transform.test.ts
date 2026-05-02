@@ -178,32 +178,40 @@ describe( 'embed block transform transform()', () => {
 		} );
 	} );
 
-	it( 'preserves align/className/anchor wrapper attributes through the conversion', () => {
-		// A user who has set wide alignment, a custom class, or an
-		// HTML anchor on a styled core/embed block expects those to
-		// survive when "Transform to → Strava" replaces the block.
-		// Without explicit passthrough Gutenberg's createBlock would
-		// drop everything outside the second-arg attributes object,
-		// and the user would lose their styling silently.
+	it( 'preserves align/className/anchor/caption wrapper attributes through the conversion', () => {
+		/*
+		 * A user who has set wide alignment, a custom class, an HTML
+		 * anchor, or caption text on a styled core/embed block
+		 * expects those to survive when "Transform to → Strava"
+		 * replaces the block. Without explicit passthrough Gutenberg's
+		 * `createBlock` would drop everything outside the second-arg
+		 * attributes object, and the user would lose their content
+		 * silently.
+		 */
 		getEmbedTransform().transform( {
 			url: 'https://www.strava.com/activities/18233733854',
 			align: 'wide',
 			className: 'is-style-rounded',
 			anchor: 'my-ride',
-			caption: 'ignored: core/embed-only field',
+			caption: 'My morning ride',
+			allowResponsive: true,
+			previewable: true,
 		} );
 		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
 			url: 'https://www.strava.com/activities/18233733854',
 			align: 'wide',
 			className: 'is-style-rounded',
 			anchor: 'my-ride',
+			caption: 'My morning ride',
 		} );
 	} );
 
 	it( 'omits wrapper attributes the source block did not set', () => {
-		// `undefined` should not land in the attribute object — if it
-		// did, Gutenberg would still record the key and a later editor
-		// session might serialize it as an explicit null.
+		/*
+		 * `undefined` should not land in the attribute object — if it
+		 * did, Gutenberg would still record the key and a later editor
+		 * session might serialize it as an explicit null.
+		 */
 		getEmbedTransform().transform( {
 			url: 'https://www.strava.com/activities/18233733854',
 			align: undefined,
@@ -247,12 +255,14 @@ describe( 'auto-replace subscriber', () => {
 		);
 	} );
 
-	it( 'preserves align/className/anchor wrapper attributes when auto-replacing', () => {
-		// The auto-replacer must round-trip the same wrapper
-		// attributes the toolbar transform copies through, otherwise a
-		// user who pasted a Strava URL into a `core/embed` they had
-		// already styled (alignment, anchor, custom class) would lose
-		// the styling during the silent auto-conversion.
+	it( 'preserves align/className/anchor/caption wrapper attributes when auto-replacing', () => {
+		/*
+		 * The auto-replacer must round-trip the same wrapper attributes
+		 * the toolbar transform copies through. Otherwise a user who
+		 * pasted a Strava URL into a `core/embed` they had already
+		 * styled (alignment, anchor, custom class) or captioned would
+		 * lose that content during the silent auto-conversion.
+		 */
 		const cid = uniqueClientId( 'wrapper' );
 		const replaceBlock = setEditorBlocks( [
 			{
@@ -263,6 +273,7 @@ describe( 'auto-replace subscriber', () => {
 					align: 'full',
 					className: 'is-style-rounded',
 					anchor: 'my-ride',
+					caption: 'My morning ride',
 				},
 			},
 		] );
@@ -272,6 +283,7 @@ describe( 'auto-replace subscriber', () => {
 			align: 'full',
 			className: 'is-style-rounded',
 			anchor: 'my-ride',
+			caption: 'My morning ride',
 		} );
 		expect( replaceBlock ).toHaveBeenCalledWith(
 			cid,

@@ -31,6 +31,7 @@ interface SourceAttributes {
 	align?: unknown;
 	className?: unknown;
 	anchor?: unknown;
+	caption?: unknown;
 	[ key: string ]: unknown;
 }
 
@@ -50,17 +51,23 @@ interface BlockSettings {
 }
 
 /*
- * Generic block-level wrapper attributes core/embed shares with our
- * block. These are user-visible styling (alignment, custom className)
- * and identification (HTML anchor for permalinks) that the user has
- * explicitly chosen on the source block — copying them through the
- * conversion preserves the user's intent. Only listing `align`,
- * `className`, and `anchor` because those are what `block.json`
- * supports declares and Gutenberg accepts; passing through other
- * core/embed-specific fields (`caption`, `allowResponsive`, etc.)
- * would just be discarded by the schema.
+ * Block-level attributes core/embed shares with our block that we want
+ * to preserve through conversion. Three are user-visible styling and
+ * identification (alignment, custom className, HTML anchor); `caption`
+ * is the user-visible caption text below the embed. Without explicit
+ * passthrough Gutenberg's `createBlock` would drop everything outside
+ * the second-arg attributes object, silently discarding the user's
+ * caption text and styling. Other core/embed-only fields
+ * (`allowResponsive`, `responsive`, `previewable`, `providerNameSlug`)
+ * are intentionally not listed — they're not part of our block's
+ * schema and would be discarded anyway.
  */
-const WRAPPER_ATTR_KEYS = [ 'align', 'className', 'anchor' ] as const;
+const WRAPPER_ATTR_KEYS = [
+	'align',
+	'className',
+	'anchor',
+	'caption',
+] as const;
 
 function pickWrapperAttrs(
 	attrs: SourceAttributes
