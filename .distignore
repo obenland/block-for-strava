@@ -1,5 +1,6 @@
 .distignore
 .editorconfig
+.git/
 .gitignore
 .github/
 .nvmrc
