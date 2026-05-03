@@ -105,13 +105,14 @@ describe( 'block.json schema', () => {
 		} );
 	} );
 
-	it( 'wires editorScript and render via the file: protocol so wp-scripts and core resolve them', () => {
-		// `register_block_type_from_metadata` reads these strings to find
-		// the editor bundle and the render callback. Drift here is the
-		// difference between a working block and one that silently fails
-		// to register.
+	it( 'wires editorScript via the file: protocol so wp-scripts and core resolve it', () => {
+		// `register_block_type_from_metadata` reads this string to find
+		// the editor bundle. Drift here is the difference between a
+		// working block and one that silently fails to register. The
+		// render callback is wired in PHP, so block.json carries no
+		// `render` key.
 		expect( metadata.editorScript ).toBe( 'file:./index.js' );
-		expect( metadata.render ).toBe( 'file:./render.php' );
+		expect( metadata.render ).toBeUndefined();
 	} );
 
 	it( 'sets the block category to embed for inserter placement', () => {

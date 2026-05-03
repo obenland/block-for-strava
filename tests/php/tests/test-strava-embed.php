@@ -13,7 +13,7 @@
 declare( strict_types = 1 );
 
 /**
- * Tests for Block_For_Strava_Embed::render_block.
+ * Tests for block_for_strava_render_block.
  */
 class Test_Strava_Embed extends WP_UnitTestCase {
 
@@ -172,7 +172,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 *
 	 * Routing through `do_blocks` matters because the render callback
 	 * calls `get_block_wrapper_attributes()`, which reads from a global
-	 * set by `WP_Block::render` — calling the static method directly
+	 * set by `WP_Block::render` — calling the render function directly
 	 * outside that context returns just the supplied class string with no
 	 * support for `align`, `className`, or `anchor`. The block is dynamic
 	 * (save returns null), so the comment carries only attributes.
@@ -217,7 +217,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $embed_type  Expected singular embed type.
 	 * @param string $activity_id Expected numeric ID.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_returns_iframe_for_canonical_url( string $url, string $embed_type, string $activity_id ): void {
 		$result = $this->renderBlock( array( 'url' => $url ) );
@@ -230,7 +230,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * delimiter assertion, the `\d+` would greedily match `123` and we'd
 	 * embed the wrong activity.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_emits_nothing_for_id_with_suffix(): void {
 		$url    = 'https://www.strava.com/activities/123abc';
@@ -246,7 +246,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * try to embed unknown providers, and the URL is preserved in the
 	 * block-comment JSON so the author can recover by re-editing.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_emits_nothing_for_non_strava_url(): void {
 		$url    = 'https://example.com/foo';
@@ -259,7 +259,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * — the editor's placeholder requires a URL — but a hand-edited block
 	 * comment could remove it.)
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_emits_nothing_for_empty_url(): void {
 		$result = $this->renderBlock( array() );
@@ -270,7 +270,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Short URLs follow a remote redirect chain via `wp_safe_remote_head`.
 	 * Stub HTTP so the test stays deterministic and offline.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_resolves_short_url(): void {
 		$callback = static function ( $preempt, $args, $url ) {
@@ -305,7 +305,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * page view; this test pins that the second resolution comes from the
 	 * transient.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_short_url_resolution_is_cached(): void {
 		$http_calls = 0;
@@ -346,7 +346,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * that the second render reuses the negative result instead of
 	 * re-walking the redirect chain.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_failed_short_url_resolution_is_cached(): void {
 		$http_calls = 0;
@@ -391,7 +391,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	/**
 	 * Strava URL params land on the iframe `src` when route attrs are set.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_appends_route_params(): void {
 		$attrs = array(
@@ -431,7 +431,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * gate must reject them so the rendered iframe matches what the editor
 	 * actually displays.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_strict_bool_attrs(): void {
 		$attrs = array(
@@ -480,7 +480,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $payload          Adversarial string the attribute could carry.
 	 * @param string $forbidden_param  Iframe URL param name that must not appear.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_rejects_unknown_enum_values( string $attr_name, string $payload, string $forbidden_param ): void {
 		$attrs = array(
@@ -508,7 +508,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Routes at defaults render a clean URL (no params) — keeps caches and
 	 * the iframe URL stable when nothing has been customized.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_clean_url_at_defaults(): void {
 		$result = $this->renderBlock(
@@ -526,7 +526,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Activity URLs render the iframe with no route params (the route
 	 * options on a non-route URL are silently ignored).
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_activity_url(): void {
 		$attrs = array(
@@ -550,7 +550,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * goes responsive while the iframe element itself stays pinned to
 	 * 600px and the user-visible width never changes.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_full_width_drops_max_width(): void {
 		$attrs = array(
@@ -569,7 +569,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Routes without `stravaRouteFullWidth` keep the legacy `max-width:600px`
 	 * clamp so they don't overflow narrow containers.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_default_keeps_max_width(): void {
 		$result = $this->renderBlock(
@@ -584,7 +584,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * iframe URL or strava-embeds.com 403s. The token reaches the block via
 	 * the snippet-paste flow, and the renderer must thread it through.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_appends_token_for_activity(): void {
 		$result = $this->renderBlock(
@@ -608,7 +608,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * the snippet-paste path round-trips it; this test pins that the
 	 * renderer doesn't drop one in favor of the other.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_token_coexists_with_route_params(): void {
 		$result = $this->renderBlock(
@@ -632,7 +632,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Strava's embed page handles inconsistently. Stay with the clean URL
 	 * shape when no token has been resolved.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_skips_empty_token(): void {
 		$result = $this->renderBlock(
@@ -655,7 +655,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * client-side — the editor's preflight surfaces that as a notice. For
 	 * public-Everyone activities, this is exactly what works.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_url_only_when_no_token_attribute(): void {
 		$result = $this->renderBlock(
@@ -675,7 +675,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * scrape would burn a network round-trip per page view to learn
 	 * nothing useful.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_makes_no_http_calls_for_activities(): void {
 		$http_calls = 0;
@@ -708,7 +708,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * must reject it so the iframe URL doesn't get a literal `token=Array`
 	 * appended.
 	 *
-	 * @covers Block_For_Strava_Embed::render_block
+	 * @covers ::block_for_strava_render_block
 	 */
 	public function test_render_block_rejects_non_string_token(): void {
 		$result = $this->renderBlock(
@@ -732,7 +732,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * user to paste the share-dialog snippet instead. Stub HTTP so the test
 	 * stays deterministic and offline.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_reports_embeddable_for_public_activity(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -782,7 +782,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * endpoint must report `embeddable: false` so the editor can show its
 	 * notice.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_reports_not_embeddable_on_403(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -832,7 +832,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * outbound HTTP, so leaving it open to unauthenticated callers would
 	 * hand the world a free reflective fetch.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_requires_editor_capability(): void {
 		wp_set_current_user( 0 );
@@ -853,7 +853,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * `is_user_logged_in()` would expose the reflective HEAD probe to
 	 * every customer on a WooCommerce site.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_rejects_subscriber(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'subscriber' ) );
@@ -871,7 +871,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	/**
 	 * A non-numeric ID must 400 before any HTTP fan-out.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_rejects_non_numeric_id(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -890,7 +890,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Unsupported `type` (anything outside activity/route/segment) must 400
 	 * — Strava's iframe paths are limited to those three.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_rejects_unknown_type(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -909,7 +909,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Network failure during the preflight reports `embeddable: false` with
 	 * status 0 — no false-positives on a transient blip.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_reports_zero_on_transport_failure(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -952,7 +952,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * wrong probe result across types. Pins the type prefix before someone
 	 * "simplifies" `md5( $type . ':' . $id )` to `md5( $id )`.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_does_not_collide_across_types(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
@@ -1026,7 +1026,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * triggers the editor's effect on every URL change) doesn't fan out
 	 * into one HTTP HEAD per keystroke.
 	 *
-	 * @covers Block_For_Strava_Embed::register_rest_routes
+	 * @covers ::block_for_strava_register_rest_routes
 	 */
 	public function test_rest_embed_status_caches_result(): void {
 		$user_id = self::factory()->user->create( array( 'role' => 'editor' ) );
