@@ -62,6 +62,7 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 				),
 			),
 			'upper-case scheme + host'     => array(
+
 				/*
 				 * `wp_parse_url` doesn't normalize host case, but the
 				 * implementation lower-cases the host before its own

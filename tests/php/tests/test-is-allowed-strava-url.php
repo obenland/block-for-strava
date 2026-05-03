@@ -26,12 +26,12 @@ class Test_Is_Allowed_Strava_Url extends WP_UnitTestCase {
 	 */
 	public static function provide_allowed_urls(): array {
 		return array(
-			'exact strava.app.link'    => array( 'https://strava.app.link/abc' ),
+			'exact strava.app.link'        => array( 'https://strava.app.link/abc' ),
 			'subdomain of strava.app.link' => array( 'https://foo.strava.app.link/abc' ),
-			'www.strava.com canonical' => array( 'https://www.strava.com/activities/1' ),
-			'bare strava.com host'     => array( 'https://strava.com/activities/1' ),
-			'http strava.com'          => array( 'http://strava.com/' ),
-			'upper-case scheme + host' => array( 'HTTPS://STRAVA.COM/' ),
+			'www.strava.com canonical'     => array( 'https://www.strava.com/activities/1' ),
+			'bare strava.com host'         => array( 'https://strava.com/activities/1' ),
+			'http strava.com'              => array( 'http://strava.com/' ),
+			'upper-case scheme + host'     => array( 'HTTPS://STRAVA.COM/' ),
 		);
 	}
 
@@ -55,15 +55,15 @@ class Test_Is_Allowed_Strava_Url extends WP_UnitTestCase {
 	 */
 	public static function provide_rejected_urls(): array {
 		return array(
-			'suffix-bypass evilstrava.app.link'        => array( 'https://evilstrava.app.link/x' ),
-			'suffix-bypass xstrava.com'                => array( 'https://xstrava.com/x' ),
-			'host with allowlist as middle label'      => array( 'https://strava.app.link.attacker.com/x' ),
-			'javascript: scheme'                       => array( 'javascript:alert(1)' ),
-			'ftp scheme'                               => array( 'ftp://strava.com/' ),
-			'file scheme'                              => array( 'file:///etc/passwd' ),
-			'empty string'                             => array( '' ),
-			'relative path (no host)'                  => array( '/relative/path' ),
-			'malformed (not a URL)'                    => array( 'not a url' ),
+			'suffix-bypass evilstrava.app.link'   => array( 'https://evilstrava.app.link/x' ),
+			'suffix-bypass xstrava.com'           => array( 'https://xstrava.com/x' ),
+			'host with allowlist as middle label' => array( 'https://strava.app.link.attacker.com/x' ),
+			'javascript: scheme'                  => array( 'javascript:alert(1)' ),
+			'ftp scheme'                          => array( 'ftp://strava.com/' ),
+			'file scheme'                         => array( 'file:///etc/passwd' ),
+			'empty string'                        => array( '' ),
+			'relative path (no host)'             => array( '/relative/path' ),
+			'malformed (not a URL)'               => array( 'not a url' ),
 		);
 	}
 

@@ -353,6 +353,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
 			if ( str_contains( $url, 'strava.app.link' ) ) {
 				++$http_calls;
+
 				/*
 				 * 404 from the upstream short-URL host is a clean
 				 * unrecoverable failure — no redirect to follow, no
