@@ -51,7 +51,7 @@ Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://w
 
 = Why does this plugin run server-side PHP? =
 
-Strava does not publish a public oEmbed endpoint. The block's render callback (registered through `block.json`) generates the iframe markup deterministically from the saved URL and route attributes. The plugin runs no admin pages, options screens, or scheduled tasks. It does register a single editor-only REST route (`/wp-json/block-for-strava/v1/embed-status`) that the block's edit component calls to determine whether a saved activity URL needs a share token — the route is gated on `edit_posts` capability and is not used by the front end.
+Strava does not publish a public oEmbed endpoint. The block has a PHP render callback that generates the iframe markup deterministically from the saved URL and route attributes. The plugin runs no admin pages, options screens, or scheduled tasks. It does register a single editor-only REST route (`/wp-json/block-for-strava/v1/embed-status`) that the block's edit component calls to determine whether a saved activity URL needs a share token — the route is gated on `edit_posts` capability and is not used by the front end.
 
 == External services ==
 
@@ -82,9 +82,9 @@ Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
 The human-readable source files and build tooling are maintained in the
 [Block for Strava GitHub repository](https://github.com/obenland/block-for-strava).
 
-The WordPress.org package includes the compiled `build/index.js` asset and the
-`build/block.json` / `build/render.php` files that the block registers from. To
-rebuild the assets from source, clone the repository and run:
+The WordPress.org package includes the compiled `build/` assets
+(`build/index.js`, `build/block.json`, `build/index.asset.php`) that the block
+registers from. To rebuild the assets from source, clone the repository and run:
 
 1. `npm ci`
 2. `npm run build`
