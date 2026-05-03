@@ -6,7 +6,6 @@ import { applyFilters } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
 
 import { __mockState, __resetMockState } from './__mocks__/wordpress-data';
-import { subscribe } from '@wordpress/data';
 import { __resetForTests } from '../../src/embed-transform';
 
 interface BlockTransform {
@@ -243,14 +242,24 @@ describe( 'embed block transform transform()', () => {
 } );
 
 describe( 'auto-replace subscriber registration', () => {
-	it( 'subscribes to the core/block-editor store, not the global tick stream', () => {
+	it( 'registers the watcher scoped to core/block-editor', () => {
 		/*
-		 * Without the store-name arg the watcher would walk on every
-		 * data store's tick, not just block-editor changes.
+		 * `@wordpress/data#subscribe(cb, store)` only fires `cb` on the
+		 * named store's ticks; without the second arg it fires on
+		 * every data-store tick. The watcher walks the block tree on
+		 * each invocation, so dropping the store name would O(stores)
+		 * the editor's hot path. Assert that a registration scoped to
+		 * `'core/block-editor'` exists — the registration shape is the
+		 * public-API contract with `@wordpress/data`, not an
+		 * implementation detail. Cardinality is intentionally not
+		 * pinned so a future test exercising module reloads (or
+		 * another module subscribing to the same store) doesn't
+		 * silently break this assertion.
 		 */
-		expect( subscribe ).toHaveBeenCalledWith(
-			expect.any( Function ),
-			'core/block-editor'
+		expect( __mockState.subscriberRegistrations ).toEqual(
+			expect.arrayContaining( [
+				expect.objectContaining( { store: 'core/block-editor' } ),
+			] )
 		);
 	} );
 } );
@@ -671,17 +680,56 @@ describe( 'auto-replace subscriber', () => {
 		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
 	} );
 
-	it( 'short-circuits when the block list reference is unchanged', () => {
-		const { replaceBlock } = setEditorBlocks( [
+	it( 'short-circuits on identical block-list reference (skips entity-id read)', () => {
+		/*
+		 * Pin the `blocks === lastBlocks` cache: when Gutenberg returns
+		 * the same array reference on a no-op tick (selection moves,
+		 * etc.), the watcher must early-return BEFORE reading
+		 * `core/editor`. Counting `getCurrentPostId` calls is the
+		 * observable that fails if the cache check is removed — the
+		 * dedupe via `skipClientIds` would still suppress a second
+		 * `replaceBlock`, so a `replaceBlock`-only assertion would pass
+		 * for the wrong reason.
+		 */
+		let getCurrentPostIdCalls = 0;
+		const blocks: FakeBlock[] = [
 			{
-				clientId: uniqueClientId( 'unchanged' ),
+				clientId: uniqueClientId( 'unchanged-ref' ),
 				name: 'core/embed',
-				attributes: { url: 'https://example.com' },
+				attributes: {
+					url: 'https://www.strava.com/activities/12345',
+				},
 			},
-		] );
+		];
+		const actions: EditorActions = {
+			replaceBlock: jest.fn(),
+			__unstableMarkNextChangeAsNotPersistent: jest.fn(),
+		};
+		__mockState.selectors[ 'core/block-editor' ] = {
+			getBlocks: () => blocks,
+		};
+		__mockState.selectors[ 'core/editor' ] = {
+			isEditedPostDirty: () => false,
+			getCurrentPostId: () => {
+				getCurrentPostIdCalls += 1;
+				return 1;
+			},
+		};
+		__mockState.actions[ 'core/block-editor' ] = actions;
+
 		fireSubscribers();
+		const callsAfterFirstTick = getCurrentPostIdCalls;
 		fireSubscribers();
-		expect( replaceBlock ).not.toHaveBeenCalled();
+
+		/*
+		 * The second tick must not have read `getCurrentPostId` again —
+		 * proves the reference-equality check fired before the entity-id
+		 * read. The first tick converts the Strava block (the suite's
+		 * `beforeEach` warmup already flipped `initialized` to true);
+		 * the second tick must observe the cached reference and skip.
+		 */
+		expect( getCurrentPostIdCalls ).toBe( callsAfterFirstTick );
+		expect( actions.replaceBlock ).toHaveBeenCalledTimes( 1 );
 	} );
 
 	it( 'no-ops when core/block-editor is not registered', () => {

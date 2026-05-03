@@ -65,11 +65,22 @@ describe( 'core/paragraph → block-for-strava/embed transform', () => {
 	} );
 
 	describe( 'isMatch', () => {
-		const result = runFilter( {}, 'core/paragraph' );
-		const isMatch = result.transforms?.to?.[ 0 ]?.isMatch;
-		if ( ! isMatch ) {
-			throw new Error( 'transform isMatch missing' );
-		}
+		let isMatch: BlockTransform[ 'isMatch' ];
+
+		beforeAll( () => {
+			/*
+			 * Capture inside `beforeAll` rather than at module-evaluation
+			 * time so a future test that resets filter state (or reorders
+			 * the suite) doesn't leave this `describe` reading a stale
+			 * registration.
+			 */
+			const result = runFilter( {}, 'core/paragraph' );
+			const captured = result.transforms?.to?.[ 0 ]?.isMatch;
+			if ( ! captured ) {
+				throw new Error( 'transform isMatch missing' );
+			}
+			isMatch = captured;
+		} );
 
 		it.each( [
 			[ 'https://www.strava.com/activities/18233733854' ],
@@ -116,11 +127,21 @@ describe( 'core/paragraph → block-for-strava/embed transform', () => {
 	} );
 
 	describe( 'transform', () => {
-		const result = runFilter( {}, 'core/paragraph' );
-		const transformFn = result.transforms?.to?.[ 0 ]?.transform;
-		if ( ! transformFn ) {
-			throw new Error( 'transform fn missing' );
-		}
+		let transformFn: BlockTransform[ 'transform' ];
+
+		beforeAll( () => {
+			/*
+			 * Same rationale as the `isMatch` describe above: defer the
+			 * capture to `beforeAll` so the registration we read isn't
+			 * baked in at module-evaluation time.
+			 */
+			const result = runFilter( {}, 'core/paragraph' );
+			const captured = result.transforms?.to?.[ 0 ]?.transform;
+			if ( ! captured ) {
+				throw new Error( 'transform fn missing' );
+			}
+			transformFn = captured;
+		} );
 
 		beforeEach( () => {
 			( createBlock as jest.Mock ).mockClear();
