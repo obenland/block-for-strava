@@ -22,7 +22,7 @@ Block for Strava adds a single block to the editor that embeds Strava activities
 * Per-route options for map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle
 * Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a cross-origin sandboxed iframe with `referrerpolicy=origin`
 * Live in-editor preview with route options applied
-* No Strava account or API key needed
+* No API key needed; visitors don't need a Strava account either (only authors embedding non-public activities need a logged-in Strava session to copy the share-dialog snippet)
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
 

@@ -107,6 +107,11 @@ interface BlockEditorSelectors {
 
 interface EditorSelectors {
 	isEditedPostDirty?: () => boolean;
+	getCurrentPostId?: () => unknown;
+}
+
+interface SiteEditorSelectors {
+	getEditedPostId?: () => unknown;
 }
 
 interface BlockEditorActions {
@@ -129,6 +134,14 @@ interface BlockEditorActions {
 const skipClientIds = new Set< string >();
 
 let initialized = false;
+
+/*
+ * The post/template ID the watcher last observed. Used to detect SPA
+ * navigation (site editor, custom adapters) where the user switches
+ * between documents without a page reload — the watcher's state is
+ * stale once the entity changes.
+ */
+let lastEntityId: unknown = null;
 
 function* walk(
 	blocks: ReadonlyArray< EditorBlock >
@@ -155,6 +168,31 @@ function autoReplaceStravaEmbeds(): void {
 	if ( ! blockEditor ) {
 		return;
 	}
+	/*
+	 * Detect SPA navigation: when the post editor loads a different
+	 * post (rare; usually a page reload), or the site editor swaps
+	 * templates without reloading, the watcher's legacy markers from
+	 * the prior document don't apply to the new one. Read the entity
+	 * ID from `core/editor` (post editor) or `core/edit-site` (site
+	 * editor) and reset when it changes between two non-null values.
+	 */
+	const editor = select( 'core/editor' ) as EditorSelectors | null;
+	const siteEditor = select( 'core/edit-site' ) as SiteEditorSelectors | null;
+	const currentEntityId =
+		editor?.getCurrentPostId?.() ?? siteEditor?.getEditedPostId?.() ?? null;
+	if (
+		null !== lastEntityId &&
+		null !== currentEntityId &&
+		currentEntityId !== lastEntityId
+	) {
+		skipClientIds.clear();
+		initialized = false;
+		lastBlocks = null;
+	}
+	if ( null !== currentEntityId ) {
+		lastEntityId = currentEntityId;
+	}
+
 	const blocks = blockEditor.getBlocks();
 	if ( blocks === lastBlocks ) {
 		return;
@@ -178,7 +216,6 @@ function autoReplaceStravaEmbeds(): void {
 		 * the current blocks are the saved content, which we leave
 		 * alone (the toolbar transform stays available).
 		 */
-		const editor = select( 'core/editor' ) as EditorSelectors | null;
 		if ( true !== editor?.isEditedPostDirty?.() ) {
 			/*
 			 * Only mark currently-Strava `core/embed` blocks as
@@ -232,4 +269,5 @@ export function __resetForTests(): void {
 	skipClientIds.clear();
 	initialized = false;
 	lastBlocks = null;
+	lastEntityId = null;
 }

@@ -50,17 +50,19 @@ interface EditorActions {
 
 function setEditorBlocks(
 	blocks: FakeBlock[],
-	options: { isDirty?: boolean } = {}
+	options: { isDirty?: boolean; postId?: number } = {}
 ): EditorActions {
 	const actions: EditorActions = {
 		replaceBlock: jest.fn(),
 		__unstableMarkNextChangeAsNotPersistent: jest.fn(),
 	};
+	const postId = options.postId ?? 1;
 	__mockState.selectors[ 'core/block-editor' ] = {
 		getBlocks: () => blocks,
 	};
 	__mockState.selectors[ 'core/editor' ] = {
 		isEditedPostDirty: () => true === options.isDirty,
+		getCurrentPostId: () => postId,
 	};
 	__mockState.actions[ 'core/block-editor' ] = actions;
 	return actions;
@@ -352,6 +354,45 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 		] );
 		__mockState.selectors[ 'core/editor' ] = undefined;
 		fireSubscribers();
+		expect( replaceBlock ).not.toHaveBeenCalled();
+	} );
+
+	it( 'resets legacy markers when the post entity changes (SPA navigation)', () => {
+		/*
+		 * Site editor / custom post-editor adapters swap the edited
+		 * entity without reloading the page. Detected via the entity
+		 * ID changing between two non-null values; legacy markers from
+		 * the prior document are cleared so the new document's blocks
+		 * get a fresh first walk.
+		 */
+		setEditorBlocks(
+			[
+				{
+					clientId: uniqueClientId( 'docA' ),
+					name: 'core/embed',
+					attributes: {
+						url: 'https://www.strava.com/activities/111',
+					},
+				},
+			],
+			{ postId: 1 }
+		);
+		fireSubscribers();
+		const { replaceBlock } = setEditorBlocks(
+			[
+				{
+					clientId: uniqueClientId( 'docB' ),
+					name: 'core/embed',
+					attributes: {
+						url: 'https://www.strava.com/activities/222',
+					},
+				},
+			],
+			{ postId: 2 }
+		);
+		fireSubscribers();
+		// docB's Strava embed should be treated as legacy (a freshly
+		// loaded document), not auto-converted.
 		expect( replaceBlock ).not.toHaveBeenCalled();
 	} );
 
