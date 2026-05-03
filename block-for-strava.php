@@ -322,15 +322,15 @@ function block_for_strava_resolve_url( string $url ): string|WP_Error {
  * leaking to Strava.
  *
  * @param string $embed_type  One of 'activity', 'route', 'segment'.
- * @param string $activity_id Numeric Strava ID.
+ * @param string $resource_id Numeric Strava ID for the activity, route, or segment.
  * @param array  $params      Optional Strava embed-page query params.
  * @return string Iframe HTML.
  */
-function block_for_strava_build_iframe( string $embed_type, string $activity_id, array $params = array() ): string {
+function block_for_strava_build_iframe( string $embed_type, string $resource_id, array $params = array() ): string {
 	$src = sprintf(
 		'https://strava-embeds.com/%s/%s',
 		rawurlencode( $embed_type ),
-		rawurlencode( $activity_id )
+		rawurlencode( $resource_id )
 	);
 	if ( ! empty( $params ) ) {
 		$src .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
