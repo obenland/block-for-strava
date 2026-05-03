@@ -39,7 +39,7 @@ For non-public activities (visibility set to "Followers" or "Only You"), copy th
 
 = Does this work with private activities, routes, or segments? =
 
-It depends on the resource type. Public ("Everyone") activities, routes, and segments embed from a URL alone. Followers-only and private *activities* embed via Strava's share-dialog snippet — paste the `<div class="strava-embed-placeholder" …>…</div>` block (with its `data-token` share token) on its own line and the Strava block picks it up. Strava only mints a share token when the activity owner has enabled sharing for that visibility level, so an activity with no share token cannot be embedded. Routes and segments do not have a share-token flow at Strava — only public ones can be embedded.
+It depends on the resource type. Public ("Everyone") activities, routes, and segments embed from a URL alone. Followers-only and private activities embed via Strava's share-dialog snippet — paste the `<div class="strava-embed-placeholder" …>…</div>` block (with its `data-token` share token) on its own line and the Strava block picks it up. The block round-trips a share token attribute for any resource type, so if Strava ever exposes a share-dialog snippet for a non-public route or segment, the same paste flow will carry that token through; in practice today Strava's share-with-token UI is on activities only, so non-public routes and segments can't be embedded yet.
 
 = Do I need a Strava account? =
 
@@ -51,7 +51,7 @@ Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://w
 
 = Why does this plugin run server-side PHP? =
 
-Strava does not publish a public oEmbed endpoint. The block's render callback (registered through `block.json`) generates the iframe markup deterministically from the saved URL and route attributes. There are no admin pages, options screens, REST endpoints, or scheduled tasks — the PHP runs only when a post containing the block is rendered.
+Strava does not publish a public oEmbed endpoint. The block's render callback (registered through `block.json`) generates the iframe markup deterministically from the saved URL and route attributes. The plugin runs no admin pages, options screens, or scheduled tasks. It does register a single editor-only REST route (`/wp-json/block-for-strava/v1/embed-status`) that the block's edit component calls to determine whether a saved activity URL needs a share token — the route is gated on `edit_posts` capability and is not used by the front end.
 
 == External services ==
 

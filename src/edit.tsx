@@ -817,13 +817,18 @@ export function Edit( {
 	/*
 	 * The caption RichText only appears once a URL is set so the
 	 * placeholder state stays focused on the URL input. Hidden when
-	 * empty AND the block isn't selected — matching `core/embed`'s
-	 * caption UX. Without the `isSelected` gate, every Strava block
-	 * across the post would show an always-visible "Add caption"
-	 * placeholder even when unselected, which is visually noisy.
+	 * the trimmed caption is empty AND the block isn't selected —
+	 * matching `core/embed`'s caption UX, and matching the PHP
+	 * renderer which trims whitespace-only captions before deciding
+	 * whether to emit `<figcaption>`. Without the trim, a caption of
+	 * pure whitespace would show as a blank field on the unselected
+	 * editor block but vanish on the published page, which is
+	 * disorienting and easy to author by accident (paragraphs paste
+	 * with trailing whitespace surprisingly often).
 	 */
 	const caption = attributes.caption ?? '';
-	const showCaption = !! url && ( !! caption || true === isSelected );
+	const hasVisibleCaption = '' !== caption.trim();
+	const showCaption = !! url && ( hasVisibleCaption || true === isSelected );
 
 	return createElement(
 		Fragment,
