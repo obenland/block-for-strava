@@ -14,6 +14,8 @@ A single Gutenberg block for embedding Strava activities, routes, and segments o
 
 Block for Strava adds a single block to the editor that embeds Strava activities, routes, and segments inside a sandboxed iframe. Public resources embed from a URL; followers-only and private activities embed via the share-dialog snippet from Strava (which carries a per-share token sent to Strava as part of the iframe URL).
 
+When a visitor views a post containing the block, their browser loads the embed iframe directly from `strava-embeds.com`; for short share links (`strava.app.link/…`), the site server makes a `HEAD` request to Strava to resolve the canonical URL. See the *External services* section below for full details.
+
 **Features:**
 
 * One Gutenberg block — find "Strava" in the inserter, paste a URL, done
