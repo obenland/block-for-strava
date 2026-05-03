@@ -1,18 +1,6 @@
 /**
- * Verifies the `core/embed` → `block-for-strava/embed` conversion path.
- *
- * Two seams to pin:
- *
- * 1. The `from`-block transform registered on `block-for-strava/embed`,
- *    which surfaces "Transform to → Strava" in the toolbar of any
- *    `core/embed` block carrying a Strava URL.
- * 2. The `subscribe` watcher that auto-replaces `core/embed` blocks the
- *    moment Gutenberg's URL paste handler creates one.
- *
- * Each test uses unique clientIds because the module's internal
- * `replaced` Set persists for the test file's lifetime (the watcher is
- * registered once at module load and a reload would orphan the captured
- * callback in the mocked `@wordpress/data`).
+ * Covers the toolbar `from`-block transform and the `subscribe()`
+ * auto-replace watcher for `core/embed` → `block-for-strava/embed`.
  */
 import { applyFilters } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
@@ -190,13 +178,8 @@ describe( 'embed block transform transform()', () => {
 
 	it( 'preserves align/className/anchor/caption wrapper attributes through the conversion', () => {
 		/*
-		 * A user who has set wide alignment, a custom class, an HTML
-		 * anchor, or caption text on a styled core/embed block
-		 * expects those to survive when "Transform to → Strava"
-		 * replaces the block. Without explicit passthrough Gutenberg's
-		 * `createBlock` would drop everything outside the second-arg
-		 * attributes object, and the user would lose their content
-		 * silently.
+		 * Without explicit passthrough, `createBlock` drops everything
+		 * but `url`, silently losing alignment/class/anchor/caption.
 		 */
 		getEmbedTransform().transform( {
 			url: 'https://www.strava.com/activities/18233733854',
@@ -217,11 +200,7 @@ describe( 'embed block transform transform()', () => {
 	} );
 
 	it( 'omits wrapper attributes the source block did not set', () => {
-		/*
-		 * `undefined` should not land in the attribute object — if it
-		 * did, Gutenberg would still record the key and a later editor
-		 * session might serialize it as an explicit null.
-		 */
+		// `undefined` source attrs must not land in the result object.
 		getEmbedTransform().transform( {
 			url: 'https://www.strava.com/activities/18233733854',
 			align: undefined,
@@ -235,11 +214,8 @@ describe( 'embed block transform transform()', () => {
 describe( 'auto-replace subscriber registration', () => {
 	it( 'subscribes to the core/block-editor store, not the global tick stream', () => {
 		/*
-		 * The watcher's walk cost would compound on every other
-		 * store's state changes (notices, preferences, etc.) if the
-		 * second arg to `subscribe` were ever dropped. Pin that we
-		 * pass `'core/block-editor'` so a future refactor can't
-		 * silently regress the scoping.
+		 * Without the store-name arg the watcher would walk on every
+		 * data store's tick, not just block-editor changes.
 		 */
 		expect( subscribe ).toHaveBeenCalledWith(
 			expect.any( Function ),
@@ -250,14 +226,7 @@ describe( 'auto-replace subscriber registration', () => {
 
 describe( 'auto-replace subscriber: first walk treats existing blocks as legacy', () => {
 	beforeEach( () => {
-		/*
-		 * Reset both the mocked data store and the production
-		 * watcher's module-level state. Without `__resetForTests`,
-		 * tests in this describe would only exercise the "first walk"
-		 * branch if they ran before any other describe touched the
-		 * subscriber — order-dependent. The reset makes each test
-		 * independently exercise the `initialized === false` regime.
-		 */
+		/* `__resetForTests` lets each test independently exercise `initialized === false`. */
 		__mockState.selectors = {};
 		__mockState.actions = {};
 		__resetForTests();
@@ -265,19 +234,18 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 	} );
 
 	it( 'does not convert legacy core/embed Strava blocks present at editor load', () => {
-		// A post containing a Strava URL inside a `core/embed` block
-		// before this plugin started watching should stay as-is until
-		// the user opts in via the toolbar. Silent rewriting on the
-		// first unrelated edit dirties the post and surprises the
-		// author. Pin that the very first walk records the clientId
-		// without dispatching `replaceBlock`.
+		/*
+		 * Numeric id matters — a malformed URL would be rejected by
+		 * `isStravaUrl` first and the test would pass for the wrong
+		 * reason.
+		 */
 		const cid = uniqueClientId( 'legacy' );
 		const { replaceBlock } = setEditorBlocks( [
 			{
 				clientId: cid,
 				name: 'core/embed',
 				attributes: {
-					url: 'https://www.strava.com/activities/legacy-1',
+					url: 'https://www.strava.com/activities/12345',
 				},
 			},
 		] );
@@ -286,17 +254,13 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 	} );
 
 	it( 'still does not convert legacy clientIds on subsequent ticks', () => {
-		// The clientIds recorded on the first walk sit in the
-		// watcher's skip set permanently, even when the same block
-		// reappears on later ticks. Toolbar transform remains the
-		// explicit conversion path.
 		const cid = uniqueClientId( 'legacy' );
 		setEditorBlocks( [
 			{
 				clientId: cid,
 				name: 'core/embed',
 				attributes: {
-					url: 'https://www.strava.com/activities/1',
+					url: 'https://www.strava.com/activities/12345',
 				},
 			},
 		] );
@@ -306,7 +270,29 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 				clientId: cid,
 				name: 'core/embed',
 				attributes: {
-					url: 'https://www.strava.com/activities/1',
+					url: 'https://www.strava.com/activities/12345',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( replaceBlock ).not.toHaveBeenCalled();
+	} );
+
+	it( 'defers initialization across an empty boot snapshot until the saved content arrives', () => {
+		/*
+		 * Editor boot may emit `[]` before `INIT_EDITOR` loads the
+		 * post; if `initialized` flipped on that empty snapshot, the
+		 * saved content arriving next would auto-convert as if pasted.
+		 */
+		setEditorBlocks( [] );
+		fireSubscribers();
+		const cid = uniqueClientId( 'late-loaded' );
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/12345',
 				},
 			},
 		] );
@@ -318,18 +304,21 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 describe( 'auto-replace subscriber', () => {
 	beforeEach( () => {
 		/*
-		 * Reset the mocked data store and the production watcher.
-		 * `__resetForTests` puts the module back to its post-load
-		 * shape (`initialized=false`, empty skip set). Each test then
-		 * arms post-init by firing once with empty blocks, so the
-		 * conversion-testing flow below sees the same starting state
-		 * regardless of test order or what previous describes did.
+		 * Warm up with a non-empty walk so `initialized` flips. Each
+		 * test then exercises the post-init regime against fresh
+		 * clientIds.
 		 */
 		__mockState.selectors = {};
 		__mockState.actions = {};
 		__resetForTests();
 		( createBlock as jest.Mock ).mockClear();
-		setEditorBlocks( [] );
+		setEditorBlocks( [
+			{
+				clientId: '__warmup__',
+				name: 'core/paragraph',
+				attributes: {},
+			},
+		] );
 		fireSubscribers();
 		( createBlock as jest.Mock ).mockClear();
 	} );
@@ -356,17 +345,7 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'marks the auto-replace as non-persistent so undo collapses paste+convert into one entry', () => {
-		/*
-		 * Pasting a Strava URL into post content fires two state
-		 * changes back-to-back: Gutenberg's URL paste creates a
-		 * `core/embed`, then our subscriber replaces it with our
-		 * block. Without `__unstableMarkNextChangeAsNotPersistent`,
-		 * those become two undo entries — the first Cmd+Z lands the
-		 * user on the broken intermediate `core/embed` instead of
-		 * undoing the paste outright. Pin that we call the marker
-		 * BEFORE `replaceBlock` so the merge happens on the correct
-		 * dispatch.
-		 */
+		// Pin invocation order: marker fires BEFORE replaceBlock.
 		const cid = uniqueClientId( 'undo' );
 		const actions = setEditorBlocks( [
 			{
@@ -388,13 +367,6 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'preserves align/className/anchor/caption wrapper attributes when auto-replacing', () => {
-		/*
-		 * The auto-replacer must round-trip the same wrapper attributes
-		 * the toolbar transform copies through. Otherwise a user who
-		 * pasted a Strava URL into a `core/embed` they had already
-		 * styled (alignment, anchor, custom class) or captioned would
-		 * lose that content during the silent auto-conversion.
-		 */
 		const cid = uniqueClientId( 'wrapper' );
 		const { replaceBlock } = setEditorBlocks( [
 			{
@@ -479,11 +451,6 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'replaces each clientId at most once across multiple subscriber ticks', () => {
-		// `subscribe` fires repeatedly during a single dispatch; without
-		// the `replaced` set inside the module, we'd queue several
-		// `replaceBlock` calls for the same source block. Pin that the
-		// dedupe holds even when the editor returns a fresh block-list
-		// reference each tick (which defeats the lastBlocks short-circuit).
 		const cid = uniqueClientId( 'dedupe' );
 		const blocks: FakeBlock[] = [
 			{
@@ -496,8 +463,10 @@ describe( 'auto-replace subscriber', () => {
 		];
 		const { replaceBlock } = setEditorBlocks( blocks );
 		fireSubscribers();
-		// Swap in a new array with the same content so the lastBlocks
-		// reference cache doesn't suppress the second walk.
+		/*
+		 * Fresh array each tick to defeat the lastBlocks reference cache
+		 * — pins that dedupe holds even when the cache short-circuit can't.
+		 */
 		__mockState.selectors[ 'core/block-editor' ] = {
 			getBlocks: () => [ ...blocks ],
 		};
@@ -520,9 +489,7 @@ describe( 'auto-replace subscriber', () => {
 	} );
 
 	it( 'no-ops when core/block-editor is not registered', () => {
-		// `subscribe` can fire on a tick where the store hasn't booted
-		// yet and `select('core/block-editor')` returns null. The
-		// watcher must exit cleanly rather than crash the editor.
+		// Boot-race: `select` returns null until the store registers.
 		__mockState.selectors[ 'core/block-editor' ] = undefined;
 		expect( () => fireSubscribers() ).not.toThrow();
 		expect( createBlock ).not.toHaveBeenCalled();

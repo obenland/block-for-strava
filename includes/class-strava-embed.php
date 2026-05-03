@@ -84,14 +84,9 @@ class Block_For_Strava_Embed {
 		);
 
 		/*
-		 * `supports.anchor` declares the editor-side affordance, but
-		 * for dynamic blocks (this one's `save` is null) the
-		 * `wp_apply_anchor_support` filter doesn't reach
-		 * `get_block_wrapper_attributes()`, so we read the saved
-		 * attribute and pass `id` through ourselves. Without this,
-		 * an anchor set in the editor would round-trip to the post
-		 * comment but never reach the front-end figure, breaking
-		 * in-page jump links to the embed.
+		 * `wp_apply_anchor_support` doesn't flow through to
+		 * `get_block_wrapper_attributes()` for dynamic blocks, so
+		 * read the saved attribute and pass `id` through ourselves.
 		 */
 		if ( isset( $attributes['anchor'] ) && is_string( $attributes['anchor'] ) && '' !== $attributes['anchor'] ) {
 			$wrapper_args['id'] = $attributes['anchor'];
@@ -101,18 +96,10 @@ class Block_For_Strava_Embed {
 		$caption_html = '';
 		if ( isset( $attributes['caption'] ) && is_string( $attributes['caption'] ) ) {
 			/*
-			 * `wp_kses_post` matches the sanitization core/embed runs on
-			 * its caption attribute — allow basic inline formatting
-			 * (`<a>`, `<em>`, `<strong>`, `<br>`) while stripping
-			 * scripts and structural tags. Empty/whitespace-only
-			 * captions emit nothing rather than a stray `<figcaption>`.
-			 *
-			 * RichText/contenteditable serializes "blank" captions as
-			 * `&nbsp;` (decoding to U+00A0), and `trim()` only strips
-			 * ASCII whitespace — without the entity-decode + Unicode
-			 * `\s` strip below, a caption that the editor treated as
-			 * blank would still emit a visually-empty `<figcaption>`
-			 * holding a single non-breaking space.
+			 * `wp_kses_post` matches core/embed's caption sanitization.
+			 * Decode entities + strip Unicode whitespace before the
+			 * emptiness check so RichText's `&nbsp;` / U+00A0 blank
+			 * captions don't slip through as visibly-empty figcaptions.
 			 */
 			$sanitized = wp_kses_post( $attributes['caption'] );
 			$plain     = html_entity_decode( wp_strip_all_tags( $sanitized ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );

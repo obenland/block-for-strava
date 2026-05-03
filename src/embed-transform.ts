@@ -1,24 +1,16 @@
 /**
- * `core/embed` → `block-for-strava/embed` conversion path.
+ * `core/embed` → `block-for-strava/embed` conversion.
  *
- * Gutenberg's URL paste handler creates a `core/embed` block when a user
- * pastes a bare URL onto its own line in post content (mode `BLOCKS`).
- * Strava has no oEmbed provider, so without intervention the URL would
- * sit in a generic embed block that renders "Sorry, this content could
- * not be embedded." Two conversion paths plug that gap:
+ * Strava has no oEmbed provider, so a URL pasted on its own line lands
+ * in a `core/embed` that renders "Sorry, this content could not be
+ * embedded." Two paths convert it:
  *
- * 1. A `from`-block transform on `block-for-strava/embed` targeting
- *    `core/embed` ("Transform to → Strava" toolbar option). This is the
- *    explicit, declarative path — it covers `core/embed` blocks that
- *    pre-date the auto-replacer (existing posts, imported content, or
- *    blocks inside reusable patterns) where the watcher's first walk
- *    short-circuits because the block list reference hasn't changed.
+ * 1. A `transforms.from` block-transform (toolbar "Transform to → Strava").
+ * 2. A `subscribe()` watcher on `core/block-editor` that auto-converts
+ *    `core/embed` blocks added during the editor session.
  *
- * 2. A `subscribe()` watcher on `core/block-editor` that auto-replaces
- *    any `core/embed` whose `url` attribute is a Strava form. This is
- *    the "convenience" path the plugin advertises: pasting a URL into
- *    post content yields a Strava block immediately, with no toolbar
- *    interaction required.
+ * The watcher records blocks present at editor load as legacy and
+ * leaves them alone — the toolbar transform stays available for those.
  */
 import { addFilter } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
@@ -51,16 +43,9 @@ interface BlockSettings {
 }
 
 /*
- * Attributes core/embed shares with our block that we want to preserve
- * through conversion. Three are figure-wrapper styling/identification
- * (`align`, `className`, `anchor`); `caption` is the user-visible
- * caption text below the embed. Without explicit passthrough,
- * Gutenberg's `createBlock` would drop everything outside the
- * second-arg attributes object, silently discarding the user's caption
- * and styling. Other core/embed-only fields (`allowResponsive`,
- * `responsive`, `previewable`, `providerNameSlug`) are intentionally
- * not listed — they're not part of our block's schema and would be
- * discarded anyway.
+ * Attributes carried over from the source `core/embed`. Without explicit
+ * passthrough, `createBlock` drops everything but `url`, silently
+ * discarding alignment, custom classes, anchor, and caption text.
  */
 const PRESERVED_ATTR_KEYS = [
 	'align',
@@ -123,47 +108,22 @@ interface BlockEditorSelectors {
 interface BlockEditorActions {
 	replaceBlock: ( clientId: string, block: unknown ) => unknown;
 	/*
-	 * Marks the next dispatch on `core/block-editor` as merging into
-	 * the previous undo entry instead of starting a new one. Without
-	 * this, pasting a Strava URL produces two history entries
-	 * (paste → core/embed, then auto-convert → block-for-strava/embed),
-	 * so the first Undo lands on the broken intermediate `core/embed`
-	 * instead of removing the paste outright. Marking the conversion
-	 * non-persistent collapses the two steps so Undo behaves like a
-	 * single transparent paste-and-convert.
+	 * Marks the next state change as merging into the previous undo
+	 * entry. Without it, paste→core/embed and our auto-convert become
+	 * two undo steps and Cmd+Z lands on the broken intermediate.
 	 */
 	__unstableMarkNextChangeAsNotPersistent?: () => void;
 }
 
-/**
- * Tracks clientIds the watcher should NOT auto-convert.
- *
- * Two distinct populations end up here:
- *
- * 1. Blocks present at the initial editor load. These are "legacy"
- *    content the user authored (or imported) before the auto-replacer
- *    was watching, and silently rewriting them on the next unrelated
- *    edit would dirty the post and surprise the author. The toolbar
- *    `Transform to → Strava` entry stays available for explicit
- *    conversion of those blocks.
- *
- * 2. `core/embed` blocks the watcher has already auto-converted in
- *    this session. `subscribe` fires on every state tick during a
- *    single dispatch, so without dedupe a single paste would queue
- *    several `replaceBlock` calls — only the first finds its target,
- *    the rest are wasted work and (worse) could be misread as a
- *    state-change loop.
- *
- * The set is bounded by the number of distinct clientIds that have
- * existed in this editor session, which is the natural ceiling.
+/*
+ * clientIds the watcher should NOT auto-convert: legacy blocks loaded
+ * with the post (silent rewrite would dirty the post and surprise the
+ * author) plus already-converted blocks (subscribe fires multiple times
+ * per dispatch — without dedupe a single paste would queue N replace
+ * calls). Bounded by distinct clientIds in the session.
  */
 const skipClientIds = new Set< string >();
 
-/*
- * Whether the watcher has performed its initial walk. Set true after
- * the first non-skip tick observes the loaded post content. Until
- * then, we record what's on screen as legacy and don't touch it.
- */
 let initialized = false;
 
 function* walk(
@@ -177,32 +137,13 @@ function* walk(
 	}
 }
 
-/**
- * Reference to the most recent `getBlocks()` result we walked.
- *
- * Gutenberg's `core/block-editor` returns the same array reference when
- * the block list hasn't changed, so comparing identities lets us skip
- * the recursive walk on ticks that don't touch the block tree (e.g.,
- * selection moves, inspector panel toggles).
+/*
+ * Identity-cache of the last walked block list. Gutenberg returns the
+ * same reference when blocks haven't changed, so we can short-circuit
+ * ticks that don't touch the tree (selection moves, etc.).
  */
 let lastBlocks: ReadonlyArray< EditorBlock > | null = null;
 
-/**
- * Scans the editor's block list for `core/embed` blocks carrying a
- * Strava URL and replaces each with `block-for-strava/embed`.
- *
- * The first walk records every existing clientId as "skip" so legacy
- * content (loaded with the post) isn't silently rewritten on the user's
- * next unrelated edit. Subsequent walks convert any new `core/embed`
- * with a Strava URL — those are paste-introduced or pattern-introduced
- * during the editor session, where conversion is the convenience the
- * plugin advertises.
- *
- * Exits early on the boot-race tick where `core/block-editor` hasn't
- * registered yet — `select` returns `null` until the store is available.
- * Once the store is up its selectors and actions are registered together,
- * so we don't re-check the dispatch side.
- */
 function autoReplaceStravaEmbeds(): void {
 	const blockEditor = select(
 		'core/block-editor'
@@ -217,6 +158,13 @@ function autoReplaceStravaEmbeds(): void {
 	lastBlocks = blocks;
 
 	if ( ! initialized ) {
+		/*
+		 * Defer init across an empty boot snapshot so saved content
+		 * arriving on the next tick isn't mistaken for a fresh paste.
+		 */
+		if ( 0 === blocks.length ) {
+			return;
+		}
 		for ( const block of walk( blocks ) ) {
 			skipClientIds.add( block.clientId );
 		}
@@ -245,26 +193,13 @@ function autoReplaceStravaEmbeds(): void {
 	}
 }
 
-/*
- * Scoped to `core/block-editor` so we don't pay the walk cost on every
- * tick of every other store.
- */
+// Scoped to core/block-editor so we don't walk on every other store's tick.
 subscribe( autoReplaceStravaEmbeds, 'core/block-editor' );
 
 /**
- * Test-only hook that clears the watcher's module-level state.
- *
- * The auto-replacer keeps three pieces of state: `skipClientIds`
- * (legacy + already-converted clientIds), `initialized` (whether the
- * first walk has happened), and `lastBlocks` (reference cache). All
- * three are intentionally module-scoped so the watcher can persist
- * across the editor session — but in unit tests, that persistence
- * makes individual tests fragile and order-dependent. This hook lets
- * a test reset the watcher to the same shape it has on a fresh module
- * load, without re-importing (which would orphan the captured
- * `subscribe` callback in the mocked `@wordpress/data`). Production
- * code never calls this; the leading underscores follow WP core's
- * convention for test-only / experimental exports.
+ * Test-only reset of module state. Re-importing would orphan the
+ * `subscribe` callback registered above; the leading underscores
+ * follow WP core's convention for test/experimental exports.
  */
 export function __resetForTests(): void {
 	skipClientIds.clear();

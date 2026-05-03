@@ -93,13 +93,8 @@ export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
 	/*
-	 * `isSelected` is what Gutenberg passes to every block's `edit`
-	 * component to indicate whether the block is the active selection.
-	 * Caption visibility hangs off this so an unselected block with no
-	 * caption stays clean (no "Add caption" placeholder), matching
-	 * `core/embed`'s caption UX. Optional in the prop type because the
-	 * unit tests instantiate `Edit` directly without going through
-	 * `registerBlockType` — Gutenberg always passes it in production.
+	 * Gutenberg passes this; gates caption-placeholder visibility.
+	 * Optional because unit tests instantiate `Edit` directly.
 	 */
 	isSelected?: boolean;
 }
@@ -256,6 +251,21 @@ function clampBool( value: unknown, fallback: boolean ): boolean {
 
 function clampString( value: unknown ): string {
 	return typeof value === 'string' ? value : '';
+}
+
+/**
+ * Returns true when the caption has any visible text after stripping
+ * tags + decoding nbsp entities — matching the PHP renderer's
+ * emptiness check so a `&nbsp;`-only or `<br>`-only caption doesn't
+ * render in the editor while the front end omits it.
+ *
+ * @param value Caption attribute value (already clamped to a string).
+ */
+function isCaptionVisible( value: string ): boolean {
+	const decoded = value
+		.replace( /<[^>]*>/g, '' )
+		.replace( /&nbsp;|&#160;|&#x[Aa]0;/g, ' ' );
+	return '' !== decoded.replace( /\s+/gu, '' );
 }
 
 export function StravaRouteInspector( {
@@ -835,7 +845,7 @@ export function Edit( {
 	 * the editor for that post.
 	 */
 	const caption = clampString( attributes.caption );
-	const hasVisibleCaption = '' !== caption.trim();
+	const hasVisibleCaption = isCaptionVisible( caption );
 	/*
 	 * Caption is gated on three conditions in addition to the
 	 * has-content / is-selected check:

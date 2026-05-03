@@ -189,15 +189,6 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'renders an editable caption and forwards typed text via setAttributes', async () => {
-		/*
-		 * Caption support is what lets a `core/embed` block carrying a
-		 * caption survive the auto-conversion: the transform copies the
-		 * caption attribute over and Edit renders a RichText below the
-		 * iframe so the user can keep editing it. Without this hook, a
-		 * captioned Strava embed would persist the value in attrs but
-		 * never expose it for editing — the user would think the
-		 * caption was lost.
-		 */
 		const setAttributes = jest.fn();
 		render(
 			createElement( Edit, {
@@ -220,13 +211,6 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'hides the caption placeholder when block is unselected and caption is empty', () => {
-		/*
-		 * Without an `isSelected` gate, every Strava block in a post
-		 * with no caption set would show an always-visible "Add
-		 * caption" placeholder field. Pin that the placeholder only
-		 * appears for the active selection, mirroring core/embed's
-		 * caption UX.
-		 */
 		render(
 			createElement( Edit, {
 				attributes: {
@@ -255,14 +239,56 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'shows the caption text on unselected blocks when caption is set', () => {
-		// Unselected + non-empty: the saved text must remain visible
-		// to the reader, otherwise unselecting the block would hide
-		// authored caption content.
 		render(
 			createElement( Edit, {
 				attributes: {
 					url: 'https://www.strava.com/activities/123',
 					caption: 'My morning ride',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
+
+	it.each( [
+		[ '&nbsp; entity', '&nbsp;' ],
+		[ 'raw U+00A0', ' ' ],
+		[ 'lonely <br>', '<br>' ],
+		[ '<br> + &nbsp; mix', '<br>&nbsp;' ],
+		[ 'inline tag with whitespace', '<em>  </em>' ],
+	] )(
+		'treats %s as blank — caption hidden when block unselected',
+		( _label, value ) => {
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+						caption: value,
+					},
+					setAttributes: jest.fn(),
+					isSelected: false,
+				} )
+			);
+			expect(
+				screen.queryByLabelText( /strava embed caption/i )
+			).toBeNull();
+		}
+	);
+
+	it.each( [
+		[ '<em>text</em>', '<em>hi</em>' ],
+		[ 'plain text', 'hello' ],
+		[ 'whitespace + text', '  hi  ' ],
+	] )( 'treats %s as visible caption', ( _label, value ) => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: value,
 				},
 				setAttributes: jest.fn(),
 				isSelected: false,

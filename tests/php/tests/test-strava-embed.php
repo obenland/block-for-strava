@@ -61,12 +61,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 
 	/**
 	 * `anchor` declared in `block.json` supports must reach the rendered
-	 * figure as an `id` attribute. Without it, in-page jump links to the
-	 * embed (`#my-ride`) silently break for any post that imported a
-	 * `core/embed` with an anchor and was auto-converted by the plugin.
-	 * Covers the same render seam as the align test, but for anchor —
-	 * `get_block_wrapper_attributes()` is the shared mechanism so a
-	 * regression in either path would surface here first.
+	 * figure as an `id` attribute, or in-page jump links to the embed
+	 * (`#my-ride`) break.
 	 */
 	public function test_render_through_do_blocks_preserves_anchor(): void {
 		$rendered = $this->renderBlock(
@@ -81,11 +77,7 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Caption text saved on the block must reach the rendered figure as
-	 * a `<figcaption>` inside the wrapper. Empty / whitespace-only
-	 * captions emit no figcaption (so a stray empty element doesn't
-	 * inflate the figure), and basic inline formatting (`<a>`, `<em>`,
-	 * `<strong>`) survives `wp_kses_post` while scripts are stripped.
+	 * Caption text reaches the rendered figure as `<figcaption>`.
 	 */
 	public function test_render_emits_figcaption_when_caption_set(): void {
 		$rendered = $this->renderBlock(
@@ -100,12 +92,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Caption sanitization: `wp_kses_post` permits inline formatting
-	 * (`<a>`, `<em>`, `<strong>`, `<br>`) but strips `<script>` and
-	 * other dangerous markup. The script tag itself must not survive
-	 * — the inner text is allowed to remain as inert text content
-	 * (that's how `wp_kses_post` works) but with the tag removed it
-	 * cannot execute.
+	 * Caption is run through `wp_kses_post` — anchors/formatting
+	 * survive, `<script>` tags don't.
 	 */
 	public function test_render_sanitizes_caption_html(): void {
 		$rendered = $this->renderBlock(
@@ -121,10 +109,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * An empty or whitespace-only caption attribute must produce no
-	 * `<figcaption>` element at all. Otherwise the figure would gain a
-	 * stray empty caption that styles can stretch open, leaving visible
-	 * whitespace under embeds that don't have a caption set.
+	 * Whitespace-only captions emit no `<figcaption>` so styling
+	 * doesn't open a stray empty element.
 	 */
 	public function test_render_omits_figcaption_for_empty_caption(): void {
 		$rendered = $this->renderBlock(
@@ -138,12 +124,8 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
-	 * RichText/contenteditable can serialize a "blank" caption as
-	 * `&nbsp;` or U+00A0. PHP's default `trim()` doesn't strip
-	 * non-ASCII whitespace, so without entity-decoding + a Unicode-
-	 * aware whitespace check the figure would emit a visually-blank
-	 * `<figcaption>` containing a single nbsp — recreating the
-	 * stray-empty-caption problem this branch tries to prevent.
+	 * RichText serializes blank captions as `&nbsp;` / U+00A0; the
+	 * emit decision must treat both as empty.
 	 */
 	public function test_render_omits_figcaption_for_nbsp_only_caption(): void {
 		$entity   = $this->renderBlock(
