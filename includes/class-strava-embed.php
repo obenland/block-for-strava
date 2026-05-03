@@ -94,13 +94,21 @@ class Block_For_Strava_Embed {
 		$wrapper_attrs = get_block_wrapper_attributes( $wrapper_args );
 
 		$caption_html = '';
-		if ( isset( $attributes['caption'] ) && is_string( $attributes['caption'] ) ) {
-			/*
-			 * `wp_kses_post` matches core/embed's caption sanitization.
-			 * Decode entities + strip Unicode whitespace before the
-			 * emptiness check so RichText's `&nbsp;` / U+00A0 blank
-			 * captions don't slip through as visibly-empty figcaptions.
-			 */
+
+		/*
+		 * Most embeds have no caption, and `render_block` runs on
+		 * every front-end view. Short-circuit before the
+		 * `wp_kses_post` + entity-decode + tag-strip + regex chain
+		 * for the common case. The Unicode-aware emptiness check
+		 * inside the branch still runs for non-empty values, where
+		 * RichText's `&nbsp;` / U+00A0 blank captions need decoding
+		 * to be detected as visibly-empty.
+		 */
+		if (
+			isset( $attributes['caption'] ) &&
+			is_string( $attributes['caption'] ) &&
+			'' !== $attributes['caption']
+		) {
 			$sanitized = wp_kses_post( $attributes['caption'] );
 			$plain     = html_entity_decode( wp_strip_all_tags( $sanitized ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
 			if ( '' !== preg_replace( '/\s+/u', '', $plain ) ) {

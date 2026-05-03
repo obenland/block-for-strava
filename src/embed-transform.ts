@@ -66,6 +66,13 @@ function pickPreservedAttrs(
 	return out;
 }
 
+function buildStravaBlock( source: SourceAttributes ): unknown {
+	return createBlock( 'block-for-strava/embed', {
+		...pickPreservedAttrs( source ),
+		url: String( source.url ),
+	} );
+}
+
 addFilter(
 	'blocks.registerBlockType',
 	'block-for-strava/embed-block-transform',
@@ -77,11 +84,7 @@ addFilter(
 			type: 'block',
 			blocks: [ 'core/embed' ],
 			isMatch: ( { url } ) => isStravaUrl( url ),
-			transform: ( attrs ) =>
-				createBlock( 'block-for-strava/embed', {
-					...pickPreservedAttrs( attrs ),
-					url: String( attrs.url ),
-				} ),
+			transform: buildStravaBlock,
 		};
 		const existingFrom = settings.transforms?.from ?? [];
 		return {
@@ -176,6 +179,12 @@ function autoReplaceStravaEmbeds(): void {
 	if ( ! blockEditor ) {
 		return;
 	}
+	const blocks = blockEditor.getBlocks();
+	if ( blocks === lastBlocks ) {
+		return;
+	}
+	lastBlocks = blocks;
+
 	/*
 	 * Detect SPA navigation: when the post editor loads a different
 	 * post (rare; usually a page reload), or the site editor swaps
@@ -183,6 +192,8 @@ function autoReplaceStravaEmbeds(): void {
 	 * the prior document don't apply to the new one. Read the entity
 	 * ID from `core/editor` (post editor) or `core/edit-site` (site
 	 * editor) and reset when it changes between two non-null values.
+	 * Done after the `blocks === lastBlocks` short-circuit so the
+	 * cheap reference check skips these selector reads on no-op ticks.
 	 */
 	const editor = select( 'core/editor' ) as EditorSelectors | null;
 	const siteEditor = select( 'core/edit-site' ) as SiteEditorSelectors | null;
@@ -195,17 +206,10 @@ function autoReplaceStravaEmbeds(): void {
 	) {
 		skipClientIds.clear();
 		initialized = false;
-		lastBlocks = null;
 	}
 	if ( null !== currentEntityId ) {
 		lastEntityId = currentEntityId;
 	}
-
-	const blocks = blockEditor.getBlocks();
-	if ( blocks === lastBlocks ) {
-		return;
-	}
-	lastBlocks = blocks;
 
 	if ( ! initialized ) {
 		/*
@@ -266,10 +270,7 @@ function autoReplaceStravaEmbeds(): void {
 		actions.__unstableMarkNextChangeAsNotPersistent?.();
 		actions.replaceBlock(
 			block.clientId,
-			createBlock( 'block-for-strava/embed', {
-				...pickPreservedAttrs( block.attributes ),
-				url: String( block.attributes.url ),
-			} )
+			buildStravaBlock( block.attributes )
 		);
 	}
 }

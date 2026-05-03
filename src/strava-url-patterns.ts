@@ -1,21 +1,41 @@
 /**
- * Shared anchored Strava URL patterns.
+ * Shared Strava URL patterns + parsing.
  *
- * Two transform paths gate themselves on "the whole string is a Strava
- * URL" — `paragraph-transform` (replaces a paragraph entirely) and
- * `embed-transform` (replaces a `core/embed` block in place). Both paths
- * are destructive, so any drift in the recognition rules between them
- * would let one path fire on input the other rejects, producing
- * inconsistent results for the same URL. The editor's short-URL notice
- * (in `edit.tsx`) also reuses the short-URL pattern so its "is this a
- * Strava short URL?" check stays in lockstep with the transforms —
- * otherwise a value that merely starts with `strava.app.link/...` could
- * pass the editor's check while the transforms reject it.
+ * Multiple paths must agree on what counts as a Strava URL:
+ * `paragraph-transform` (replaces a paragraph), `embed-transform`
+ * (replaces a `core/embed` block in place), and the editor's short-URL
+ * notice. Any drift would let one path fire on input the others
+ * reject, producing inconsistent results for the same URL.
+ */
+
+/*
+ * Anchored full-string matchers used to gate destructive transforms.
+ * Optional subdomains match the PHP `is_allowed_strava_url` rule
+ * (`str_ends_with($host, '.' . $allowed)`).
  */
 export const CANONICAL_STRAVA_URL_PATTERN: RegExp =
 	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(?:activities|routes|segments)\/\d+(?:[/?#][^\s]*)?$/i;
 export const SHORT_STRAVA_URL_PATTERN: RegExp =
 	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.app\.link\/[^\s]+$/i;
+
+/*
+ * Parsing variant used by the editor preview to extract `(type, id)`
+ * from a canonical URL. Same host/path rules as
+ * `CANONICAL_STRAVA_URL_PATTERN` but with capture groups and a
+ * lookahead boundary so a hand-written `/routes/123abc` doesn't
+ * match as route 123.
+ */
+export const CANONICAL_STRAVA_URL_PARSE: RegExp =
+	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(activities|routes|segments)\/(\d+)(?=[/?#]|$)/i;
+
+export const URL_PATH_TO_TYPE: Record<
+	string,
+	'activity' | 'route' | 'segment'
+> = {
+	activities: 'activity',
+	routes: 'route',
+	segments: 'segment',
+};
 
 export const STRAVA_URL_PATTERNS: ReadonlyArray< RegExp > = [
 	CANONICAL_STRAVA_URL_PATTERN,

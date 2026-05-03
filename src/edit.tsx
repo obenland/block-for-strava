@@ -40,7 +40,11 @@ import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
-import { SHORT_STRAVA_URL_PATTERN } from './strava-url-patterns';
+import {
+	CANONICAL_STRAVA_URL_PARSE,
+	SHORT_STRAVA_URL_PATTERN,
+	URL_PATH_TO_TYPE,
+} from './strava-url-patterns';
 
 type RouteMapStyle =
 	| 'standard'
@@ -114,29 +118,13 @@ const ROUTE_UNITS: ReadonlyArray< RouteUnits > = [
 ];
 const ROUTE_TERRAINS: ReadonlyArray< RouteTerrain > = [ 'auto', '2d', '3d' ];
 
-/*
- * Captures `(type, id)` from a canonical Strava URL so the editor preview
- * can build the iframe directly. The trailing `(?=[/?#]|$)` mirrors the PHP
- * boundary so `/routes/123abc` doesn't match as route 123. Short URLs need
- * a server hop to resolve; the Edit component falls back to a passthrough
- * placeholder when the URL is a short URL (the published page resolves it).
- */
-const CANONICAL_STRAVA_URL_RE =
-	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(activities|routes|segments)\/(\d+)(?=[/?#]|$)/i;
-
-const URL_PATH_TO_TYPE: Record< string, 'activity' | 'route' | 'segment' > = {
-	activities: 'activity',
-	routes: 'route',
-	segments: 'segment',
-};
-
 interface ResolvedStravaUrl {
 	type: 'activity' | 'route' | 'segment';
 	id: string;
 }
 
 export function parseStravaUrl( url: string ): ResolvedStravaUrl | null {
-	const match = CANONICAL_STRAVA_URL_RE.exec( url );
+	const match = CANONICAL_STRAVA_URL_PARSE.exec( url );
 	if ( ! match ) {
 		return null;
 	}
@@ -253,6 +241,13 @@ function clampString( value: unknown ): string {
 	return typeof value === 'string' ? value : '';
 }
 
+/*
+ * Reused across `isCaptionVisible` calls. `Edit` re-renders on every
+ * keystroke / selection change, so allocating a fresh parser per
+ * call is wasted work.
+ */
+const captionParser = new DOMParser();
+
 /**
  * Mirrors the PHP renderer's caption-emptiness check. DOMParser
  * handles tag stripping + entity decoding for every standard HTML
@@ -264,9 +259,11 @@ function clampString( value: unknown ): string {
  * @param value Caption attribute value (already clamped to a string).
  */
 function isCaptionVisible( value: string ): boolean {
+	if ( '' === value ) {
+		return false;
+	}
 	const text =
-		new DOMParser().parseFromString( value, 'text/html' ).body
-			.textContent ??
+		captionParser.parseFromString( value, 'text/html' ).body.textContent ??
 		/* istanbul ignore next: HTMLBodyElement.textContent is always a string. */
 		'';
 	return '' !== text.replace( /\s+/gu, '' );
