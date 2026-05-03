@@ -180,8 +180,20 @@ function autoReplaceStravaEmbeds(): void {
 		 */
 		const editor = select( 'core/editor' ) as EditorSelectors | null;
 		if ( true !== editor?.isEditedPostDirty?.() ) {
+			/*
+			 * Only mark currently-Strava `core/embed` blocks as
+			 * legacy. Paragraphs and non-Strava embeds aren't in
+			 * the skip set, so if their attributes ever transition
+			 * to a Strava URL (user edits a generic embed's URL)
+			 * the watcher can still convert them.
+			 */
 			for ( const block of walk( blocks ) ) {
-				skipClientIds.add( block.clientId );
+				if (
+					'core/embed' === block.name &&
+					isStravaUrl( block.attributes?.url )
+				) {
+					skipClientIds.add( block.clientId );
+				}
 			}
 			return;
 		}

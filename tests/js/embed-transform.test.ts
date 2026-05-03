@@ -305,6 +305,37 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
 	} );
 
+	it( 'auto-converts a non-Strava core/embed if its URL later changes to a Strava URL', () => {
+		/*
+		 * Loaded `core/embed` blocks that aren't currently Strava
+		 * shouldn't be marked as legacy — otherwise editing one's
+		 * URL to a Strava form afterward would never trigger a
+		 * conversion (same clientId stays in the skip set).
+		 */
+		const cid = uniqueClientId( 'changing' );
+		setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+				},
+			},
+		] );
+		fireSubscribers();
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/12345',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
+	} );
+
 	it( 'records the first non-empty walk as legacy when core/editor is not registered (non-post-editor context)', () => {
 		// Site editor / widgets editor don't register `core/editor`.
 		// Falling back to "treat as legacy" mirrors the post-editor

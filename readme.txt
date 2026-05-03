@@ -17,7 +17,7 @@ Block for Strava adds a single block to the editor that embeds Strava activities
 **Features:**
 
 * One Gutenberg block — find "Strava" in the inserter, paste a URL, done
-* Pasting a Strava URL or share-dialog snippet directly into post content auto-converts to the Strava block — no manual transform required
+* Pasting a Strava URL on its own line in post content (or the share-dialog snippet) auto-converts to the Strava block — when typed inside paragraph text, the block toolbar's "Transform to → Strava" finishes the conversion
 * Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`), short share links (`strava.app.link/…`), and the share-dialog embed snippet (with token, for non-public activities)
 * Per-route options for map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle
 * Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a cross-origin sandboxed iframe with `referrerpolicy=origin`
