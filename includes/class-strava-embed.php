@@ -79,16 +79,51 @@ class Block_For_Strava_Embed {
 
 		$iframe = self::build_iframe( $resolved['type'], $resolved['id'], null, null, $params );
 
-		$wrapper_attrs = get_block_wrapper_attributes(
-			array(
-				'class' => 'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
-			)
+		$wrapper_args = array(
+			'class' => 'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
 		);
 
+		/*
+		 * `wp_apply_anchor_support` doesn't flow through to
+		 * `get_block_wrapper_attributes()` for dynamic blocks, so
+		 * read the saved attribute and pass `id` through ourselves.
+		 */
+		if ( isset( $attributes['anchor'] ) && is_string( $attributes['anchor'] ) && '' !== $attributes['anchor'] ) {
+			$wrapper_args['id'] = $attributes['anchor'];
+		}
+		$wrapper_attrs = get_block_wrapper_attributes( $wrapper_args );
+
+		$caption_html = '';
+
+		/*
+		 * Most embeds have no caption, and `render_block` runs on
+		 * every front-end view. Short-circuit before the
+		 * `wp_kses_post` + entity-decode + tag-strip + regex chain
+		 * for the common case. The Unicode-aware emptiness check
+		 * inside the branch still runs for non-empty values, where
+		 * RichText's `&nbsp;` / U+00A0 blank captions need decoding
+		 * to be detected as visibly-empty.
+		 */
+		if (
+			isset( $attributes['caption'] ) &&
+			is_string( $attributes['caption'] ) &&
+			'' !== $attributes['caption']
+		) {
+			$sanitized = wp_kses_post( $attributes['caption'] );
+			$plain     = html_entity_decode( wp_strip_all_tags( $sanitized ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+			if ( '' !== preg_replace( '/\s+/u', '', $plain ) ) {
+				$caption_html = sprintf(
+					'<figcaption class="wp-element-caption">%s</figcaption>',
+					$sanitized
+				);
+			}
+		}
+
 		return sprintf(
-			'<figure %s><div class="wp-block-embed__wrapper">%s</div></figure>',
+			'<figure %s><div class="wp-block-embed__wrapper">%s</div>%s</figure>',
 			$wrapper_attrs,
-			$iframe
+			$iframe,
+			$caption_html
 		);
 	}
 

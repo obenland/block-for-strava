@@ -1,24 +1,20 @@
 import { addFilter } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
 
+import { STRAVA_URL_PATTERNS } from './strava-url-patterns';
+
 /*
  * Adds a `core/paragraph` → `block-for-strava/embed` transform so a user
  * who has typed (or pasted-into-text) a Strava URL inside a paragraph can
  * convert it to the Strava block via the toolbar's "Transform to..." menu.
  * The inserter handles the from-scratch path; this filter covers the case
  * where the URL is already living inside paragraph content.
+ *
+ * The recognition patterns live in `strava-url-patterns` because the
+ * embed-block transform has the same gating rules and any drift between
+ * the two would let identical URLs convert on one path and silently
+ * stall on the other.
  */
-
-/*
- * Anchored full-string Strava URL patterns for the paragraph→embed
- * transform. We only want to fire when the entire paragraph is a single
- * Strava URL — otherwise a paragraph mentioning Strava in passing would
- * offer the conversion and silently lose the rest of the text.
- */
-const STRAVA_FULL_PATTERNS: ReadonlyArray< RegExp > = [
-	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(?:activities|routes|segments)\/\d+(?:[/?#][^\s]*)?$/i,
-	/^https?:\/\/strava\.app\.link\/[^\s]+$/i,
-];
 
 /*
  * Pulls the href out of a paragraph that contains exactly one `<a>` and
@@ -72,13 +68,13 @@ export function extractStravaUrl( content: unknown ): string | null {
 	if ( ! trimmed ) {
 		return null;
 	}
-	if ( STRAVA_FULL_PATTERNS.some( ( re ) => re.test( trimmed ) ) ) {
+	if ( STRAVA_URL_PATTERNS.some( ( re ) => re.test( trimmed ) ) ) {
 		return trimmed;
 	}
 	const anchor = ANCHOR_ONLY_RE.exec( trimmed );
 	if ( anchor ) {
 		const href = decodeHrefEntities( anchor[ 1 ] );
-		if ( STRAVA_FULL_PATTERNS.some( ( re ) => re.test( href ) ) ) {
+		if ( STRAVA_URL_PATTERNS.some( ( re ) => re.test( href ) ) ) {
 			return href;
 		}
 	}

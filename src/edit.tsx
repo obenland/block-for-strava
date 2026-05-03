@@ -16,6 +16,7 @@ import {
 	BlockControls,
 	useBlockProps,
 	InspectorControls,
+	RichText,
 } from '@wordpress/block-editor';
 import {
 	Button,
@@ -38,6 +39,12 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
+
+import {
+	CANONICAL_STRAVA_URL_PARSE,
+	SHORT_STRAVA_URL_PATTERN,
+	URL_PATH_TO_TYPE,
+} from './strava-url-patterns';
 
 type RouteMapStyle =
 	| 'standard'
@@ -83,11 +90,17 @@ export interface StravaBlockAttributes {
 	 * public-Everyone embeds, which don't need a token at all.
 	 */
 	stravaEmbedToken?: string;
+	caption?: string;
 }
 
 export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
+	/*
+	 * Gutenberg passes this; gates caption-placeholder visibility.
+	 * Optional because unit tests instantiate `Edit` directly.
+	 */
+	isSelected?: boolean;
 }
 
 const ROUTE_MAP_STYLES: ReadonlyArray< RouteMapStyle > = [
@@ -105,31 +118,13 @@ const ROUTE_UNITS: ReadonlyArray< RouteUnits > = [
 ];
 const ROUTE_TERRAINS: ReadonlyArray< RouteTerrain > = [ 'auto', '2d', '3d' ];
 
-/*
- * Captures `(type, id)` from a canonical Strava URL so the editor preview
- * can build the iframe directly. The trailing `(?=[/?#]|$)` mirrors the PHP
- * boundary so `/routes/123abc` doesn't match as route 123. Short URLs need
- * a server hop to resolve; the Edit component falls back to a passthrough
- * placeholder when the URL is a short URL (the published page resolves it).
- */
-const CANONICAL_STRAVA_URL_RE =
-	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(activities|routes|segments)\/(\d+)(?=[/?#]|$)/i;
-
-const SHORT_STRAVA_URL_RE = /^https?:\/\/strava\.app\.link\/[^\s]+/i;
-
-const URL_PATH_TO_TYPE: Record< string, 'activity' | 'route' | 'segment' > = {
-	activities: 'activity',
-	routes: 'route',
-	segments: 'segment',
-};
-
 interface ResolvedStravaUrl {
 	type: 'activity' | 'route' | 'segment';
 	id: string;
 }
 
 export function parseStravaUrl( url: string ): ResolvedStravaUrl | null {
-	const match = CANONICAL_STRAVA_URL_RE.exec( url );
+	const match = CANONICAL_STRAVA_URL_PARSE.exec( url );
 	if ( ! match ) {
 		return null;
 	}
@@ -244,6 +239,34 @@ function clampBool( value: unknown, fallback: boolean ): boolean {
 
 function clampString( value: unknown ): string {
 	return typeof value === 'string' ? value : '';
+}
+
+/*
+ * Reused across `isCaptionVisible` calls. `Edit` re-renders on every
+ * keystroke / selection change, so allocating a fresh parser per
+ * call is wasted work.
+ */
+const captionParser = new DOMParser();
+
+/**
+ * Mirrors the PHP renderer's caption-emptiness check. DOMParser
+ * handles tag stripping + entity decoding for every standard HTML
+ * form (named, decimal, hex, mixed case), matching what
+ * `wp_strip_all_tags + html_entity_decode` does server-side — a
+ * regex strip would be both incomplete (CodeQL flagged) and narrower
+ * than the PHP entity set.
+ *
+ * @param value Caption attribute value (already clamped to a string).
+ */
+function isCaptionVisible( value: string ): boolean {
+	if ( '' === value ) {
+		return false;
+	}
+	const text =
+		captionParser.parseFromString( value, 'text/html' ).body.textContent ??
+		/* istanbul ignore next: HTMLBodyElement.textContent is always a string. */
+		'';
+	return '' !== text.replace( /\s+/gu, '' );
 }
 
 export function StravaRouteInspector( {
@@ -728,8 +751,14 @@ function StravaShortUrlNotice( { url }: { url: string } ) {
  * @param props.attributes    Block attributes; `url` drives the dispatch.
  * @param props.setAttributes Standard Gutenberg setter for committing the
  *                            URL back when the placeholder form submits.
+ * @param props.isSelected    Whether the block is the active selection;
+ *                            gates caption-placeholder visibility.
  */
-export function Edit( { attributes, setAttributes }: BlockEditProps ) {
+export function Edit( {
+	attributes,
+	setAttributes,
+	isSelected,
+}: BlockEditProps ) {
 	const blockProps = useBlockProps( {
 		className:
 			'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
@@ -769,7 +798,7 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	};
 
 	const resolved = parseStravaUrl( url );
-	const isShortUrl = ! resolved && SHORT_STRAVA_URL_RE.test( url );
+	const isShortUrl = ! resolved && SHORT_STRAVA_URL_PATTERN.test( url );
 
 	let body;
 	if ( isEditingURL || ! url ) {
@@ -796,6 +825,47 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 		} );
 	}
 
+	/*
+	 * The caption RichText only appears once a URL is set so the
+	 * placeholder state stays focused on the URL input. Hidden when
+	 * the trimmed caption is empty AND the block isn't selected —
+	 * matching `core/embed`'s caption UX, and matching the PHP
+	 * renderer which trims whitespace-only captions before deciding
+	 * whether to emit `<figcaption>`. Without the trim, a caption of
+	 * pure whitespace would show as a blank field on the unselected
+	 * editor block but vanish on the published page, which is
+	 * disorienting and easy to author by accident (paragraphs paste
+	 * with trailing whitespace surprisingly often).
+	 */
+	/*
+	 * Clamp to string before reading. `block.json` declares `caption`
+	 * as `type: string`, but older posts and hand-edited block markup
+	 * can store anything — `clampString` matches how
+	 * `stravaEmbedToken` and the route attrs are normalized below, so
+	 * a stray non-string caption can't blow up `.trim()` and break
+	 * the editor for that post.
+	 */
+	const caption = clampString( attributes.caption );
+	const hasVisibleCaption = isCaptionVisible( caption );
+	/*
+	 * Caption is gated on three conditions in addition to the
+	 * has-content / is-selected check:
+	 *
+	 * - URL is set (no caption in the placeholder state).
+	 * - Not currently editing the URL (the URL form is the focused
+	 *   action; the caption field underneath would split attention).
+	 * - The URL is recognized (canonical via `resolved` or a short
+	 *   URL the front end will resolve). The "unrecognized URL"
+	 *   state has `render_block()` returning an empty string, so any
+	 *   caption authored there silently disappears on the front end.
+	 */
+	const isRecognizedUrl = null !== resolved || isShortUrl;
+	const showCaption =
+		!! url &&
+		! isEditingURL &&
+		isRecognizedUrl &&
+		( hasVisibleCaption || true === isSelected );
+
 	return createElement(
 		Fragment,
 		null,
@@ -815,6 +885,24 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 					)
 			  )
 			: null,
-		createElement( 'figure', blockProps, body )
+		createElement(
+			'figure',
+			blockProps,
+			body,
+			showCaption
+				? createElement( RichText, {
+						tagName: 'figcaption',
+						className: 'wp-element-caption',
+						placeholder: __( 'Add caption', 'block-for-strava' ),
+						value: caption,
+						onChange: ( value: string ) =>
+							setAttributes( { caption: value } ),
+						'aria-label': __(
+							'Strava embed caption',
+							'block-for-strava'
+						),
+				  } )
+				: null
+		)
 	);
 }

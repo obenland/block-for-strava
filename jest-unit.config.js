@@ -14,6 +14,7 @@ module.exports = {
 			'<rootDir>/tests/js/__mocks__/wordpress-components.tsx',
 		'^@wordpress/api-fetch$':
 			'<rootDir>/tests/js/__mocks__/wordpress-api-fetch.ts',
+		'^@wordpress/data$': '<rootDir>/tests/js/__mocks__/wordpress-data.ts',
 	},
 	setupFilesAfterEnv: [ '<rootDir>/tests/js/setup.ts' ],
 	collectCoverageFrom: [ 'src/**/*.{ts,tsx}', '!src/**/*.d.ts' ],

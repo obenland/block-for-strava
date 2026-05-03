@@ -60,6 +60,99 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * `anchor` declared in `block.json` supports must reach the rendered
+	 * figure as an `id` attribute, or in-page jump links to the embed
+	 * (`#my-ride`) break.
+	 */
+	public function test_render_through_do_blocks_preserves_anchor(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'    => 'https://www.strava.com/activities/123',
+				'anchor' => 'my-ride',
+			)
+		);
+
+		$this->assertStringContainsString( 'id="my-ride"', $rendered );
+		$this->assertStringContainsString( '<iframe', $rendered );
+	}
+
+	/**
+	 * Caption text reaches the rendered figure as `<figcaption>`.
+	 */
+	public function test_render_emits_figcaption_when_caption_set(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => 'My morning ride',
+			)
+		);
+
+		$this->assertStringContainsString( '<figcaption', $rendered );
+		$this->assertStringContainsString( 'My morning ride', $rendered );
+	}
+
+	/**
+	 * Caption is run through `wp_kses_post` — anchors/formatting
+	 * survive, `<script>` tags don't.
+	 */
+	public function test_render_sanitizes_caption_html(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => 'See <a href="https://example.com">my ride</a>!<script>alert(1)</script>',
+			)
+		);
+
+		$this->assertStringContainsString( '<a href="https://example.com">my ride</a>', $rendered );
+		$this->assertStringNotContainsString( '<script', $rendered );
+		$this->assertStringNotContainsString( '</script>', $rendered );
+	}
+
+	/**
+	 * Whitespace-only captions emit no `<figcaption>` so styling
+	 * doesn't open a stray empty element.
+	 */
+	public function test_render_omits_figcaption_for_empty_caption(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => '   ',
+			)
+		);
+
+		$this->assertStringNotContainsString( '<figcaption', $rendered );
+	}
+
+	/**
+	 * RichText serializes blank captions as `&nbsp;` / U+00A0; the
+	 * emit decision must treat both as empty.
+	 */
+	public function test_render_omits_figcaption_for_nbsp_only_caption(): void {
+		$entity   = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => '&nbsp;',
+			)
+		);
+		$raw_nbsp = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => "\xc2\xa0", // U+00A0 in UTF-8.
+			)
+		);
+		$mixed    = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => " \t&nbsp;\n\xc2\xa0 ",
+			)
+		);
+
+		$this->assertStringNotContainsString( '<figcaption', $entity );
+		$this->assertStringNotContainsString( '<figcaption', $raw_nbsp );
+		$this->assertStringNotContainsString( '<figcaption', $mixed );
+	}
+
+	/**
 	 * Asserts the iframe HTML loads the expected Strava embed page directly.
 	 *
 	 * The earlier shape wrapped a placeholder div + embed.js inside a data:

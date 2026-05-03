@@ -16,9 +16,10 @@ interface AttributeSpec {
 const ATTRS = metadata.attributes as Record< string, AttributeSpec >;
 
 describe( 'block.json schema', () => {
-	it( 'declares the route + token attributes the editor + render callback both read', () => {
+	it( 'declares the route + token + caption attributes the editor + render callback both read', () => {
 		expect( Object.keys( ATTRS ).sort() ).toEqual(
 			[
+				'caption',
 				'stravaEmbedToken',
 				'stravaRouteFullWidth',
 				'stravaRouteMapStyle',
@@ -29,6 +30,21 @@ describe( 'block.json schema', () => {
 				'url',
 			].sort()
 		);
+	} );
+
+	it( 'declares supports.anchor so the editor surfaces the HTML-anchor UI', () => {
+		/*
+		 * The PHP render test pins that an `anchor` attribute reaches
+		 * the rendered figure, but only when the attribute is present.
+		 * If `supports.anchor` ever goes missing from `block.json`,
+		 * the editor's HTML-anchor inspector control disappears
+		 * (Gutenberg keys it off the support flag), so users can
+		 * never set the attribute in the first place. Pin the flag
+		 * here so a `block.json` regression fails this test before
+		 * the missing UI surfaces in the editor.
+		 */
+		const supports = metadata.supports as Record< string, unknown >;
+		expect( supports.anchor ).toBe( true );
 	} );
 
 	it( 'declares stravaEmbedToken as a string defaulting to empty', () => {

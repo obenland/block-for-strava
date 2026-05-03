@@ -38,8 +38,10 @@ interface EditProps {
 		stravaRouteShowDirt?: boolean;
 		stravaRouteShowElevation?: boolean;
 		stravaEmbedToken?: string;
+		caption?: string;
 	};
 	setAttributes: ( attrs: Partial< EditProps[ 'attributes' ] > ) => void;
+	isSelected?: boolean;
 }
 
 beforeEach( () => {
@@ -184,6 +186,117 @@ describe( 'Edit', () => {
 			'https://strava-embeds.com/activity/123'
 		);
 		expect( screen.queryByTestId( 'inspector-controls' ) ).toBeNull();
+	} );
+
+	it( 'renders an editable caption and forwards typed text via setAttributes', async () => {
+		const setAttributes = jest.fn();
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'Initial text',
+				},
+				setAttributes,
+			} )
+		);
+		const caption = screen.getByLabelText(
+			/strava embed caption/i
+		) as HTMLElement;
+		expect( caption ).toBeInTheDocument();
+		expect( caption.tagName.toLowerCase() ).toBe( 'figcaption' );
+		await userEvent.type( caption, 'X' );
+		expect( setAttributes ).toHaveBeenCalledWith(
+			expect.objectContaining( { caption: expect.any( String ) } )
+		);
+	} );
+
+	it( 'hides the caption placeholder when block is unselected and caption is empty', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'shows the caption placeholder when block is selected even with empty caption', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
+
+	it( 'shows the caption text on unselected blocks when caption is set', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
+
+	it.each( [
+		[ '&nbsp; entity', '&nbsp;' ],
+		[ 'raw U+00A0', ' ' ],
+		[ 'lonely <br>', '<br>' ],
+		[ '<br> + &nbsp; mix', '<br>&nbsp;' ],
+		[ 'inline tag with whitespace', '<em>  </em>' ],
+	] )(
+		'treats %s as blank — caption hidden when block unselected',
+		( _label, value ) => {
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+						caption: value,
+					},
+					setAttributes: jest.fn(),
+					isSelected: false,
+				} )
+			);
+			expect(
+				screen.queryByLabelText( /strava embed caption/i )
+			).toBeNull();
+		}
+	);
+
+	it.each( [
+		[ '<em>text</em>', '<em>hi</em>' ],
+		[ 'plain text', 'hello' ],
+		[ 'whitespace + text', '  hi  ' ],
+	] )( 'treats %s as visible caption', ( _label, value ) => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: value,
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
 	} );
 
 	it( 'disables pointer events on the iframe so the block stays selectable', () => {

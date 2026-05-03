@@ -4,7 +4,7 @@ import { execSync } from 'node:child_process';
 /**
  * End-to-end coverage for the `block-for-strava/embed` block.
  *
- * Two seams to pin:
+ * Four seams to pin:
  *
  * 1. A saved post containing a Strava URL in the block-comment
  *    attributes renders as an iframe pointing directly at
@@ -14,6 +14,14 @@ import { execSync } from 'node:child_process';
  *    so it shows up in the inserter — pinned via a data-store read
  *    rather than UI clicks because inserter accessible names drift
  *    across Gutenberg versions.
+ * 3. Pasting a Strava URL or share-dialog snippet into post content
+ *    yields a `block-for-strava/embed` block automatically, regardless
+ *    of which of the four supported input forms the user pastes.
+ * 4. A `core/embed` block whose URL is later set to a Strava form is
+ *    convertible into our block via the toolbar `Transform to` menu —
+ *    the declarative fallback for cases where the auto-replace
+ *    subscriber wasn't running (e.g., a pre-existing post imported
+ *    with a generic embed block).
  */
 
 /**
@@ -238,6 +246,234 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 		expect( blocks[ 0 ].attributes.stravaEmbedToken ).toBe(
 			'TEST-TOKEN-NOT-A-REAL-SHARE-TOKEN'
 		);
+	} );
+
+	/*
+	 * The three URL shapes flow through the URL-paste path:
+	 * `pasteHandler` builds a `core/embed` block and the auto-replace
+	 * subscriber swaps it for ours. The share-dialog snippet (the
+	 * fourth supported input) goes through the raw-transform path
+	 * and is covered by the separate snippet test above.
+	 */
+	const PASTE_CASES = [
+		{
+			label: 'activity URL',
+			input: 'https://www.strava.com/activities/18233733854',
+			expectedUrl: 'https://www.strava.com/activities/18233733854',
+			expectedToken: '',
+		},
+		{
+			label: 'route URL',
+			input: 'https://www.strava.com/routes/3379104463896442748',
+			expectedUrl: 'https://www.strava.com/routes/3379104463896442748',
+			expectedToken: '',
+		},
+		{
+			label: 'short share URL',
+			input: 'https://strava.app.link/5nv42wErO2b',
+			expectedUrl: 'https://strava.app.link/5nv42wErO2b',
+			expectedToken: '',
+		},
+	] as const;
+
+	for ( const { label, input, expectedUrl, expectedToken } of PASTE_CASES ) {
+		test( `editor: pasting a ${ label } into post content yields a Strava block`, async ( {
+			page,
+		} ) => {
+			await loginAsAdmin( page );
+			await page.goto( '/wp-admin/post-new.php' );
+			await waitForEditor( page );
+
+			/*
+			 * Drive the same path the editor takes for a URL pasted on
+			 * its own line: `pasteHandler` returns a `core/embed`,
+			 * `replaceBlocks` inserts it where the cursor was, then the
+			 * `subscribe`-based auto-replace fires and swaps it for our
+			 * block. Wait on the observable state — the block name
+			 * flipping to `block-for-strava/embed` — rather than a
+			 * fixed timeout, so a slower CI scheduler can take longer
+			 * without flaking the suite.
+			 */
+			await page.evaluate( async ( pastedUrl: string ) => {
+				const wpAny = ( window as { wp?: any } ).wp;
+				const empty = wpAny.blocks.createBlock( 'core/paragraph', {
+					content: '',
+				} );
+				wpAny.data
+					.dispatch( 'core/block-editor' )
+					.resetBlocks( [ empty ] );
+				const pasted = wpAny.blocks.pasteHandler( {
+					HTML: pastedUrl,
+					plainText: pastedUrl,
+					mode: 'BLOCKS',
+				} );
+				const arr = Array.isArray( pasted ) ? pasted : [ pasted ];
+				await wpAny.data
+					.dispatch( 'core/block-editor' )
+					.replaceBlocks( [ empty.clientId ], arr );
+			}, input );
+
+			const result = await expect
+				.poll(
+					async () =>
+						page.evaluate( () => {
+							const wpAny = ( window as { wp?: any } ).wp;
+							const blocks = wpAny.data
+								.select( 'core/block-editor' )
+								.getBlocks();
+							return blocks.map( ( b: any ) => ( {
+								name: b.name,
+								url: b.attributes?.url,
+								token: b.attributes?.stravaEmbedToken,
+							} ) );
+						} ),
+					{ timeout: 5000 }
+				)
+				.toEqual( [
+					expect.objectContaining( {
+						name: 'block-for-strava/embed',
+						url: expectedUrl,
+					} ),
+				] );
+
+			/*
+			 * `expect.poll(...).toEqual(...)` returns void rather than
+			 * the polled value (Playwright API), so re-read the final
+			 * state to assert on the token attribute. By the time we
+			 * reach this point the poll has confirmed the block was
+			 * replaced — this read is a single sync hop, no waiting.
+			 */
+			void result;
+			const finalState = await page.evaluate( () => {
+				const wpAny = ( window as { wp?: any } ).wp;
+				const blocks = wpAny.data
+					.select( 'core/block-editor' )
+					.getBlocks();
+				return blocks.map( ( b: any ) => ( {
+					token: b.attributes?.stravaEmbedToken,
+				} ) );
+			} );
+			expect( finalState[ 0 ].token ?? '' ).toBe( expectedToken );
+		} );
+	}
+
+	test( 'editor: setting a Strava URL on an empty Strava block input keeps the block as block-for-strava/embed', async ( {
+		page,
+	} ) => {
+		/*
+		 * The "block input" avenue: a user inserts the Strava block
+		 * from the inserter and pastes a URL into the placeholder's
+		 * URL input. The Edit component dispatches
+		 * `setAttributes({ url })`, which becomes
+		 * `updateBlockAttributes` in the data store. Pin that the
+		 * block keeps its identity through that flow — i.e. nothing
+		 * else (an aggressive transform, an over-broad filter) snatches
+		 * it back to `core/embed`.
+		 */
+		await loginAsAdmin( page );
+		await page.goto( '/wp-admin/post-new.php' );
+		await waitForEditor( page );
+
+		await page.evaluate( async () => {
+			const wpAny = ( window as { wp?: any } ).wp;
+			const block = wpAny.blocks.createBlock(
+				'block-for-strava/embed',
+				{}
+			);
+			wpAny.data.dispatch( 'core/block-editor' ).resetBlocks( [ block ] );
+			await wpAny.data
+				.dispatch( 'core/block-editor' )
+				.updateBlockAttributes( block.clientId, {
+					url: 'https://www.strava.com/activities/18233733854',
+				} );
+		} );
+
+		/*
+		 * Poll on the observable state (block name + url) rather than a
+		 * fixed timeout. `updateBlockAttributes` resolves before the
+		 * next subscribe tick, so a slower scheduler could otherwise
+		 * leave the read happening before the new attribute is visible
+		 * via `getBlocks()`. Polling is also load-bearing if any
+		 * future filter mid-flight transforms the block — we'd see a
+		 * stable matching state, not a transient one.
+		 */
+		await expect
+			.poll(
+				async () =>
+					page.evaluate( () => {
+						const wpAny = ( window as { wp?: any } ).wp;
+						const blocks = wpAny.data
+							.select( 'core/block-editor' )
+							.getBlocks();
+						return blocks.map( ( b: any ) => ( {
+							name: b.name,
+							url: b.attributes?.url,
+						} ) );
+					} ),
+				{ timeout: 5000 }
+			)
+			.toEqual( [
+				{
+					name: 'block-for-strava/embed',
+					url: 'https://www.strava.com/activities/18233733854',
+				},
+			] );
+	} );
+
+	test( 'editor: a Strava URL inside a core/embed block is offered as a "Transform to" target', async ( {
+		page,
+	} ) => {
+		/*
+		 * The toolbar fallback: when an existing post is loaded with a
+		 * `core/embed` block that pre-dates this plugin (or that the
+		 * watcher's `lastBlocks` cache short-circuited past), the user
+		 * can pick "Transform to → Strava" from the toolbar. Verifies
+		 * the `from`-block transform on `block-for-strava/embed`
+		 * reaches `getBlockTransforms` for `core/embed` and that its
+		 * `isMatch` discriminates Strava URLs from non-Strava ones.
+		 */
+		await loginAsAdmin( page );
+		await page.goto( '/wp-admin/post-new.php' );
+		await waitForEditor( page );
+
+		const sourceMatchesStrava = await page.evaluate( () => {
+			const wpAny = ( window as { wp?: any } ).wp;
+			/*
+			 * `getBlockTransforms('from', destinationName)` returns the
+			 * `transforms.from` entries on the destination block, each
+			 * carrying a `blocks` list of accepted source blocks. The
+			 * one we registered targets `core/embed`, and its `isMatch`
+			 * gates on a Strava URL — exercise both: the source-block
+			 * declaration is what surfaces "Transform to" in the
+			 * toolbar UI; `isMatch` is what filters it down to Strava
+			 * URLs only.
+			 */
+			const from = wpAny.blocks.getBlockTransforms(
+				'from',
+				'block-for-strava/embed'
+			);
+			const target = ( from || [] ).find(
+				( t: any ) =>
+					t.type === 'block' &&
+					Array.isArray( t.blocks ) &&
+					t.blocks.includes( 'core/embed' )
+			);
+			if ( ! target ) {
+				return null;
+			}
+			return {
+				strava: target.isMatch( {
+					url: 'https://www.strava.com/activities/18233733854',
+				} ),
+				youtube: target.isMatch( {
+					url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+				} ),
+			};
+		} );
+		expect( sourceMatchesStrava ).toEqual( {
+			strava: true,
+			youtube: false,
+		} );
 	} );
 
 	test( 'editor: block is registered in the editor data store', async ( {

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Block for Strava
  * Plugin URI:  https://wordpress.org/plugins/block-for-strava/
- * Description: Embed public Strava activities, routes, and segments via a single Gutenberg block.
+ * Description: Embed Strava activities, routes, and segments via a single Gutenberg block. Public resources embed from a URL; followers-only / private activities embed via Strava's share-dialog snippet (which carries a per-share token).
  * Version:     1.0.0
  * Author:      Konstantin Obenland
  * Author URI:  https://obenland.it/
