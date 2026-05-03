@@ -254,18 +254,22 @@ function clampString( value: unknown ): string {
 }
 
 /**
- * Returns true when the caption has any visible text after stripping
- * tags + decoding nbsp entities — matching the PHP renderer's
- * emptiness check so a `&nbsp;`-only or `<br>`-only caption doesn't
- * render in the editor while the front end omits it.
+ * Mirrors the PHP renderer's caption-emptiness check. DOMParser
+ * handles tag stripping + entity decoding for every standard HTML
+ * form (named, decimal, hex, mixed case), matching what
+ * `wp_strip_all_tags + html_entity_decode` does server-side — a
+ * regex strip would be both incomplete (CodeQL flagged) and narrower
+ * than the PHP entity set.
  *
  * @param value Caption attribute value (already clamped to a string).
  */
 function isCaptionVisible( value: string ): boolean {
-	const decoded = value
-		.replace( /<[^>]*>/g, '' )
-		.replace( /&nbsp;|&#160;|&#x[Aa]0;/g, ' ' );
-	return '' !== decoded.replace( /\s+/gu, '' );
+	const text =
+		new DOMParser().parseFromString( value, 'text/html' ).body
+			.textContent ??
+		/* istanbul ignore next: HTMLBodyElement.textContent is always a string. */
+		'';
+	return '' !== text.replace( /\s+/gu, '' );
 }
 
 export function StravaRouteInspector( {

@@ -48,13 +48,19 @@ interface EditorActions {
 	[ key: string ]: jest.Mock;
 }
 
-function setEditorBlocks( blocks: FakeBlock[] ): EditorActions {
+function setEditorBlocks(
+	blocks: FakeBlock[],
+	options: { isDirty?: boolean } = {}
+): EditorActions {
 	const actions: EditorActions = {
 		replaceBlock: jest.fn(),
 		__unstableMarkNextChangeAsNotPersistent: jest.fn(),
 	};
 	__mockState.selectors[ 'core/block-editor' ] = {
 		getBlocks: () => blocks,
+	};
+	__mockState.selectors[ 'core/editor' ] = {
+		isEditedPostDirty: () => true === options.isDirty,
 	};
 	__mockState.actions[ 'core/block-editor' ] = actions;
 	return actions;
@@ -274,6 +280,46 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 				},
 			},
 		] );
+		fireSubscribers();
+		expect( replaceBlock ).not.toHaveBeenCalled();
+	} );
+
+	it( 'converts a core/embed if the first non-empty walk happens while the editor is already dirty (user paste before content load)', () => {
+		// Without the dirty gate, a user paste landing on the first
+		// non-empty walk would be recorded as legacy and never
+		// converted.
+		const cid = uniqueClientId( 'first-paste' );
+		const { replaceBlock } = setEditorBlocks(
+			[
+				{
+					clientId: cid,
+					name: 'core/embed',
+					attributes: {
+						url: 'https://www.strava.com/activities/12345',
+					},
+				},
+			],
+			{ isDirty: true }
+		);
+		fireSubscribers();
+		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
+	} );
+
+	it( 'records the first non-empty walk as legacy when core/editor is not registered (non-post-editor context)', () => {
+		// Site editor / widgets editor don't register `core/editor`.
+		// Falling back to "treat as legacy" mirrors the post-editor
+		// default, which is the safer choice for those contexts.
+		const cid = uniqueClientId( 'no-editor' );
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/12345',
+				},
+			},
+		] );
+		__mockState.selectors[ 'core/editor' ] = undefined;
 		fireSubscribers();
 		expect( replaceBlock ).not.toHaveBeenCalled();
 	} );

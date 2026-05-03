@@ -105,6 +105,10 @@ interface BlockEditorSelectors {
 	getBlocks: () => ReadonlyArray< EditorBlock >;
 }
 
+interface EditorSelectors {
+	isEditedPostDirty?: () => boolean;
+}
+
 interface BlockEditorActions {
 	replaceBlock: ( clientId: string, block: unknown ) => unknown;
 	/*
@@ -165,11 +169,22 @@ function autoReplaceStravaEmbeds(): void {
 		if ( 0 === blocks.length ) {
 			return;
 		}
-		for ( const block of walk( blocks ) ) {
-			skipClientIds.add( block.clientId );
-		}
 		initialized = true;
-		return;
+		/*
+		 * If the editor is already dirty when the first non-empty walk
+		 * happens, the user has just modified the post — fall through
+		 * to the conversion loop so a paste at this exact moment isn't
+		 * recorded as legacy. Otherwise the post is freshly loaded and
+		 * the current blocks are the saved content, which we leave
+		 * alone (the toolbar transform stays available).
+		 */
+		const editor = select( 'core/editor' ) as EditorSelectors | null;
+		if ( true !== editor?.isEditedPostDirty?.() ) {
+			for ( const block of walk( blocks ) ) {
+				skipClientIds.add( block.clientId );
+			}
+			return;
+		}
 	}
 
 	const actions = dispatch( 'core/block-editor' ) as BlockEditorActions;
