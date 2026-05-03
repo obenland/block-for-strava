@@ -106,9 +106,17 @@ class Block_For_Strava_Embed {
 			 * (`<a>`, `<em>`, `<strong>`, `<br>`) while stripping
 			 * scripts and structural tags. Empty/whitespace-only
 			 * captions emit nothing rather than a stray `<figcaption>`.
+			 *
+			 * RichText/contenteditable serializes "blank" captions as
+			 * `&nbsp;` (decoding to U+00A0), and `trim()` only strips
+			 * ASCII whitespace — without the entity-decode + Unicode
+			 * `\s` strip below, a caption that the editor treated as
+			 * blank would still emit a visually-empty `<figcaption>`
+			 * holding a single non-breaking space.
 			 */
 			$sanitized = wp_kses_post( $attributes['caption'] );
-			if ( '' !== trim( wp_strip_all_tags( $sanitized ) ) ) {
+			$plain     = html_entity_decode( wp_strip_all_tags( $sanitized ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+			if ( '' !== preg_replace( '/\s+/u', '', $plain ) ) {
 				$caption_html = sprintf(
 					'<figcaption class="wp-element-caption">%s</figcaption>',
 					$sanitized

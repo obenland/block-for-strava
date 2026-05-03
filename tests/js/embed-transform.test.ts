@@ -18,7 +18,8 @@ import { applyFilters } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
 
 import { __mockState, __resetMockState } from './__mocks__/wordpress-data';
-import '../../src/embed-transform';
+import { subscribe } from '@wordpress/data';
+import { __resetForTests } from '../../src/embed-transform';
 
 interface BlockTransform {
 	type: 'block';
@@ -231,19 +232,35 @@ describe( 'embed block transform transform()', () => {
 	} );
 } );
 
+describe( 'auto-replace subscriber registration', () => {
+	it( 'subscribes to the core/block-editor store, not the global tick stream', () => {
+		/*
+		 * The watcher's walk cost would compound on every other
+		 * store's state changes (notices, preferences, etc.) if the
+		 * second arg to `subscribe` were ever dropped. Pin that we
+		 * pass `'core/block-editor'` so a future refactor can't
+		 * silently regress the scoping.
+		 */
+		expect( subscribe ).toHaveBeenCalledWith(
+			expect.any( Function ),
+			'core/block-editor'
+		);
+	} );
+} );
+
 describe( 'auto-replace subscriber: first walk treats existing blocks as legacy', () => {
-	/*
-	 * Test ordering matters: this describe block runs before the
-	 * post-init `auto-replace subscriber` describe below, so the
-	 * production module's `initialized` flag is false here. The first
-	 * fireSubscribers() call across the whole suite triggers the
-	 * watcher's "record what's loaded, don't convert" branch — exactly
-	 * the seam this test pins. After this describe runs, the flag
-	 * stays true for the rest of the suite.
-	 */
 	beforeEach( () => {
+		/*
+		 * Reset both the mocked data store and the production
+		 * watcher's module-level state. Without `__resetForTests`,
+		 * tests in this describe would only exercise the "first walk"
+		 * branch if they ran before any other describe touched the
+		 * subscriber — order-dependent. The reset makes each test
+		 * independently exercise the `initialized === false` regime.
+		 */
 		__mockState.selectors = {};
 		__mockState.actions = {};
+		__resetForTests();
 		( createBlock as jest.Mock ).mockClear();
 	} );
 
@@ -268,17 +285,28 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 		expect( replaceBlock ).not.toHaveBeenCalled();
 	} );
 
-	it( 'still does not convert that legacy block on subsequent ticks', () => {
-		// The legacy clientId from the previous test should now sit
-		// in the watcher's skip set permanently, even when the same
-		// block reappears on later ticks. The toolbar transform
-		// remains the explicit conversion path.
-		const { replaceBlock } = setEditorBlocks( [
+	it( 'still does not convert legacy clientIds on subsequent ticks', () => {
+		// The clientIds recorded on the first walk sit in the
+		// watcher's skip set permanently, even when the same block
+		// reappears on later ticks. Toolbar transform remains the
+		// explicit conversion path.
+		const cid = uniqueClientId( 'legacy' );
+		setEditorBlocks( [
 			{
-				clientId: 'legacy-1',
+				clientId: cid,
 				name: 'core/embed',
 				attributes: {
-					url: 'https://www.strava.com/activities/legacy-1',
+					url: 'https://www.strava.com/activities/1',
+				},
+			},
+		] );
+		fireSubscribers();
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/1',
 				},
 			},
 		] );
@@ -290,16 +318,19 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 describe( 'auto-replace subscriber', () => {
 	beforeEach( () => {
 		/*
-		 * Clear selectors/actions only — the production subscriber was
-		 * registered at module load and lives in __mockState.subscribers
-		 * for the suite's lifetime. Wiping that array would orphan it.
-		 * The `initialized` flag inside the production module was
-		 * flipped to true by the describe block above; every test in
-		 * this describe runs in the post-init regime where new
-		 * `core/embed` blocks get auto-converted.
+		 * Reset the mocked data store and the production watcher.
+		 * `__resetForTests` puts the module back to its post-load
+		 * shape (`initialized=false`, empty skip set). Each test then
+		 * arms post-init by firing once with empty blocks, so the
+		 * conversion-testing flow below sees the same starting state
+		 * regardless of test order or what previous describes did.
 		 */
 		__mockState.selectors = {};
 		__mockState.actions = {};
+		__resetForTests();
+		( createBlock as jest.Mock ).mockClear();
+		setEditorBlocks( [] );
+		fireSubscribers();
 		( createBlock as jest.Mock ).mockClear();
 	} );
 

@@ -5,7 +5,7 @@
 	"version": "1.0.0",
 	"title": "Strava",
 	"category": "embed",
-	"description": "Embed a Strava activity, route, or segment.",
+	"description": "Embed a public Strava activity, route, or segment, or a Strava share-dialog snippet.",
 	"keywords": [
 		"strava",
 		"activity",

@@ -138,6 +138,39 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * RichText/contenteditable can serialize a "blank" caption as
+	 * `&nbsp;` or U+00A0. PHP's default `trim()` doesn't strip
+	 * non-ASCII whitespace, so without entity-decoding + a Unicode-
+	 * aware whitespace check the figure would emit a visually-blank
+	 * `<figcaption>` containing a single nbsp — recreating the
+	 * stray-empty-caption problem this branch tries to prevent.
+	 */
+	public function test_render_omits_figcaption_for_nbsp_only_caption(): void {
+		$entity   = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => '&nbsp;',
+			)
+		);
+		$raw_nbsp = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => "\xc2\xa0", // U+00A0 in UTF-8.
+			)
+		);
+		$mixed    = $this->renderBlock(
+			array(
+				'url'     => 'https://www.strava.com/activities/123',
+				'caption' => " \t&nbsp;\n\xc2\xa0 ",
+			)
+		);
+
+		$this->assertStringNotContainsString( '<figcaption', $entity );
+		$this->assertStringNotContainsString( '<figcaption', $raw_nbsp );
+		$this->assertStringNotContainsString( '<figcaption', $mixed );
+	}
+
+	/**
 	 * Asserts the iframe HTML loads the expected Strava embed page directly.
 	 *
 	 * The earlier shape wrapped a placeholder div + embed.js inside a data:

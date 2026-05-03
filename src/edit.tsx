@@ -836,7 +836,24 @@ export function Edit( {
 	 */
 	const caption = clampString( attributes.caption );
 	const hasVisibleCaption = '' !== caption.trim();
-	const showCaption = !! url && ( hasVisibleCaption || true === isSelected );
+	/*
+	 * Caption is gated on three conditions in addition to the
+	 * has-content / is-selected check:
+	 *
+	 * - URL is set (no caption in the placeholder state).
+	 * - Not currently editing the URL (the URL form is the focused
+	 *   action; the caption field underneath would split attention).
+	 * - The URL is recognized (canonical via `resolved` or a short
+	 *   URL the front end will resolve). The "unrecognized URL"
+	 *   state has `render_block()` returning an empty string, so any
+	 *   caption authored there silently disappears on the front end.
+	 */
+	const isRecognizedUrl = null !== resolved || isShortUrl;
+	const showCaption =
+		!! url &&
+		! isEditingURL &&
+		isRecognizedUrl &&
+		( hasVisibleCaption || true === isSelected );
 
 	return createElement(
 		Fragment,

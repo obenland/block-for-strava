@@ -40,7 +40,7 @@ registerBlockType( metadata.name, {
 	icon: chartBar,
 	title: __( 'Strava', 'block-for-strava' ),
 	description: __(
-		'Embed a Strava activity, route, or segment.',
+		'Embed a public Strava activity, route, or segment, or a Strava share-dialog snippet.',
 		'block-for-strava'
 	),
 	edit: Edit,

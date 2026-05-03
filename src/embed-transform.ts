@@ -250,3 +250,24 @@ function autoReplaceStravaEmbeds(): void {
  * tick of every other store.
  */
 subscribe( autoReplaceStravaEmbeds, 'core/block-editor' );
+
+/**
+ * Test-only hook that clears the watcher's module-level state.
+ *
+ * The auto-replacer keeps three pieces of state: `skipClientIds`
+ * (legacy + already-converted clientIds), `initialized` (whether the
+ * first walk has happened), and `lastBlocks` (reference cache). All
+ * three are intentionally module-scoped so the watcher can persist
+ * across the editor session — but in unit tests, that persistence
+ * makes individual tests fragile and order-dependent. This hook lets
+ * a test reset the watcher to the same shape it has on a fresh module
+ * load, without re-importing (which would orphan the captured
+ * `subscribe` callback in the mocked `@wordpress/data`). Production
+ * code never calls this; the leading underscores follow WP core's
+ * convention for test-only / experimental exports.
+ */
+export function __resetForTests(): void {
+	skipClientIds.clear();
+	initialized = false;
+	lastBlocks = null;
+}
