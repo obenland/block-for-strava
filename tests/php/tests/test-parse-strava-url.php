@@ -107,6 +107,10 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 			'substring of strava.com in path'          => array( 'https://example.com/redirect?to=strava.com/activities/123' ),
 			'short URL form'                           => array( 'https://strava.app.link/nTuKEiCsA2b' ),
 			'empty string'                             => array( '' ),
+			// Strava-canonical host but a path the embed pipeline doesn't
+			// know how to render — pins the trailing `return false` so the
+			// regex stays the only path that produces a parsed result.
+			'strava host with non-resource path'       => array( 'https://www.strava.com/dashboard' ),
 		);
 	}
 

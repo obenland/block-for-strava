@@ -43,29 +43,31 @@ jobs:
             - name: Run JS unit tests with coverage
               run: npm run test-unit-js:coverage
 
-            - name: Build coverage table from json-summary
+            - name: Build coverage summary from json-summary
               run: |
-                  # Render coverage/js/coverage-summary.json (emitted by Jest's
-                  # json-summary reporter) into a Markdown table written to
-                  # coverage/js/summary.md for the upsert step to pick up.
+                  # Render the totals row of coverage/js/coverage-summary.json
+                  # (Jest's json-summary reporter) into a fenced text block
+                  # that mirrors the PHPUnit text-coverage output, so both
+                  # sections of the PR comment read at a glance.
                   if [ ! -f coverage/js/coverage-summary.json ]; then
                       echo "::error::coverage/js/coverage-summary.json not found — Jest did not emit json-summary."
                       exit 1
                   fi
+                  mkdir -p coverage/js
                   node --input-type=module -e '
                       import { readFileSync, writeFileSync } from "node:fs";
-                      const summary = JSON.parse(readFileSync("coverage/js/coverage-summary.json", "utf8"));
-                      const cwd = process.cwd() + "/";
+                      const t = JSON.parse(readFileSync("coverage/js/coverage-summary.json", "utf8")).total;
                       const fmt = (m) => `${m.pct.toFixed(2)}% (${m.covered}/${m.total})`;
-                      const rows = ["| File | % Stmts | % Branch | % Funcs | % Lines |", "| --- | --- | --- | --- | --- |"];
-                      const total = summary.total;
-                      rows.push(`| **All files** | ${fmt(total.statements)} | ${fmt(total.branches)} | ${fmt(total.functions)} | ${fmt(total.lines)} |`);
-                      for (const path of Object.keys(summary).filter((k) => k !== "total").sort()) {
-                          const m = summary[path];
-                          const rel = path.startsWith(cwd) ? path.slice(cwd.length) : path;
-                          rows.push(`| ${rel} | ${fmt(m.statements)} | ${fmt(m.branches)} | ${fmt(m.functions)} | ${fmt(m.lines)} |`);
-                      }
-                      writeFileSync("coverage/js/summary.md", rows.join("\n"));
+                      const lines = [
+                          "```text",
+                          "Summary:",
+                          `  Statements: ${fmt(t.statements)}`,
+                          `  Branches:   ${fmt(t.branches)}`,
+                          `  Functions:  ${fmt(t.functions)}`,
+                          `  Lines:      ${fmt(t.lines)}`,
+                          "```",
+                      ];
+                      writeFileSync("coverage/js/summary.md", lines.join("\n"));
                   '
 
             - name: Upsert coverage comment

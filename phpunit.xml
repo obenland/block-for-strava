@@ -13,7 +13,6 @@
 	</testsuites>
 	<coverage>
 		<include>
-			<directory suffix=".php">./includes</directory>
 			<file>./block-for-strava.php</file>
 		</include>
 	</coverage>
