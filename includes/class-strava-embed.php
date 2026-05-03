@@ -436,15 +436,67 @@ class Block_For_Strava_Embed {
 				),
 
 				/*
+				 * HEADs the strava-embeds.com URL on the user's behalf
+				 * and reports back the HTTP status. Result is memoized
+				 * in a transient so the editor's polling on every URL
+				 * change (and any front-end render that ever calls in
+				 * here) doesn't fan out into one HTTP request per
+				 * render.
+				 *
 				 * `embeddable` is the question the editor cares about;
 				 * surfacing the raw HTTP code too keeps the response
 				 * useful if a future UI wants to differentiate "doesn't
 				 * exist" (404) from "needs token" (403).
 				 */
 				'callback'            => static function ( WP_REST_Request $request ) {
-					$type   = (string) $request->get_param( 'type' );
-					$id     = (string) $request->get_param( 'id' );
-					$status = self::probe_embed_status( $type, $id );
+					$embed_type  = (string) $request->get_param( 'type' );
+					$resource_id = (string) $request->get_param( 'id' );
+
+					$cache_key = 'block_for_strava_embed_status_' . md5( $embed_type . ':' . $resource_id );
+					$cached    = get_transient( $cache_key );
+
+					/*
+					 * Database-backed transients round-trip integers as
+					 * numeric strings (the options table stores
+					 * serialized strings); a strict `is_int` check would
+					 * treat every cache hit after the first request as a
+					 * miss and re-HEAD strava-embeds.com on every render.
+					 * `is_numeric` + `(int)` accepts both shapes.
+					 */
+					if ( false !== $cached && is_numeric( $cached ) ) {
+						$status = (int) $cached;
+					} else {
+						$response = wp_safe_remote_head(
+							sprintf(
+								'https://strava-embeds.com/%s/%s',
+								rawurlencode( $embed_type ),
+								rawurlencode( $resource_id )
+							),
+							array(
+								'timeout'     => 5,
+								'redirection' => 0,
+							)
+						);
+
+						if ( is_wp_error( $response ) ) {
+							$status = 0;
+							set_transient( $cache_key, $status, 5 * MINUTE_IN_SECONDS );
+						} else {
+							$status = (int) wp_remote_retrieve_response_code( $response );
+
+							/*
+							 * Cache 200s long (a public activity won't
+							 * flip private often) and non-200s short
+							 * (private activities frequently get
+							 * unblocked).
+							 */
+							set_transient(
+								$cache_key,
+								$status,
+								200 === $status ? DAY_IN_SECONDS : 5 * MINUTE_IN_SECONDS
+							);
+						}
+					}
 
 					return new WP_REST_Response(
 						array(
@@ -455,65 +507,5 @@ class Block_For_Strava_Embed {
 				},
 			)
 		);
-	}
-
-	/**
-	 * HEADs the strava-embeds.com URL for a given resource and returns the
-	 * resulting HTTP status (or 0 on transport failure).
-	 *
-	 * Result is memoized in a transient so the editor's polling on every
-	 * URL change (and any front-end render that ever calls in here) doesn't
-	 * fan out into one HTTP request per render.
-	 *
-	 * @param string $embed_type  One of 'activity'|'route'|'segment'.
-	 * @param string $resource_id Numeric Strava resource ID.
-	 * @return int HTTP status code, or 0 on transport failure.
-	 */
-	private static function probe_embed_status( string $embed_type, string $resource_id ): int {
-		$cache_key = 'block_for_strava_embed_status_' . md5( $embed_type . ':' . $resource_id );
-		$cached    = get_transient( $cache_key );
-
-		/*
-		 * Database-backed transients round-trip integers as numeric strings
-		 * (the options table stores serialized strings); a strict `is_int`
-		 * check would treat every cache hit after the first request as a
-		 * miss and re-HEAD strava-embeds.com on every render. `is_numeric`
-		 * + `(int)` accepts both shapes.
-		 */
-		if ( false !== $cached && is_numeric( $cached ) ) {
-			return (int) $cached;
-		}
-
-		$response = wp_safe_remote_head(
-			sprintf(
-				'https://strava-embeds.com/%s/%s',
-				rawurlencode( $embed_type ),
-				rawurlencode( $resource_id )
-			),
-			array(
-				'timeout'     => 5,
-				'redirection' => 0,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
-
-			return 0;
-		}
-
-		$status = (int) wp_remote_retrieve_response_code( $response );
-
-		/*
-		 * Cache 200s long (a public activity won't flip private often) and
-		 * non-200s short (private activities frequently get unblocked).
-		 */
-		set_transient(
-			$cache_key,
-			$status,
-			200 === $status ? DAY_IN_SECONDS : 5 * MINUTE_IN_SECONDS
-		);
-
-		return $status;
 	}
 }
