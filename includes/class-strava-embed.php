@@ -163,7 +163,7 @@ class Block_For_Strava_Embed {
 			$params['surfaceType'] = 'true';
 		}
 
-		// Drop the always-on `style` if it's the default — the default URL has no params.
+		// Drop the always-on `style` only when it is the sole param and still the default `standard` value.
 		if ( count( $params ) === 1 && 'standard' === $params['style'] ) {
 			return array();
 		}
