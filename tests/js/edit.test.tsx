@@ -229,11 +229,6 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'clears the caption attribute when the toolbar Remove caption is clicked', async () => {
-		/*
-		 * Toggling off must wipe the attribute — otherwise the PHP renderer
-		 * still emits `<figcaption>` on the published page even though the
-		 * editor hides the field.
-		 */
 		const setAttributes = jest.fn();
 		render(
 			createElement( Edit, {
@@ -285,12 +280,6 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'defaults the caption toggle on when transferred content is present', () => {
-		/*
-		 * `core/embed → strava` transforms preserve `caption` via
-		 * `embed-transform.ts`. Without the lazy-init from the attribute,
-		 * the transferred text would render on the front end while the
-		 * editor field stayed hidden.
-		 */
 		render(
 			createElement( Edit, {
 				attributes: {

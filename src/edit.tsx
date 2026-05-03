@@ -100,13 +100,6 @@ export interface StravaBlockAttributes {
 export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
-	/*
-	 * Gutenberg passes this on every edit; the component does not
-	 * currently consume it (caption visibility is driven by an
-	 * explicit toolbar toggle, not selection state) but it stays in
-	 * the type so the props contract matches what Gutenberg passes.
-	 */
-	isSelected?: boolean;
 }
 
 const ROUTE_MAP_STYLES: ReadonlyArray< RouteMapStyle > = [
@@ -739,12 +732,9 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	const url = attributes.url ?? '';
 	const [ isEditingURL, setIsEditingURL ] = useState( ! url );
 	/*
-	 * Caption is opt-in via a toolbar toggle, matching `core/embed`. Lazy
-	 * init from the attribute keeps a transferred caption visible after
-	 * `core/embed → strava` transforms (which carry `caption` over via
-	 * `embed-transform.ts`) — without it the text would survive in the
-	 * attribute and render on the front end while the editor field
-	 * stayed hidden.
+	 * Default-on when a caption is already present so `core/embed → strava`
+	 * transforms don't leave text rendering on the front end while the
+	 * editor field stays hidden.
 	 */
 	const [ showCaption, setShowCaption ] = useState< boolean >(
 		() => !! clampString( attributes.caption )
@@ -789,12 +779,8 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 		setShowCaption( ( prev ) => {
 			const next = ! prev;
 			/*
-			 * Toggling off discards any existing caption text. The PHP
-			 * renderer emits `<figcaption>` whenever the attribute has
-			 * non-whitespace content, so leaving stale text behind would
-			 * render on the published page even though the editor hides
-			 * the field — `core/embed` clears on toggle-off for the same
-			 * reason.
+			 * Clear on toggle-off; the PHP renderer would otherwise keep
+			 * emitting `<figcaption>` from the stored attribute.
 			 */
 			if ( ! next && '' !== caption ) {
 				setAttributes( { caption: '' } );
@@ -829,28 +815,14 @@ export function Edit( { attributes, setAttributes }: BlockEditProps ) {
 	}
 
 	/*
-	 * Caption is gated on four conditions:
-	 *
-	 * - URL is set (no caption in the placeholder state).
-	 * - Not currently editing the URL (the URL form is the focused
-	 *   action; the caption field underneath would split attention).
-	 * - The URL is recognized (canonical via `resolved` or a short
-	 *   URL the front end will resolve). The "unrecognized URL"
-	 *   state has `render_block()` returning an empty string, so any
-	 *   caption authored there silently disappears on the front end.
-	 * - The user has toggled the caption on via the toolbar button.
-	 */
-	const renderCaption =
-		!! url && ! isEditingURL && isRecognizedUrl && showCaption;
-	/*
-	 * The caption toggle button stays out of the URL-edit and
-	 * unrecognized-URL flows for the same reason `renderCaption`
-	 * does — flipping it on in those states would either compete
-	 * with the URL form or author content that never renders on the
-	 * front end.
+	 * Suppress the caption UI in the URL-edit and unrecognized-URL flows:
+	 * the URL form is the focused action there, and `render_block()`
+	 * returns empty for unrecognized URLs so any caption authored against
+	 * one would silently vanish on the front end.
 	 */
 	const showCaptionToolbarButton =
 		!! url && ! isEditingURL && isRecognizedUrl;
+	const renderCaption = showCaptionToolbarButton && showCaption;
 
 	return createElement(
 		Fragment,
