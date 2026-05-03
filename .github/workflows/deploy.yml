@@ -30,16 +30,7 @@ jobs:
               run: npm run build
 
             - name: Build distribution zip
-              run: |
-                  SLUG="${{ github.event.repository.name }}"
-                  STAGING="$RUNNER_TEMP/staging/$SLUG"
-                  mkdir -p "$STAGING"
-                  # Anchor every .distignore pattern to the repo root for rsync,
-                  # then add VCS metadata that .distignore does not list.
-                  sed 's|^|/|' .distignore > "$RUNNER_TEMP/rsync-excludes"
-                  printf '%s\n' '/.git' '/.svn' >> "$RUNNER_TEMP/rsync-excludes"
-                  rsync -a --exclude-from="$RUNNER_TEMP/rsync-excludes" ./ "$STAGING/"
-                  (cd "$RUNNER_TEMP/staging" && zip -qr "$GITHUB_WORKSPACE/$SLUG.zip" "$SLUG")
+              uses: 10up/action-wordpress-plugin-build-zip@stable
 
             - name: Attach zip to GitHub release
               uses: softprops/action-gh-release@v2
