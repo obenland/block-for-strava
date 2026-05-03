@@ -6,7 +6,7 @@ on:
             - '*'
 
 permissions:
-    contents: read
+    contents: write
 
 jobs:
     tag:
@@ -28,7 +28,15 @@ jobs:
               run: npm run build
 
             - name: WordPress Plugin Deploy
+              id: deploy
               uses: 10up/action-wordpress-plugin-deploy@stable
+              with:
+                  generate-zip: true
               env:
                   SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
                   SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+
+            - name: Attach zip to GitHub release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: ${{ github.workspace }}/${{ github.event.repository.name }}.zip
