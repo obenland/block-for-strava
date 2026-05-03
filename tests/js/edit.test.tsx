@@ -210,74 +210,100 @@ describe( 'Edit', () => {
 		);
 	} );
 
-	it( 'shows the caption placeholder when block is selected even with empty caption', () => {
-		/*
-		 * Selection forces the placeholder visible regardless of content,
-		 * so it can't fold into the unselected `it.each` tables below.
-		 */
+	it( 'hides the caption by default and reveals it when the toolbar Add caption is clicked', async () => {
 		render(
 			createElement( Edit, {
 				attributes: {
 					url: 'https://www.strava.com/activities/123',
 				},
 				setAttributes: jest.fn(),
-				isSelected: true,
 			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
 		);
 		expect(
 			screen.getByLabelText( /strava embed caption/i )
 		).toBeInTheDocument();
 	} );
 
-	it.each( [
-		[ 'empty caption', '' ],
-		[ '&nbsp; entity', '&nbsp;' ],
-		[ 'raw U+00A0', ' ' ],
-		[ 'lonely <br>', '<br>' ],
-		[ '<br> + &nbsp; mix', '<br>&nbsp;' ],
-		[ 'inline tag with whitespace', '<em>  </em>' ],
-	] )(
-		'treats %s as blank — caption hidden when block unselected',
-		( _label, value ) => {
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-						caption: value,
-					},
-					setAttributes: jest.fn(),
-					isSelected: false,
-				} )
-			);
-			expect(
-				screen.queryByLabelText( /strava embed caption/i )
-			).toBeNull();
-		}
-	);
+	it( 'clears the caption attribute when the toolbar Remove caption is clicked', async () => {
+		/*
+		 * Toggling off must wipe the attribute — otherwise the PHP renderer
+		 * still emits `<figcaption>` on the published page even though the
+		 * editor hides the field.
+		 */
+		const setAttributes = jest.fn();
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /remove caption/i } )
+		);
+		expect( setAttributes ).toHaveBeenCalledWith( { caption: '' } );
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
 
-	it.each( [
-		[ '<em>text</em>', '<em>hi</em>' ],
-		[ 'plain text', 'hello' ],
-		[ 'whitespace + text', '  hi  ' ],
-		[ 'plain caption', 'My morning ride' ],
-	] )(
-		'treats %s as visible caption when block unselected',
-		( _label, value ) => {
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-						caption: value,
-					},
-					setAttributes: jest.fn(),
-					isSelected: false,
-				} )
-			);
-			expect(
-				screen.getByLabelText( /strava embed caption/i )
-			).toBeInTheDocument();
-		}
-	);
+	it( 'omits the caption toolbar button while the URL is being edited', async () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect(
+			screen.queryByRole( 'button', { name: /add caption/i } )
+		).toBeInTheDocument();
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		expect(
+			screen.queryByRole( 'button', { name: /add caption/i } )
+		).toBeNull();
+	} );
+
+	it( 'defaults the caption toggle off when the attribute is empty', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: '',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'defaults the caption toggle on when transferred content is present', () => {
+		/*
+		 * `core/embed → strava` transforms preserve `caption` via
+		 * `embed-transform.ts`. Without the lazy-init from the attribute,
+		 * the transferred text would render on the front end while the
+		 * editor field stayed hidden.
+		 */
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
 
 	it( 'renders the iframe + inspector for route URLs', () => {
 		const { container } = render(
