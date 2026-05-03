@@ -210,15 +210,110 @@ describe( 'Edit', () => {
 		);
 	} );
 
-	it( 'shows the caption placeholder when block is selected even with empty caption', () => {
-		/*
-		 * Selection forces the placeholder visible regardless of content,
-		 * so it can't fold into the unselected `it.each` tables below.
-		 */
+	it( 'hides the caption by default and reveals it when the toolbar Add caption is clicked', async () => {
+		// `isSelected: true` mirrors real Gutenberg after a toolbar click.
 		render(
 			createElement( Edit, {
 				attributes: {
 					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
+
+	it( 'clears the caption attribute to undefined when the toolbar Remove caption is clicked', async () => {
+		// `undefined` reverts to the block.json default; matches `core/embed`.
+		const setAttributes = jest.fn();
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /remove caption/i } )
+		);
+		expect( setAttributes ).toHaveBeenCalledWith( { caption: undefined } );
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'auto-focuses the caption field when the toolbar Add caption is clicked', async () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toHaveFocus();
+	} );
+
+	it( 'hides an empty toggled-on caption once the block is no longer selected', async () => {
+		// Pin the deselect half of the render gate: empty + unselected → hidden.
+		const { rerender } = render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+		rerender(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'reopens the caption field when an undo restores the attribute after a toggle-off', () => {
+		// Toggle-off → undo: `usePrevious` effect re-flips `showCaption`.
+		const { rerender } = render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: '',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+		rerender(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'Restored after undo',
 				},
 				setAttributes: jest.fn(),
 				isSelected: true,
@@ -229,55 +324,53 @@ describe( 'Edit', () => {
 		).toBeInTheDocument();
 	} );
 
-	it.each( [
-		[ 'empty caption', '' ],
-		[ '&nbsp; entity', '&nbsp;' ],
-		[ 'raw U+00A0', ' ' ],
-		[ 'lonely <br>', '<br>' ],
-		[ '<br> + &nbsp; mix', '<br>&nbsp;' ],
-		[ 'inline tag with whitespace', '<em>  </em>' ],
-	] )(
-		'treats %s as blank — caption hidden when block unselected',
-		( _label, value ) => {
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-						caption: value,
-					},
-					setAttributes: jest.fn(),
-					isSelected: false,
-				} )
-			);
-			expect(
-				screen.queryByLabelText( /strava embed caption/i )
-			).toBeNull();
-		}
-	);
+	it( 'omits the caption toolbar button while the URL is being edited', async () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect(
+			screen.queryByRole( 'button', { name: /add caption/i } )
+		).toBeInTheDocument();
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /edit url/i } )
+		);
+		expect(
+			screen.queryByRole( 'button', { name: /add caption/i } )
+		).toBeNull();
+	} );
 
-	it.each( [
-		[ '<em>text</em>', '<em>hi</em>' ],
-		[ 'plain text', 'hello' ],
-		[ 'whitespace + text', '  hi  ' ],
-		[ 'plain caption', 'My morning ride' ],
-	] )(
-		'treats %s as visible caption when block unselected',
-		( _label, value ) => {
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-						caption: value,
-					},
-					setAttributes: jest.fn(),
-					isSelected: false,
-				} )
-			);
-			expect(
-				screen.getByLabelText( /strava embed caption/i )
-			).toBeInTheDocument();
-		}
-	);
+	it( 'defaults the caption toggle off when the attribute is empty', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: '',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'defaults the caption toggle on when transferred content is present', () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'My morning ride',
+				},
+				setAttributes: jest.fn(),
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+	} );
 
 	it( 'renders the iframe + inspector for route URLs', () => {
 		const { container } = render(

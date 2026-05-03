@@ -1,9 +1,11 @@
 import {
 	createElement,
 	forwardRef,
+	type ForwardRefExoticComponent,
 	type FormEvent,
 	type ReactNode,
 	type Ref,
+	type RefAttributes,
 } from 'react';
 
 type BlockPropsArg = { className?: string } | undefined;
@@ -59,6 +61,13 @@ interface RichTextProps {
 	'aria-label'?: string;
 }
 
+interface RichTextComponent
+	extends ForwardRefExoticComponent<
+		RichTextProps & RefAttributes< HTMLElement >
+	> {
+	isEmpty: ( value: unknown ) => boolean;
+}
+
 export const RichText = forwardRef( function RichText(
 	{
 		tagName = 'div',
@@ -81,4 +90,10 @@ export const RichText = forwardRef( function RichText(
 		onInput: ( event: FormEvent< HTMLElement > ) =>
 			onChange( event.currentTarget.textContent || '' ),
 	} );
-} );
+} ) as RichTextComponent;
+
+// Mirrors `@wordpress/block-editor`'s `RichText.isEmpty`.
+RichText.isEmpty = ( value ) =>
+	! value ||
+	( typeof ( value as { length?: number } ).length === 'number' &&
+		( value as { length: number } ).length === 0 );

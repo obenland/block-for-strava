@@ -31,13 +31,18 @@ import {
 import {
 	Fragment,
 	createElement,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
 } from '@wordpress/element';
 import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
-import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
+import {
+	caption as captionIcon,
+	chartBar as stravaIcon,
+	pencil as editIcon,
+} from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
 import {
@@ -96,10 +101,7 @@ export interface StravaBlockAttributes {
 export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
-	/*
-	 * Gutenberg passes this; gates caption-placeholder visibility.
-	 * Optional because unit tests instantiate `Edit` directly.
-	 */
+	// Caption render gate uses this; optional for unit-test instantiation.
 	isSelected?: boolean;
 }
 
@@ -241,32 +243,13 @@ function clampString( value: unknown ): string {
 	return typeof value === 'string' ? value : '';
 }
 
-/*
- * Reused across `isCaptionVisible` calls. `Edit` re-renders on every
- * keystroke / selection change, so allocating a fresh parser per
- * call is wasted work.
- */
-const captionParser = new DOMParser();
-
-/**
- * Mirrors the PHP renderer's caption-emptiness check. DOMParser
- * handles tag stripping + entity decoding for every standard HTML
- * form (named, decimal, hex, mixed case), matching what
- * `wp_strip_all_tags + html_entity_decode` does server-side — a
- * regex strip would be both incomplete (CodeQL flagged) and narrower
- * than the PHP entity set.
- *
- * @param value Caption attribute value (already clamped to a string).
- */
-function isCaptionVisible( value: string ): boolean {
-	if ( '' === value ) {
-		return false;
-	}
-	const text =
-		captionParser.parseFromString( value, 'text/html' ).body.textContent ??
-		/* istanbul ignore next: HTMLBodyElement.textContent is always a string. */
-		'';
-	return '' !== text.replace( /\s+/gu, '' );
+// Inlined `usePrevious` to avoid the `@wordpress/compose` dep for one consumer.
+function usePrevious< T >( value: T ): T | undefined {
+	const ref = useRef< T | undefined >( undefined );
+	useEffect( () => {
+		ref.current = value;
+	}, [ value ] );
+	return ref.current;
 }
 
 export function StravaRouteInspector( {
@@ -752,7 +735,7 @@ function StravaShortUrlNotice( { url }: { url: string } ) {
  * @param props.setAttributes Standard Gutenberg setter for committing the
  *                            URL back when the placeholder form submits.
  * @param props.isSelected    Whether the block is the active selection;
- *                            gates caption-placeholder visibility.
+ *                            used by the caption render gate.
  */
 export function Edit( {
 	attributes,
@@ -766,6 +749,32 @@ export function Edit( {
 
 	const url = attributes.url ?? '';
 	const [ isEditingURL, setIsEditingURL ] = useState( ! url );
+
+	const caption = clampString( attributes.caption );
+	// Use `RichText.isEmpty` (not `'' === caption`) for parity with `core/embed`.
+	const isCaptionEmpty: boolean = RichText.isEmpty( caption );
+	// Default-on so `core/embed → strava` transforms keep their caption visible.
+	const [ showCaption, setShowCaption ] = useState< boolean >(
+		() => ! isCaptionEmpty
+	);
+
+	// Re-show on undo/redo when caption returns from empty (toggle-off clears it).
+	const wasCaptionEmpty = usePrevious( isCaptionEmpty );
+	useEffect( () => {
+		if ( ! isCaptionEmpty && true === wasCaptionEmpty ) {
+			setShowCaption( true );
+		}
+	}, [ isCaptionEmpty, wasCaptionEmpty ] );
+
+	// Focus when empty so the user can type right after "Add caption".
+	const captionRef = useCallback(
+		( node: HTMLElement | null ) => {
+			if ( node && isCaptionEmpty ) {
+				node.focus();
+			}
+		},
+		[ isCaptionEmpty ]
+	);
 
 	const submitURL = ( next: string ) => {
 		/*
@@ -799,6 +808,18 @@ export function Edit( {
 
 	const resolved = parseStravaUrl( url );
 	const isShortUrl = ! resolved && SHORT_STRAVA_URL_PATTERN.test( url );
+	const isRecognizedUrl = null !== resolved || isShortUrl;
+
+	const toggleCaption = () => {
+		setShowCaption( ( prev ) => {
+			const next = ! prev;
+			// `undefined` reverts to the block.json default; matches `core/embed`.
+			if ( ! next && ! isCaptionEmpty ) {
+				setAttributes( { caption: undefined } );
+			}
+			return next;
+		} );
+	};
 
 	let body;
 	if ( isEditingURL || ! url ) {
@@ -826,45 +847,18 @@ export function Edit( {
 	}
 
 	/*
-	 * The caption RichText only appears once a URL is set so the
-	 * placeholder state stays focused on the URL input. Hidden when
-	 * the trimmed caption is empty AND the block isn't selected —
-	 * matching `core/embed`'s caption UX, and matching the PHP
-	 * renderer which trims whitespace-only captions before deciding
-	 * whether to emit `<figcaption>`. Without the trim, a caption of
-	 * pure whitespace would show as a blank field on the unselected
-	 * editor block but vanish on the published page, which is
-	 * disorienting and easy to author by accident (paragraphs paste
-	 * with trailing whitespace surprisingly often).
+	 * Suppress the caption UI in the URL-edit and unrecognized-URL flows:
+	 * the URL form is the focused action there, and `render_block()`
+	 * returns empty for unrecognized URLs so any caption authored against
+	 * one would silently vanish on the front end.
 	 */
-	/*
-	 * Clamp to string before reading. `block.json` declares `caption`
-	 * as `type: string`, but older posts and hand-edited block markup
-	 * can store anything — `clampString` matches how
-	 * `stravaEmbedToken` and the route attrs are normalized below, so
-	 * a stray non-string caption can't blow up `.trim()` and break
-	 * the editor for that post.
-	 */
-	const caption = clampString( attributes.caption );
-	const hasVisibleCaption = isCaptionVisible( caption );
-	/*
-	 * Caption is gated on three conditions in addition to the
-	 * has-content / is-selected check:
-	 *
-	 * - URL is set (no caption in the placeholder state).
-	 * - Not currently editing the URL (the URL form is the focused
-	 *   action; the caption field underneath would split attention).
-	 * - The URL is recognized (canonical via `resolved` or a short
-	 *   URL the front end will resolve). The "unrecognized URL"
-	 *   state has `render_block()` returning an empty string, so any
-	 *   caption authored there silently disappears on the front end.
-	 */
-	const isRecognizedUrl = null !== resolved || isShortUrl;
-	const showCaption =
-		!! url &&
-		! isEditingURL &&
-		isRecognizedUrl &&
-		( hasVisibleCaption || true === isSelected );
+	const showCaptionToolbarButton =
+		!! url && ! isEditingURL && isRecognizedUrl;
+	// Hide an empty toggled-on field on deselect; mirrors `core/embed`.
+	const renderCaption =
+		showCaptionToolbarButton &&
+		showCaption &&
+		( ! isCaptionEmpty || true === isSelected );
 
 	return createElement(
 		Fragment,
@@ -881,7 +875,24 @@ export function Edit( {
 							label: __( 'Edit URL', 'block-for-strava' ),
 							onClick: toggleEditingURL,
 							isActive: isEditingURL,
-						} )
+						} ),
+						showCaptionToolbarButton
+							? createElement( ToolbarButton, {
+									icon: captionIcon,
+									label: showCaption
+										? __(
+												'Remove caption',
+												'block-for-strava'
+										  )
+										: __(
+												'Add caption',
+												'block-for-strava'
+										  ),
+									onClick: toggleCaption,
+									// `isPressed` emits `aria-pressed`; `isActive` is visual-only.
+									isPressed: showCaption,
+							  } )
+							: null
 					)
 			  )
 			: null,
@@ -889,8 +900,9 @@ export function Edit( {
 			'figure',
 			blockProps,
 			body,
-			showCaption
+			renderCaption
 				? createElement( RichText, {
+						ref: captionRef,
 						tagName: 'figcaption',
 						className: 'wp-element-caption',
 						placeholder: __( 'Add caption', 'block-for-strava' ),
