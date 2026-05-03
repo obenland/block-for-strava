@@ -308,7 +308,7 @@ class Block_For_Strava_Embed {
 		$redirect_allowlist = array( 'strava.app.link', 'strava.com' );
 		$current            = $url;
 
-		for ( $i = 0; $i < 5; $i ++ ) {
+		for ( $i = 0; $i < 5; $i++ ) {
 			$response = wp_safe_remote_head( $current, array( 'redirection' => 0 ) );
 
 			if ( is_wp_error( $response ) ) {
