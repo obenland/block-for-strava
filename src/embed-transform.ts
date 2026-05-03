@@ -16,6 +16,7 @@ import { addFilter } from '@wordpress/hooks';
 import { createBlock } from '@wordpress/blocks';
 import { subscribe, select, dispatch } from '@wordpress/data';
 
+import metadata from './block.json';
 import { isStravaUrl } from './strava-url-patterns';
 
 interface SourceAttributes {
@@ -54,14 +55,32 @@ const PRESERVED_ATTR_KEYS = [
 	'caption',
 ] as const;
 
+/*
+ * `core/embed` supports left/center/right/wide/full, but this block
+ * declares a narrower set in `block.json` (currently wide/full).
+ * Carrying an unsupported value through would leave the new block in
+ * an invalid alignment state, so drop it. Sourced from `block.json` so
+ * the two stay in lockstep — adding/removing an align there
+ * automatically updates the conversion filter.
+ */
+const SUPPORTED_ALIGNMENTS = new Set< string >( metadata.supports.align );
+
 function pickPreservedAttrs(
 	attrs: SourceAttributes
 ): Record< string, unknown > {
 	const out: Record< string, unknown > = {};
 	for ( const key of PRESERVED_ATTR_KEYS ) {
-		if ( undefined !== attrs[ key ] ) {
-			out[ key ] = attrs[ key ];
+		const value = attrs[ key ];
+		if ( undefined === value ) {
+			continue;
 		}
+		if (
+			'align' === key &&
+			! SUPPORTED_ALIGNMENTS.has( value as string )
+		) {
+			continue;
+		}
+		out[ key ] = value;
 	}
 	return out;
 }
