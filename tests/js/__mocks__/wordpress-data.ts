@@ -16,6 +16,11 @@
 
 type Subscriber = () => void;
 
+interface SubscriberRegistration {
+	cb: Subscriber;
+	store?: string;
+}
+
 interface StoreSelectors {
 	[ key: string ]: ( ...args: unknown[] ) => unknown;
 }
@@ -25,13 +30,23 @@ interface StoreActions {
 }
 
 interface MockState {
-	subscribers: Subscriber[];
+	/*
+	 * Bare-callback view derived from `subscriberRegistrations` so the
+	 * two cannot drift. Existing tests that read `__mockState.subscribers`
+	 * to fire callbacks directly keep working; new tests that need to
+	 * differentiate by store should use `subscriberRegistrations`.
+	 */
+	readonly subscribers: Subscriber[];
+	subscriberRegistrations: SubscriberRegistration[];
 	selectors: Record< string, StoreSelectors | undefined >;
 	actions: Record< string, StoreActions | undefined >;
 }
 
 export const __mockState: MockState = {
-	subscribers: [],
+	get subscribers(): Subscriber[] {
+		return __mockState.subscriberRegistrations.map( ( reg ) => reg.cb );
+	},
+	subscriberRegistrations: [],
 	selectors: {},
 	actions: {},
 };
@@ -48,12 +63,14 @@ export function __resetMockState(): void {
 	__mockState.actions = {};
 }
 
-export const subscribe = jest.fn( ( cb: Subscriber ) => {
-	__mockState.subscribers.push( cb );
+export const subscribe = jest.fn( ( cb: Subscriber, store?: string ) => {
+	__mockState.subscriberRegistrations.push( { cb, store } );
 	return () => {
-		const idx = __mockState.subscribers.indexOf( cb );
-		if ( idx >= 0 ) {
-			__mockState.subscribers.splice( idx, 1 );
+		const regIdx = __mockState.subscriberRegistrations.findIndex(
+			( reg ) => reg.cb === cb
+		);
+		if ( regIdx >= 0 ) {
+			__mockState.subscriberRegistrations.splice( regIdx, 1 );
 		}
 	};
 } );

@@ -13,153 +13,112 @@ declare( strict_types = 1 );
 class Test_Parse_Strava_Url extends WP_UnitTestCase {
 
 	/**
-	 * Tests parsing a canonical activity URL.
+	 * Provides canonical Strava URLs that must parse to a {type, id} pair.
 	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
+	 * @return array<string, array{0: string, 1: array{type: string, id: string}}>
 	 */
-	public function test_activity_url(): void {
-		$this->assertSame(
-			array(
-				'type' => 'activity',
-				'id'   => '18233733854',
+	public static function provide_parsing_urls(): array {
+		return array(
+			'activity URL'                 => array(
+				'https://www.strava.com/activities/18233733854',
+				array(
+					'type' => 'activity',
+					'id'   => '18233733854',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url( 'https://www.strava.com/activities/18233733854' )
-		);
-	}
-
-	/**
-	 * Tests parsing a canonical route URL.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_route_url(): void {
-		$this->assertSame(
-			array(
-				'type' => 'route',
-				'id'   => '12345',
+			'route URL'                    => array(
+				'https://www.strava.com/routes/12345',
+				array(
+					'type' => 'route',
+					'id'   => '12345',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url( 'https://www.strava.com/routes/12345' )
-		);
-	}
-
-	/**
-	 * Tests parsing a canonical segment URL.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_segment_url(): void {
-		$this->assertSame(
-			array(
-				'type' => 'segment',
-				'id'   => '67890',
+			'segment URL'                  => array(
+				'https://www.strava.com/segments/67890',
+				array(
+					'type' => 'segment',
+					'id'   => '67890',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url( 'https://www.strava.com/segments/67890' )
-		);
-	}
-
-	/**
-	 * Tests that an activity URL with query args still parses.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_activity_url_with_query_args(): void {
-		$this->assertSame(
-			array(
-				'type' => 'activity',
-				'id'   => '18233733854',
+			'activity URL with query args' => array(
+				'https://www.strava.com/activities/18233733854?utm_source=ios_share',
+				array(
+					'type' => 'activity',
+					'id'   => '18233733854',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url(
-				'https://www.strava.com/activities/18233733854?utm_source=ios_share'
-			)
-		);
-	}
-
-	/**
-	 * Tests that an unrelated URL returns false.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_unrelated_url_returns_false(): void {
-		$this->assertFalse(
-			Block_For_Strava_Embed::parse_strava_url( 'https://example.com/activities/123' )
-		);
-	}
-
-	/**
-	 * Tests that a look-alike host (e.g. evilstrava.com) is rejected.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_lookalike_host_returns_false(): void {
-		$this->assertFalse(
-			Block_For_Strava_Embed::parse_strava_url( 'https://evilstrava.com/activities/123' )
-		);
-		$this->assertFalse(
-			Block_For_Strava_Embed::parse_strava_url( 'https://strava.com.evil.example/activities/123' )
-		);
-	}
-
-	/**
-	 * Tests that bare strava.com (no subdomain) is accepted.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_bare_strava_host_is_accepted(): void {
-		$this->assertSame(
-			array(
-				'type' => 'activity',
-				'id'   => '42',
+			'bare strava.com host'         => array(
+				'https://strava.com/activities/42',
+				array(
+					'type' => 'activity',
+					'id'   => '42',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url( 'https://strava.com/activities/42' )
-		);
-	}
-
-	/**
-	 * Tests that a non-www Strava subdomain is accepted.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_non_www_subdomain_is_accepted(): void {
-		$this->assertSame(
-			array(
-				'type' => 'activity',
-				'id'   => '42',
+			'non-www subdomain'            => array(
+				'https://app.strava.com/activities/42',
+				array(
+					'type' => 'activity',
+					'id'   => '42',
+				),
 			),
-			Block_For_Strava_Embed::parse_strava_url( 'https://app.strava.com/activities/42' )
+			'upper-case scheme + host'     => array(
+				/*
+				 * `wp_parse_url` doesn't normalize host case, but the
+				 * implementation lower-cases the host before its own
+				 * suffix checks. Pin that round-trip so a future "drop
+				 * the strtolower" pass fails this test instead of
+				 * silently breaking URLs pasted from clipboard tools
+				 * that capitalize hosts.
+				 */
+				'HTTPS://WWW.STRAVA.COM/activities/123',
+				array(
+					'type' => 'activity',
+					'id'   => '123',
+				),
+			),
 		);
 	}
 
 	/**
-	 * Tests that a URL whose path merely contains the literal string
-	 * "strava.com/activities/123" (e.g. as a redirect target) is rejected.
+	 * Tests that canonical Strava URLs parse to the expected {type, id}.
+	 *
+	 * @dataProvider provide_parsing_urls
+	 *
+	 * @param string                          $url      Input URL.
+	 * @param array{type: string, id: string} $expected Expected parse result.
 	 *
 	 * @covers Block_For_Strava_Embed::parse_strava_url
 	 */
-	public function test_substring_in_path_returns_false(): void {
-		$this->assertFalse(
-			Block_For_Strava_Embed::parse_strava_url(
-				'https://example.com/redirect?to=strava.com/activities/123'
-			)
+	public function test_parses_canonical_url( string $url, array $expected ): void {
+		$this->assertSame( $expected, Block_For_Strava_Embed::parse_strava_url( $url ) );
+	}
+
+	/**
+	 * Provides URLs that must NOT parse (return false).
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public static function provide_rejected_urls(): array {
+		return array(
+			'unrelated host'                           => array( 'https://example.com/activities/123' ),
+			'lookalike host (evilstrava.com)'          => array( 'https://evilstrava.com/activities/123' ),
+			'lookalike host (strava.com.evil.example)' => array( 'https://strava.com.evil.example/activities/123' ),
+			'substring of strava.com in path'          => array( 'https://example.com/redirect?to=strava.com/activities/123' ),
+			'short URL form'                           => array( 'https://strava.app.link/nTuKEiCsA2b' ),
+			'empty string'                             => array( '' ),
 		);
 	}
 
 	/**
-	 * Tests that a short URL returns false (canonical only).
+	 * Tests that non-Strava-canonical URLs return false.
+	 *
+	 * @dataProvider provide_rejected_urls
+	 *
+	 * @param string $url Input URL.
 	 *
 	 * @covers Block_For_Strava_Embed::parse_strava_url
 	 */
-	public function test_short_url_returns_false(): void {
-		$this->assertFalse(
-			Block_For_Strava_Embed::parse_strava_url( 'https://strava.app.link/nTuKEiCsA2b' )
-		);
-	}
-
-	/**
-	 * Tests that an empty string returns false.
-	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
-	 */
-	public function test_empty_string_returns_false(): void {
-		$this->assertFalse( Block_For_Strava_Embed::parse_strava_url( '' ) );
+	public function test_rejects_url( string $url ): void {
+		$this->assertFalse( Block_For_Strava_Embed::parse_strava_url( $url ) );
 	}
 }

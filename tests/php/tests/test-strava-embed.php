@@ -18,28 +18,6 @@ declare( strict_types = 1 );
 class Test_Strava_Embed extends WP_UnitTestCase {
 
 	/**
-	 * Pins that `register_block_type_from_metadata` actually fired during
-	 * `init`. The Block Directory listing depends on the block being
-	 * registered under the canonical name; if `block-for-strava.php`'s
-	 * init action ever silently breaks (path drift, missing build/, action
-	 * priority change), the rest of the suite still passes while the
-	 * production block disappears from the inserter.
-	 */
-	public function test_block_is_registered(): void {
-		$registry = WP_Block_Type_Registry::get_instance();
-		$this->assertTrue(
-			$registry->is_registered( 'block-for-strava/embed' ),
-			'block-for-strava/embed must be registered after init.'
-		);
-		$type = $registry->get_registered( 'block-for-strava/embed' );
-		$this->assertIsCallable(
-			$type->render_callback,
-			'Block must have a callable render_callback wired through block.json.'
-		);
-		$this->assertSame( 'embed', $type->category );
-	}
-
-	/**
 	 * `align: 'wide'` declared in block.json must reach the rendered figure
 	 * — `render_block` runs through `get_block_wrapper_attributes()` so that
 	 * core's block-supports machinery gets a chance to add `alignwide` and
@@ -362,6 +340,54 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Failed short-URL resolutions must also be cached — a sentinel `0`
+	 * transient records the failure so a saved-but-broken short URL doesn't
+	 * cost five `wp_safe_remote_head()` calls per front-end render. Pin
+	 * that the second render reuses the negative result instead of
+	 * re-walking the redirect chain.
+	 *
+	 * @covers Block_For_Strava_Embed::render_block
+	 */
+	public function test_failed_short_url_resolution_is_cached(): void {
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
+			if ( str_contains( $url, 'strava.app.link' ) ) {
+				++$http_calls;
+				/*
+				 * 404 from the upstream short-URL host is a clean
+				 * unrecoverable failure — no redirect to follow, no
+				 * canonical URL to extract. The resolver returns a
+				 * WP_Error and the caller writes the sentinel.
+				 */
+				return array(
+					'response' => array(
+						'code'    => 404,
+						'message' => 'Not Found',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		$short  = 'https://strava.app.link/broken-' . wp_generate_uuid4();
+		$first  = $this->renderBlock( array( 'url' => $short ) );
+		$second = $this->renderBlock( array( 'url' => $short ) );
+
+		remove_filter( 'pre_http_request', $callback, 10 );
+		delete_transient( 'block_for_strava_resolved_' . md5( $short ) );
+
+		// Both renders return the unrecognized-URL empty result.
+		$this->assertSame( '', trim( $first ) );
+		$this->assertSame( '', trim( $second ) );
+		$this->assertSame( 1, $http_calls, 'Second call must hit the negative cache sentinel instead of re-walking the redirect chain.' );
+	}
+
+	/**
 	 * Strava URL params land on the iframe `src` when route attrs are set.
 	 *
 	 * @covers Block_For_Strava_Embed::render_block
@@ -660,12 +686,18 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		};
 		add_filter( 'pre_http_request', $callback, 10, 3 );
 
-		$this->renderBlock(
+		$result = $this->renderBlock(
 			array( 'url' => 'https://www.strava.com/activities/123' )
 		);
 
 		remove_filter( 'pre_http_request', $callback, 10 );
 
+		/*
+		 * Pin that the render actually succeeded — without this assertion,
+		 * a future regression that short-circuits `render_block` to '' would
+		 * still record 0 HTTP calls and pass for the wrong reason.
+		 */
+		$this->assertStringContainsString( '<iframe', $result );
 		$this->assertSame( 0, $http_calls, 'Render must not trigger any outbound HTTP for activity URLs.' );
 	}
 

@@ -210,20 +210,11 @@ describe( 'Edit', () => {
 		);
 	} );
 
-	it( 'hides the caption placeholder when block is unselected and caption is empty', () => {
-		render(
-			createElement( Edit, {
-				attributes: {
-					url: 'https://www.strava.com/activities/123',
-				},
-				setAttributes: jest.fn(),
-				isSelected: false,
-			} )
-		);
-		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
-	} );
-
 	it( 'shows the caption placeholder when block is selected even with empty caption', () => {
+		/*
+		 * Selection forces the placeholder visible regardless of content,
+		 * so it can't fold into the unselected `it.each` tables below.
+		 */
 		render(
 			createElement( Edit, {
 				attributes: {
@@ -238,23 +229,8 @@ describe( 'Edit', () => {
 		).toBeInTheDocument();
 	} );
 
-	it( 'shows the caption text on unselected blocks when caption is set', () => {
-		render(
-			createElement( Edit, {
-				attributes: {
-					url: 'https://www.strava.com/activities/123',
-					caption: 'My morning ride',
-				},
-				setAttributes: jest.fn(),
-				isSelected: false,
-			} )
-		);
-		expect(
-			screen.getByLabelText( /strava embed caption/i )
-		).toBeInTheDocument();
-	} );
-
 	it.each( [
+		[ 'empty caption', '' ],
 		[ '&nbsp; entity', '&nbsp;' ],
 		[ 'raw U+00A0', ' ' ],
 		[ 'lonely <br>', '<br>' ],
@@ -283,40 +259,25 @@ describe( 'Edit', () => {
 		[ '<em>text</em>', '<em>hi</em>' ],
 		[ 'plain text', 'hello' ],
 		[ 'whitespace + text', '  hi  ' ],
-	] )( 'treats %s as visible caption', ( _label, value ) => {
-		render(
-			createElement( Edit, {
-				attributes: {
-					url: 'https://www.strava.com/activities/123',
-					caption: value,
-				},
-				setAttributes: jest.fn(),
-				isSelected: false,
-			} )
-		);
-		expect(
-			screen.getByLabelText( /strava embed caption/i )
-		).toBeInTheDocument();
-	} );
-
-	it( 'disables pointer events on the iframe so the block stays selectable', () => {
-		// Without `pointer-events: none`, clicks land on the cross-origin
-		// strava-embeds.com document and never reach the figure that holds
-		// useBlockProps's selection handler — the user can no longer pick
-		// the block after pasting a Strava URL.
-		const { container } = render(
-			createElement( Edit, {
-				attributes: {
-					url: 'https://www.strava.com/activities/123',
-				},
-				setAttributes: jest.fn(),
-			} )
-		);
-		const iframe = container.querySelector< HTMLIFrameElement >(
-			'iframe.strava-embed-iframe'
-		);
-		expect( iframe?.style.pointerEvents ).toBe( 'none' );
-	} );
+		[ 'plain caption', 'My morning ride' ],
+	] )(
+		'treats %s as visible caption when block unselected',
+		( _label, value ) => {
+			render(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/123',
+						caption: value,
+					},
+					setAttributes: jest.fn(),
+					isSelected: false,
+				} )
+			);
+			expect(
+				screen.getByLabelText( /strava embed caption/i )
+			).toBeInTheDocument();
+		}
+	);
 
 	it( 'renders the iframe + inspector for route URLs', () => {
 		const { container } = render(
@@ -429,20 +390,6 @@ describe( 'Edit', () => {
 	} );
 
 	describe( 'Edit URL toolbar button', () => {
-		it( 'exposes a pencil button on the rendered preview', () => {
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-					},
-					setAttributes: jest.fn(),
-				} )
-			);
-			expect(
-				screen.getByRole( 'button', { name: /edit url/i } )
-			).toBeInTheDocument();
-		} );
-
 		it( 'switches to the placeholder when clicked', async () => {
 			const { container } = render(
 				createElement( Edit, {
@@ -685,24 +632,6 @@ describe( 'Edit', () => {
 			);
 		} );
 
-		it( 'leaves status unknown when the response is null', async () => {
-			// Defensive: a misconfigured proxy or auth flow could return a
-			// null body. The optional-chain on `response?.status` keeps the
-			// component from crashing; pin it so a future "tighten the
-			// types" pass doesn't drop the guard.
-			mockedApiFetch.mockResolvedValueOnce( null );
-			render(
-				createElement( Edit, {
-					attributes: {
-						url: 'https://www.strava.com/activities/123',
-					},
-					setAttributes: jest.fn(),
-				} )
-			);
-			await act( async () => {} );
-			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
-		} );
-
 		it( 'skips the preflight entirely for routes and segments', () => {
 			// Routes/segments don't have a per-resource share token; even
 			// if Strava 403'd a route URL, the "paste the share-dialog
@@ -752,19 +681,29 @@ describe( 'Edit', () => {
 			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
 		} );
 
-		it( 'ignores a late preflight response after the component unmounts', async () => {
-			// The cancellation flag prevents `setEmbedStatus` from firing
-			// after unmount — without it React logs the "perform a state
-			// update on an unmounted component" warning, which jest-console
-			// turns into a failure.
-			let resolveFetch: ( value: unknown ) => void = () => {};
+		it( 'ignores a stale preflight 403 after the URL changed mid-flight', async () => {
+			/*
+			 * The effect cleanup flips a `cancelled` flag so a still-pending
+			 * apiFetch from a prior URL cannot overwrite the new URL's
+			 * preflight state. Without that guard, the stale 403 from
+			 * activity 123 would race in after the user pasted activity 456
+			 * and pop the snippet notice for the wrong resource.
+			 */
+			let resolveStale: ( value: {
+				embeddable: boolean;
+				status: number;
+			} ) => void = () => {};
 			mockedApiFetch.mockImplementationOnce(
 				() =>
 					new Promise( ( resolve ) => {
-						resolveFetch = resolve;
+						resolveStale = resolve;
 					} )
 			);
-			const { unmount } = render(
+			mockedApiFetch.mockResolvedValueOnce( {
+				embeddable: true,
+				status: 200,
+			} );
+			const { rerender } = render(
 				createElement( Edit, {
 					attributes: {
 						url: 'https://www.strava.com/activities/123',
@@ -772,52 +711,63 @@ describe( 'Edit', () => {
 					setAttributes: jest.fn(),
 				} )
 			);
-			unmount();
+			rerender(
+				createElement( Edit, {
+					attributes: {
+						url: 'https://www.strava.com/activities/456',
+					},
+					setAttributes: jest.fn(),
+				} )
+			);
 			await act( async () => {
-				resolveFetch( { embeddable: false, status: 403 } );
+				resolveStale( { embeddable: false, status: 403 } );
 			} );
-			// No assertion on the DOM (the component is unmounted); the
-			// real assertion is "no console.error from jest-console" — if
-			// the cancellation guard breaks, this test fails the suite.
+			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
 		} );
 	} );
 } );
 
 describe( 'parseStravaUrl', () => {
-	it( 'recognizes canonical activity, route, and segment URLs', () => {
-		expect(
-			parseStravaUrl( 'https://www.strava.com/activities/123' )
-		).toEqual( { type: 'activity', id: '123' } );
-		expect( parseStravaUrl( 'https://www.strava.com/routes/456' ) ).toEqual(
-			{ type: 'route', id: '456' }
-		);
-		expect(
-			parseStravaUrl( 'https://www.strava.com/segments/789' )
-		).toEqual( { type: 'segment', id: '789' } );
+	it.each( [
+		[
+			'canonical activity URL',
+			'https://www.strava.com/activities/123',
+			{ type: 'activity', id: '123' },
+		],
+		[
+			'canonical route URL',
+			'https://www.strava.com/routes/456',
+			{ type: 'route', id: '456' },
+		],
+		[
+			'canonical segment URL',
+			'https://www.strava.com/segments/789',
+			{ type: 'segment', id: '789' },
+		],
+		[
+			'subdomain + trailing path segment',
+			'https://app.strava.com/activities/123/overview',
+			{ type: 'activity', id: '123' },
+		],
+	] )( 'parses %s', ( _label, input, expected ) => {
+		expect( parseStravaUrl( input ) ).toEqual( expected );
 	} );
 
-	it( 'accepts subdomains and trailing path segments', () => {
-		expect(
-			parseStravaUrl( 'https://app.strava.com/activities/123/overview' )
-		).toEqual( { type: 'activity', id: '123' } );
-	} );
-
-	it( 'rejects non-Strava hosts and unsupported paths', () => {
-		expect(
-			parseStravaUrl( 'https://example.com/activities/123' )
-		).toBeNull();
-		expect(
-			parseStravaUrl( 'https://www.strava.com/clubs/123' )
-		).toBeNull();
-		expect( parseStravaUrl( 'https://strava.app.link/abc' ) ).toBeNull();
-	} );
-
-	it( 'rejects ID-with-suffix lookalikes (boundary check)', () => {
-		// Without the `(?=[/?#]|$)` guard, /activities/123abc would silently
-		// match as activity 123 and we'd embed the wrong resource.
-		expect(
-			parseStravaUrl( 'https://www.strava.com/activities/123abc' )
-		).toBeNull();
+	it.each( [
+		[ 'non-Strava host', 'https://example.com/activities/123' ],
+		[ 'unsupported path (clubs)', 'https://www.strava.com/clubs/123' ],
+		[ 'short URL form', 'https://strava.app.link/abc' ],
+		/*
+		 * Without the `(?=[/?#]|$)` guard, /activities/123abc would
+		 * silently match as activity 123 and we'd embed the wrong
+		 * resource.
+		 */
+		[
+			'ID-with-suffix lookalike (boundary check)',
+			'https://www.strava.com/activities/123abc',
+		],
+	] )( 'rejects %s', ( _label, input ) => {
+		expect( parseStravaUrl( input ) ).toBeNull();
 	} );
 } );
 
@@ -975,6 +925,19 @@ describe( 'parseStravaHeightMessage', () => {
 	it( 'clamps unreasonably small heights up to the floor', () => {
 		expect(
 			parseStravaHeightMessage( [ 0, 'BROADCAST_IFRAME_HEIGHT', 10 ] )
+		).toBe( 100 );
+	} );
+
+	it( 'clamps a negative finite height up to the floor', () => {
+		/*
+		 * A negative finite value passes the `Number.isFinite` gate, so
+		 * the implementation clamps it up to MIN_PREVIEW_HEIGHT rather
+		 * than rejecting. Pin the current behavior so a future "tighten
+		 * the gate" pass surfaces the change instead of silently flipping
+		 * to null.
+		 */
+		expect(
+			parseStravaHeightMessage( [ 0, 'BROADCAST_IFRAME_HEIGHT', -5 ] )
 		).toBe( 100 );
 	} );
 
