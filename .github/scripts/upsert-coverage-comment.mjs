@@ -37,7 +37,9 @@ const startMarker = ( s ) => `<!-- coverage-${ s }-start -->`;
 const endMarker = ( s ) => `<!-- coverage-${ s }-end -->`;
 
 const buildSection = ( section, title, content ) =>
-	`${ startMarker( section ) }\n### ${ title }\n\n${ content }\n${ endMarker( section ) }`;
+	`${ startMarker( section ) }\n### ${ title }\n\n${ content }\n${ endMarker(
+		section
+	) }`;
 
 const placeholder = ( section ) =>
 	buildSection(
