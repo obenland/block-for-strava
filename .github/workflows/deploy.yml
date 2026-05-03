@@ -29,13 +29,24 @@ jobs:
             - name: Build
               run: npm run build
 
+            - name: Install WP-CLI with dist-archive
+              env:
+                  WP_CLI_VERSION: '2.12.0'
+                  WP_CLI_SHA256: 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c'
+                  DIST_ARCHIVE_VERSION: '3.2.2'
+              run: |
+                  curl -sSL -o /tmp/wp-cli.phar "https://github.com/wp-cli/wp-cli/releases/download/v${WP_CLI_VERSION}/wp-cli-${WP_CLI_VERSION}.phar"
+                  echo "${WP_CLI_SHA256}  /tmp/wp-cli.phar" | sha256sum -c -
+                  sudo install -m 0755 /tmp/wp-cli.phar /usr/local/bin/wp
+                  wp package install "wp-cli/dist-archive-command:${DIST_ARCHIVE_VERSION}"
+
             - name: Build distribution zip
-              uses: 10up/action-wordpress-plugin-build-zip@stable
+              run: wp dist-archive . "$RUNNER_TEMP/${{ github.event.repository.name }}.zip"
 
             - name: Attach zip to GitHub release
               uses: softprops/action-gh-release@v2
               with:
-                  files: ${{ github.workspace }}/${{ github.event.repository.name }}.zip
+                  files: ${{ runner.temp }}/${{ github.event.repository.name }}.zip
 
             - name: WordPress Plugin Deploy
               uses: 10up/action-wordpress-plugin-deploy@stable
