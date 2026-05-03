@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for Block_For_Strava_Embed::is_allowed_strava_url().
+ * Tests for block_for_strava_is_allowed_url().
  *
  * @package BlockForStrava
  */
@@ -8,7 +8,7 @@
 declare( strict_types = 1 );
 
 /**
- * Tests for Block_For_Strava_Embed::is_allowed_strava_url().
+ * Tests for block_for_strava_is_allowed_url().
  */
 class Test_Is_Allowed_Strava_Url extends WP_UnitTestCase {
 
@@ -42,10 +42,10 @@ class Test_Is_Allowed_Strava_Url extends WP_UnitTestCase {
 	 *
 	 * @param string $url Input URL.
 	 *
-	 * @covers Block_For_Strava_Embed::is_allowed_strava_url
+	 * @covers ::block_for_strava_is_allowed_url
 	 */
 	public function test_allows_url( string $url ): void {
-		$this->assertTrue( Block_For_Strava_Embed::is_allowed_strava_url( $url, self::ALLOWED ) );
+		$this->assertTrue( block_for_strava_is_allowed_url( $url, self::ALLOWED ) );
 	}
 
 	/**
@@ -75,20 +75,20 @@ class Test_Is_Allowed_Strava_Url extends WP_UnitTestCase {
 	 *
 	 * @param string $url Input URL.
 	 *
-	 * @covers Block_For_Strava_Embed::is_allowed_strava_url
+	 * @covers ::block_for_strava_is_allowed_url
 	 */
 	public function test_rejects_url( string $url ): void {
-		$this->assertFalse( Block_For_Strava_Embed::is_allowed_strava_url( $url, self::ALLOWED ) );
+		$this->assertFalse( block_for_strava_is_allowed_url( $url, self::ALLOWED ) );
 	}
 
 	/**
 	 * Tests that the allowlist is honored: a URL on a host not in the allowlist is rejected
 	 * even though it would pass with a broader allowlist.
 	 *
-	 * @covers Block_For_Strava_Embed::is_allowed_strava_url
+	 * @covers ::block_for_strava_is_allowed_url
 	 */
 	public function test_honors_allowlist(): void {
-		$this->assertFalse( Block_For_Strava_Embed::is_allowed_strava_url( 'https://www.strava.com/activities/1', array( 'strava.app.link' ) ) );
-		$this->assertTrue( Block_For_Strava_Embed::is_allowed_strava_url( 'https://www.strava.com/activities/1', array( 'strava.com' ) ) );
+		$this->assertFalse( block_for_strava_is_allowed_url( 'https://www.strava.com/activities/1', array( 'strava.app.link' ) ) );
+		$this->assertTrue( block_for_strava_is_allowed_url( 'https://www.strava.com/activities/1', array( 'strava.com' ) ) );
 	}
 }

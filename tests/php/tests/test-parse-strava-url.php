@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for Block_For_Strava_Embed::parse_strava_url().
+ * Tests for block_for_strava_parse_url().
  *
  * @package BlockForStrava
  */
@@ -8,7 +8,7 @@
 declare( strict_types = 1 );
 
 /**
- * Tests for Block_For_Strava_Embed::parse_strava_url().
+ * Tests for block_for_strava_parse_url().
  */
 class Test_Parse_Strava_Url extends WP_UnitTestCase {
 
@@ -88,10 +88,10 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 	 * @param string                          $url      Input URL.
 	 * @param array{type: string, id: string} $expected Expected parse result.
 	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
+	 * @covers ::block_for_strava_parse_url
 	 */
 	public function test_parses_canonical_url( string $url, array $expected ): void {
-		$this->assertSame( $expected, Block_For_Strava_Embed::parse_strava_url( $url ) );
+		$this->assertSame( $expected, block_for_strava_parse_url( $url ) );
 	}
 
 	/**
@@ -117,9 +117,9 @@ class Test_Parse_Strava_Url extends WP_UnitTestCase {
 	 *
 	 * @param string $url Input URL.
 	 *
-	 * @covers Block_For_Strava_Embed::parse_strava_url
+	 * @covers ::block_for_strava_parse_url
 	 */
 	public function test_rejects_url( string $url ): void {
-		$this->assertFalse( Block_For_Strava_Embed::parse_strava_url( $url ) );
+		$this->assertFalse( block_for_strava_parse_url( $url ) );
 	}
 }
