@@ -567,23 +567,29 @@ describe( 'auto-replace subscriber', () => {
 		);
 	} );
 
-	it( 'drops unsupported align values when auto-replacing', () => {
-		// Same rationale as the transform-path test above.
-		setEditorBlocks( [
-			{
-				clientId: uniqueClientId( 'left-aligned' ),
-				name: 'core/embed',
-				attributes: {
-					url: 'https://www.strava.com/activities/18233733854',
-					align: 'left',
+	it.each( [ [ 'left' ], [ 'center' ], [ 'right' ] ] )(
+		'drops align=%s when auto-replacing',
+		( align ) => {
+			// Same rationale as the transform-path test above.
+			setEditorBlocks( [
+				{
+					clientId: uniqueClientId( `${ align }-aligned` ),
+					name: 'core/embed',
+					attributes: {
+						url: 'https://www.strava.com/activities/18233733854',
+						align,
+					},
 				},
-			},
-		] );
-		fireSubscribers();
-		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
-			url: 'https://www.strava.com/activities/18233733854',
-		} );
-	} );
+			] );
+			fireSubscribers();
+			expect( createBlock ).toHaveBeenCalledWith(
+				'block-for-strava/embed',
+				{
+					url: 'https://www.strava.com/activities/18233733854',
+				}
+			);
+		}
+	);
 
 	it.each( [
 		[ 'short URL', 'https://strava.app.link/5nv42wErO2b' ],
