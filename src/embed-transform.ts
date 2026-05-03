@@ -125,13 +125,21 @@ interface BlockEditorActions {
 }
 
 /*
- * clientIds the watcher should NOT auto-convert: legacy blocks loaded
- * with the post (silent rewrite would dirty the post and surprise the
- * author) plus already-converted blocks (subscribe fires multiple times
- * per dispatch — without dedupe a single paste would queue N replace
- * calls). Bounded by distinct clientIds in the session.
+ * clientIds the watcher should NOT auto-convert, paired with the URL
+ * the block had at marking time. Two populations:
+ *
+ * - Legacy blocks loaded with the post (silent rewrite would dirty
+ *   the post and surprise the author).
+ * - Already-converted blocks (subscribe fires multiple times per
+ *   dispatch — without dedupe a single paste would queue N replace
+ *   calls).
+ *
+ * Keying on URL means a legacy block whose URL the user actively
+ * changes during the session is no longer skipped — the new URL
+ * doesn't match the recorded one, so the watcher converts it as a
+ * user action. Bounded by distinct clientIds in the session.
  */
-const skipClientIds = new Set< string >();
+const skipClientIds = new Map< string, unknown >();
 
 let initialized = false;
 
@@ -229,7 +237,7 @@ function autoReplaceStravaEmbeds(): void {
 					'core/embed' === block.name &&
 					isStravaUrl( block.attributes?.url )
 				) {
-					skipClientIds.add( block.clientId );
+					skipClientIds.set( block.clientId, block.attributes.url );
 				}
 			}
 			return;
@@ -240,12 +248,21 @@ function autoReplaceStravaEmbeds(): void {
 	for ( const block of walk( blocks ) ) {
 		if (
 			'core/embed' !== block.name ||
-			skipClientIds.has( block.clientId ) ||
 			! isStravaUrl( block.attributes?.url )
 		) {
 			continue;
 		}
-		skipClientIds.add( block.clientId );
+		/*
+		 * Skip if we already saw this exact (clientId, url) pair —
+		 * either we converted it (the new clientId would be
+		 * different so this rarely matches) or it was loaded as
+		 * legacy. A URL change to the same clientId no longer
+		 * matches, so an actively-edited legacy block converts.
+		 */
+		if ( skipClientIds.get( block.clientId ) === block.attributes.url ) {
+			continue;
+		}
+		skipClientIds.set( block.clientId, block.attributes.url );
 		actions.__unstableMarkNextChangeAsNotPersistent?.();
 		actions.replaceBlock(
 			block.clientId,

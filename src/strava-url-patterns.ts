@@ -15,7 +15,7 @@
 export const CANONICAL_STRAVA_URL_PATTERN: RegExp =
 	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(?:activities|routes|segments)\/\d+(?:[/?#][^\s]*)?$/i;
 export const SHORT_STRAVA_URL_PATTERN: RegExp =
-	/^https?:\/\/strava\.app\.link\/[^\s]+$/i;
+	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.app\.link\/[^\s]+$/i;
 
 export const STRAVA_URL_PATTERNS: ReadonlyArray< RegExp > = [
 	CANONICAL_STRAVA_URL_PATTERN,

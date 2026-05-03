@@ -307,6 +307,37 @@ describe( 'auto-replace subscriber: first walk treats existing blocks as legacy'
 		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
 	} );
 
+	it( 'auto-converts a legacy Strava core/embed if its URL is later edited to a different Strava URL', () => {
+		/*
+		 * Marking legacy blocks by clientId alone would freeze them
+		 * out of conversion forever. Pair the legacy mark with the
+		 * URL so a user actively editing the URL invalidates the
+		 * skip and the watcher converts the now-modified block.
+		 */
+		const cid = uniqueClientId( 'edited-legacy' );
+		setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/111',
+				},
+			},
+		] );
+		fireSubscribers();
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/222',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( replaceBlock ).toHaveBeenCalledTimes( 1 );
+	} );
+
 	it( 'auto-converts a non-Strava core/embed if its URL later changes to a Strava URL', () => {
 		/*
 		 * Loaded `core/embed` blocks that aren't currently Strava

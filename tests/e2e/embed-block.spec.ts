@@ -249,14 +249,11 @@ test.describe.serial( 'block-for-strava/embed render', () => {
 	} );
 
 	/*
-	 * The four input forms the plugin promises to support. Three URL
-	 * shapes flow through the URL-paste path (`pasteHandler` builds a
-	 * `core/embed` block, the auto-replace subscriber swaps it for
-	 * ours); the share-dialog snippet flows through the raw transform
-	 * path (already covered by the snippet test above, but kept here
-	 * so a regression in either path lights up the same suite). The
-	 * snippet's expected URL/token mirror the values Strava's share
-	 * dialog produces for a real activity.
+	 * The three URL shapes flow through the URL-paste path:
+	 * `pasteHandler` builds a `core/embed` block and the auto-replace
+	 * subscriber swaps it for ours. The share-dialog snippet (the
+	 * fourth supported input) goes through the raw-transform path
+	 * and is covered by the separate snippet test above.
 	 */
 	const PASTE_CASES = [
 		{
