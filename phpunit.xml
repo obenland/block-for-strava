@@ -11,4 +11,9 @@
 			<directory prefix="test-" suffix=".php">./tests/php/tests</directory>
 		</testsuite>
 	</testsuites>
+	<coverage>
+		<include>
+			<file>./block-for-strava.php</file>
+		</include>
+	</coverage>
 </phpunit>

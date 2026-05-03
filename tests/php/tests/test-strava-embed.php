@@ -218,6 +218,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $activity_id Expected numeric ID.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_returns_iframe_for_canonical_url( string $url, string $embed_type, string $activity_id ): void {
 		$result = $this->renderBlock( array( 'url' => $url ) );
@@ -231,6 +235,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * embed the wrong activity.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_emits_nothing_for_id_with_suffix(): void {
 		$url    = 'https://www.strava.com/activities/123abc';
@@ -247,6 +255,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * block-comment JSON so the author can recover by re-editing.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_emits_nothing_for_non_strava_url(): void {
 		$url    = 'https://example.com/foo';
@@ -260,6 +272,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * comment could remove it.)
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_emits_nothing_for_empty_url(): void {
 		$result = $this->renderBlock( array() );
@@ -271,6 +287,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Stub HTTP so the test stays deterministic and offline.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_resolves_short_url(): void {
 		$callback = static function ( $preempt, $args, $url ) {
@@ -306,6 +326,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * transient.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_short_url_resolution_is_cached(): void {
 		$http_calls = 0;
@@ -347,6 +371,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * re-walking the redirect chain.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_failed_short_url_resolution_is_cached(): void {
 		$http_calls = 0;
@@ -392,6 +420,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * Strava URL params land on the iframe `src` when route attrs are set.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_appends_route_params(): void {
 		$attrs = array(
@@ -432,6 +464,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * actually displays.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_strict_bool_attrs(): void {
 		$attrs = array(
@@ -481,6 +517,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * @param string $forbidden_param  Iframe URL param name that must not appear.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_rejects_unknown_enum_values( string $attr_name, string $payload, string $forbidden_param ): void {
 		$attrs = array(
@@ -505,10 +545,91 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Out-of-allowlist `stravaRouteMapStyle` values must normalize to
+	 * `standard` rather than reaching the iframe URL. The full `do_blocks`
+	 * path can't reach this branch because Gutenberg clamps unknown enum
+	 * values back to the declared default before they hit the callback —
+	 * call the helper directly so the defensive normalization fires for a
+	 * value that survived upstream sanitisation (e.g. a hand-edited block
+	 * comment that bypassed the editor entirely).
+	 *
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 */
+	public function test_route_params_normalizes_unknown_map_style(): void {
+		$params = block_for_strava_route_params_from_attrs(
+			array(
+				'stravaRouteMapStyle' => 'rainbow',
+				// A second non-default param keeps `style` in the result —
+				// the function drops it when it would be the only key and
+				// still equal to `standard`, which would obscure the fallback.
+				'stravaRouteUnits'    => 'metric',
+			)
+		);
+
+		$this->assertSame( 'standard', $params['style'] ?? null );
+	}
+
+	/**
+	 * `wp_safe_remote_head` can return a `200 OK` directly for the short URL
+	 * (some short-link hosts respond with the destination page rather than a
+	 * 30x). The resolver returns the short URL itself, which then fails
+	 * `block_for_strava_parse_url` — `block_for_strava_resolve_to_canonical`
+	 * writes the negative-cache sentinel and the render returns empty so the
+	 * page doesn't leak the unparseable URL.
+	 *
+	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_resolve_url
+	 */
+	public function test_render_block_caches_failure_when_short_url_resolves_to_self(): void {
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
+			if ( str_contains( $url, 'strava.app.link' ) ) {
+				++$http_calls;
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+		$short     = 'https://strava.app.link/self-' . wp_generate_uuid4();
+		$cache_key = 'block_for_strava_resolved_' . md5( $short );
+
+		try {
+			$first    = $this->renderBlock( array( 'url' => $short ) );
+			$second   = $this->renderBlock( array( 'url' => $short ) );
+			$sentinel = get_transient( $cache_key );
+		} finally {
+			remove_filter( 'pre_http_request', $callback, 10 );
+			delete_transient( $cache_key );
+		}
+
+		$this->assertSame( '', trim( $first ) );
+		$this->assertSame( '', trim( $second ) );
+		$this->assertSame( 1, $http_calls, 'Negative cache must short-circuit the second render.' );
+		// Pin the sentinel value itself — a refactor that cached a different
+		// falsy-but-not-zero value would still short-circuit the render and
+		// pass the http_calls check, hiding a regression.
+		$this->assertEquals( 0, $sentinel );
+	}
+
+	/**
 	 * Routes at defaults render a clean URL (no params) — keeps caches and
 	 * the iframe URL stable when nothing has been customized.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_clean_url_at_defaults(): void {
 		$result = $this->renderBlock(
@@ -527,6 +648,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * options on a non-route URL are silently ignored).
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_activity_url(): void {
 		$attrs = array(
@@ -551,6 +676,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * 600px and the user-visible width never changes.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_full_width_drops_max_width(): void {
 		$attrs = array(
@@ -570,6 +699,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * clamp so they don't overflow narrow containers.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_default_keeps_max_width(): void {
 		$result = $this->renderBlock(
@@ -585,6 +718,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * the snippet-paste flow, and the renderer must thread it through.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_appends_token_for_activity(): void {
 		$result = $this->renderBlock(
@@ -609,6 +746,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * renderer doesn't drop one in favor of the other.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_token_coexists_with_route_params(): void {
 		$result = $this->renderBlock(
@@ -633,6 +774,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * shape when no token has been resolved.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_skips_empty_token(): void {
 		$result = $this->renderBlock(
@@ -656,6 +801,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * public-Everyone activities, this is exactly what works.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_url_only_when_no_token_attribute(): void {
 		$result = $this->renderBlock(
@@ -676,6 +825,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * nothing useful.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_makes_no_http_calls_for_activities(): void {
 		$http_calls = 0;
@@ -709,6 +862,10 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	 * appended.
 	 *
 	 * @covers ::block_for_strava_render_block
+	 * @covers ::block_for_strava_resolve_to_canonical
+	 * @covers ::block_for_strava_route_params_from_attrs
+	 * @covers ::block_for_strava_build_iframe
+	 * @covers ::block_for_strava_resolve_url
 	 */
 	public function test_render_block_rejects_non_string_token(): void {
 		$result = $this->renderBlock(

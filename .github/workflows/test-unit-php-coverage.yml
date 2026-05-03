@@ -1,0 +1,93 @@
+name: PHP Unit Test Coverage
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+        paths:
+            - '**/*.php'
+            - 'composer.json'
+            - 'composer.lock'
+            - 'phpunit.xml'
+            - '.wp-env.json'
+            - 'package.json'
+            - 'package-lock.json'
+            - '.nvmrc'
+            - '.github/workflows/test-unit-php-coverage.yml'
+            - '.github/scripts/upsert-coverage-comment.mjs'
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+    pull-requests: write
+
+jobs:
+    php-coverage:
+        name: 'PHP Coverage Analysis'
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        env:
+            WP_ENV_PHP_VERSION: '8.4'
+            WP_ENV_CORE: 'https://wordpress.org/wordpress-latest.zip'
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js (.nvmrc)
+              uses: actions/setup-node@v4
+              with:
+                  node-version-file: '.nvmrc'
+                  cache: npm
+
+            - name: Cache Composer dependencies
+              uses: actions/cache@v4
+              id: composer-cache
+              with:
+                  path: vendor
+                  key: composer-coverage-${{ hashFiles('composer.json', 'composer.lock') }}
+
+            - name: Install PHP dependencies
+              if: steps.composer-cache.outputs.cache-hit != 'true'
+              run: composer install --prefer-dist --no-progress
+
+            - name: npm install
+              run: npm ci
+
+            - name: Build plugin
+              run: npm run build
+
+            - name: Install WordPress with Xdebug enabled
+              run: npm run wp-env start -- --xdebug=coverage
+
+            - name: Run PHPUnit with coverage
+              run: |
+                  # Run tests and capture the merged coverage text summary
+                  # emitted by tests/php/merge-coverage.php on stdout.
+                  coverage_output=$(npm run --silent test-php-coverage)
+                  # Keep only the coverage report section (drop wp-env / npm noise).
+                  filtered=$(echo "$coverage_output" | sed -n '/^Code Coverage Report:/,$p')
+                  if [ -z "$filtered" ]; then
+                      echo "::error::Coverage report section not found in PHPUnit output."
+                      echo "$coverage_output"
+                      exit 1
+                  fi
+                  mkdir -p coverage/php
+                  {
+                      echo '```text'
+                      echo "$filtered"
+                      echo '```'
+                  } > coverage/php/summary.md
+
+            - name: Upsert coverage comment
+              # GITHUB_TOKEN is read-only on pull_request events from forks,
+              # so skip the comment step there to avoid permission errors.
+              if: github.event.pull_request.head.repo.fork == false
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  SECTION: php
+                  SECTION_TITLE: PHP
+                  CONTENT_FILE: coverage/php/summary.md
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+              run: node .github/scripts/upsert-coverage-comment.mjs

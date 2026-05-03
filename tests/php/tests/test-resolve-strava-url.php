@@ -175,6 +175,49 @@ class Test_Resolve_Strava_Url extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A non-redirect, non-200 response (e.g. 404 from a deleted short URL)
+	 * exits the redirect loop via the trailing `else { break; }` branch
+	 * rather than retrying the chain — pins that the resolver returns the
+	 * standard `resolution_failed` error and stops after one HEAD request.
+	 *
+	 * @covers ::block_for_strava_resolve_url
+	 */
+	public function test_returns_error_for_non_redirect_non_200(): void {
+		$http_calls = 0;
+		$callback   = static function ( $preempt, $args, $url ) use ( &$http_calls ) {
+			if ( str_contains( $url, 'strava.app.link' ) ) {
+				++$http_calls;
+				return array(
+					'response' => array(
+						'code'    => 404,
+						'message' => 'Not Found',
+					),
+					'headers'  => array(),
+					'body'     => '',
+					'cookies'  => array(),
+					'filename' => '',
+				);
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $callback, 10, 3 );
+
+		try {
+			$result = block_for_strava_resolve_url( 'https://strava.app.link/missing' );
+		} finally {
+			remove_filter( 'pre_http_request', $callback, 10 );
+		}
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'resolution_failed', $result->get_error_code() );
+		// Pin the `else { break; }` exit — without it, a regression that fell
+		// through to the next loop iteration would still ultimately return
+		// `resolution_failed` after exhausting retries, and the assertion
+		// above couldn't tell the regression from the intended single-shot.
+		$this->assertSame( 1, $http_calls );
+	}
+
+	/**
 	 * Tests that the resolver uses wp_safe_remote_head() (not wp_remote_head()),
 	 * which is the second SSRF defense layer that blocks private/loopback IPs at
 	 * the HTTP layer. Asserts that `reject_unsafe_urls` is set on the request.
