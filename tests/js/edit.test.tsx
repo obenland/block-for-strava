@@ -722,6 +722,15 @@ describe( 'Edit', () => {
 			await act( async () => {
 				resolveStale( { embeddable: false, status: 403 } );
 			} );
+			/*
+			 * Pin that the rerender actually started a fresh preflight for
+			 * activity 456 — otherwise this test could silently pass if the
+			 * URL-change effect stopped re-firing (notice would remain null
+			 * for the wrong reason).
+			 */
+			expect( mockedApiFetch ).toHaveBeenCalledWith( {
+				path: '/block-for-strava/v1/embed-status?type=activity&id=456',
+			} );
 			expect( screen.queryByTestId( 'strava-embed-notice' ) ).toBeNull();
 		} );
 	} );
