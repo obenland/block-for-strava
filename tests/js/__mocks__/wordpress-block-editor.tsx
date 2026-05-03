@@ -92,10 +92,7 @@ export const RichText = forwardRef( function RichText(
 	} );
 } ) as RichTextComponent;
 
-/*
- * Mirrors `@wordpress/block-editor`'s `RichText.isEmpty`:
- * `! value || value.length === 0`.
- */
+// Mirrors `@wordpress/block-editor`'s `RichText.isEmpty`.
 RichText.isEmpty = ( value ) =>
 	! value ||
 	( typeof ( value as { length?: number } ).length === 'number' &&

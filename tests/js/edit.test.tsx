@@ -211,12 +211,7 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'hides the caption by default and reveals it when the toolbar Add caption is clicked', async () => {
-		/*
-		 * `isSelected: true` mirrors what real Gutenberg does when the
-		 * user clicks a toolbar button on the block — the render gate
-		 * keeps the empty caption visible only while the block holds
-		 * focus, matching `core/embed`.
-		 */
+		// `isSelected: true` mirrors real Gutenberg after a toolbar click.
 		render(
 			createElement( Edit, {
 				attributes: {
@@ -236,11 +231,7 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'clears the caption attribute to undefined when the toolbar Remove caption is clicked', async () => {
-		/*
-		 * `undefined` reverts the attribute to its `block.json` default
-		 * rather than serializing an empty string into the post markup —
-		 * matches `core/embed`'s `Caption` component.
-		 */
+		// `undefined` reverts to the block.json default; matches `core/embed`.
 		const setAttributes = jest.fn();
 		render(
 			createElement( Edit, {
@@ -277,13 +268,7 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'hides an empty toggled-on caption once the block is no longer selected', async () => {
-		/*
-		 * Pin the `(! isCaptionEmpty || isSelected)` half of the render
-		 * gate: a freshly toggled-on empty field stays visible while
-		 * the block has focus, then collapses back when focus moves
-		 * away. Without the gate an empty `<figcaption>` would linger
-		 * in every unselected block on the page.
-		 */
+		// Pin the deselect half of the render gate: empty + unselected → hidden.
 		const { rerender } = render(
 			createElement( Edit, {
 				attributes: {
@@ -312,13 +297,7 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'reopens the caption field when an undo restores the attribute after a toggle-off', () => {
-		/*
-		 * Simulates: user toggles off (caption goes from text to
-		 * undefined → field hides), then undo restores the text. The
-		 * `usePrevious` effect re-flips `showCaption` on the empty →
-		 * non-empty transition so the editor matches what the front
-		 * end is now rendering.
-		 */
+		// Toggle-off → undo: `usePrevious` effect re-flips `showCaption`.
 		const { rerender } = render(
 			createElement( Edit, {
 				attributes: {

@@ -101,13 +101,7 @@ export interface StravaBlockAttributes {
 export interface BlockEditProps {
 	attributes: StravaBlockAttributes;
 	setAttributes: ( attrs: Partial< StravaBlockAttributes > ) => void;
-	/*
-	 * Forwarded by Gutenberg. Used by the caption render gate to keep a
-	 * freshly-toggled-on empty field visible while the block has focus,
-	 * then collapse it once the user clicks away without typing — matches
-	 * `core/embed`'s caption UX. Optional because unit tests instantiate
-	 * `Edit` directly without Gutenberg's selection chrome.
-	 */
+	// Caption render gate uses this; optional for unit-test instantiation.
 	isSelected?: boolean;
 }
 
@@ -249,12 +243,7 @@ function clampString( value: unknown ): string {
 	return typeof value === 'string' ? value : '';
 }
 
-/*
- * Local mirror of `@wordpress/compose`'s `usePrevious`. Inlined to avoid
- * pulling in the package just for one consumer (the caption undo/redo
- * effect below). Returns the prior render's value because the ref is
- * assigned in an effect, which runs after commit.
- */
+// Inlined `usePrevious` to avoid the `@wordpress/compose` dep for one consumer.
 function usePrevious< T >( value: T ): T | undefined {
 	const ref = useRef< T | undefined >( undefined );
 	useEffect( () => {
@@ -762,31 +751,14 @@ export function Edit( {
 	const [ isEditingURL, setIsEditingURL ] = useState( ! url );
 
 	const caption = clampString( attributes.caption );
-	/*
-	 * `RichText.isEmpty` is the framework-canonical empty check — used
-	 * here for parity with `core/embed`'s caption utility. For our
-	 * already-clamped string it reduces to `'' === caption`, but going
-	 * through the API keeps a single source of truth if the empty
-	 * definition ever broadens (e.g. to recognize empty rich-text
-	 * formats).
-	 */
+	// Use `RichText.isEmpty` (not `'' === caption`) for parity with `core/embed`.
 	const isCaptionEmpty: boolean = RichText.isEmpty( caption );
-	/*
-	 * Default-on when a caption is already present so `core/embed → strava`
-	 * transforms don't leave text rendering on the front end while the
-	 * editor field stays hidden.
-	 */
+	// Default-on so `core/embed → strava` transforms keep their caption visible.
 	const [ showCaption, setShowCaption ] = useState< boolean >(
 		() => ! isCaptionEmpty
 	);
 
-	/*
-	 * Re-show the field on undo/redo when the caption attribute transitions
-	 * from empty back to non-empty. Without this, toggling off (which sets
-	 * `caption: undefined`) followed by undo would restore the attribute
-	 * but leave `showCaption` false — the editor would hide content the
-	 * front end is now rendering.
-	 */
+	// Re-show on undo/redo when caption returns from empty (toggle-off clears it).
 	const wasCaptionEmpty = usePrevious( isCaptionEmpty );
 	useEffect( () => {
 		if ( ! isCaptionEmpty && true === wasCaptionEmpty ) {
@@ -794,13 +766,7 @@ export function Edit( {
 		}
 	}, [ isCaptionEmpty, wasCaptionEmpty ] );
 
-	/*
-	 * Move focus into the caption field the moment it appears empty — so
-	 * the user can start typing immediately after clicking "Add caption"
-	 * without a second click. The dependency on `isCaptionEmpty` keeps
-	 * the focus call gated to the freshly-empty state; once the user
-	 * types, the callback is a no-op.
-	 */
+	// Focus when empty so the user can type right after "Add caption".
 	const captionRef = useCallback(
 		( node: HTMLElement | null ) => {
 			if ( node && isCaptionEmpty ) {
@@ -847,14 +813,7 @@ export function Edit( {
 	const toggleCaption = () => {
 		setShowCaption( ( prev ) => {
 			const next = ! prev;
-			/*
-			 * Reset to `undefined` (not `''`) on toggle-off so the
-			 * attribute reverts to its `block.json` default rather than
-			 * serializing an empty string into the post markup —
-			 * matches `core/embed`'s `Caption` component. The PHP
-			 * renderer treats both as "no caption," so front-end
-			 * behavior is unchanged; the win is cleaner saved markup.
-			 */
+			// `undefined` reverts to the block.json default; matches `core/embed`.
 			if ( ! next && ! isCaptionEmpty ) {
 				setAttributes( { caption: undefined } );
 			}
@@ -895,13 +854,7 @@ export function Edit( {
 	 */
 	const showCaptionToolbarButton =
 		!! url && ! isEditingURL && isRecognizedUrl;
-	/*
-	 * Even when the toggle is on, hide the field if it's empty and the
-	 * block isn't selected — prevents a phantom empty caption from
-	 * lingering in the editor after the user toggles on but clicks away
-	 * without typing. Mirrors `core/embed`'s `(! isEmpty || isSelected)`
-	 * gate. With non-empty content the field always renders.
-	 */
+	// Hide an empty toggled-on field on deselect; mirrors `core/embed`.
 	const renderCaption =
 		showCaptionToolbarButton &&
 		showCaption &&
@@ -936,15 +889,7 @@ export function Edit( {
 												'block-for-strava'
 										  ),
 									onClick: toggleCaption,
-									/*
-									 * `isPressed` is the documented
-									 * toggle-button prop on
-									 * ToolbarButton — surfaces
-									 * `aria-pressed` for screen readers
-									 * rather than the visual-only
-									 * `is-active` styling that
-									 * `isActive` applies.
-									 */
+									// `isPressed` emits `aria-pressed`; `isActive` is visual-only.
 									isPressed: showCaption,
 							  } )
 							: null
