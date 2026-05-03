@@ -604,9 +604,9 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 		$cache_key = 'block_for_strava_resolved_' . md5( $short );
 
 		try {
-			$first     = $this->renderBlock( array( 'url' => $short ) );
-			$second    = $this->renderBlock( array( 'url' => $short ) );
-			$sentinel  = get_transient( $cache_key );
+			$first    = $this->renderBlock( array( 'url' => $short ) );
+			$second   = $this->renderBlock( array( 'url' => $short ) );
+			$sentinel = get_transient( $cache_key );
 		} finally {
 			remove_filter( 'pre_http_request', $callback, 10 );
 			delete_transient( $cache_key );
