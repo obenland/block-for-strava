@@ -24,10 +24,6 @@ defined( 'ABSPATH' ) || exit;
 define( 'BLOCK_FOR_STRAVA_VERSION', '1.0.0' );
 define( 'BLOCK_FOR_STRAVA_DIR', plugin_dir_path( __FILE__ ) );
 
-// Default iframe dimensions; mirror the editor's preview shell in `src/edit.tsx`.
-define( 'BLOCK_FOR_STRAVA_DEFAULT_WIDTH', 600 );
-define( 'BLOCK_FOR_STRAVA_DEFAULT_HEIGHT', 730 );
-
 /**
  * Registers the block from its build-time block.json.
  *
@@ -66,7 +62,7 @@ function block_for_strava_render_block( array $attributes ): string {
 		$params['token'] = $attributes['stravaEmbedToken'];
 	}
 
-	$iframe = block_for_strava_build_iframe( $resolved['type'], $resolved['id'], null, null, $params );
+	$iframe = block_for_strava_build_iframe( $resolved['type'], $resolved['id'], $params );
 
 	$wrapper_args = array(
 		'class' => 'wp-block-embed is-type-rich is-provider-strava wp-block-embed-strava',
@@ -325,14 +321,12 @@ function block_for_strava_resolve_url( string $url ): string|WP_Error {
  * normal tab. `referrerpolicy=origin` stops the host page URL from
  * leaking to Strava.
  *
- * @param string   $embed_type  One of 'activity', 'route', 'segment'.
- * @param string   $activity_id Numeric Strava ID.
- * @param int|null $width       Preferred width in pixels (null = default).
- * @param int|null $height      Preferred height in pixels (null = default).
- * @param array    $params      Optional Strava embed-page query params.
+ * @param string $embed_type  One of 'activity', 'route', 'segment'.
+ * @param string $activity_id Numeric Strava ID.
+ * @param array  $params      Optional Strava embed-page query params.
  * @return string Iframe HTML.
  */
-function block_for_strava_build_iframe( string $embed_type, string $activity_id, ?int $width = null, ?int $height = null, array $params = array() ): string {
+function block_for_strava_build_iframe( string $embed_type, string $activity_id, array $params = array() ): string {
 	$src = sprintf(
 		'https://strava-embeds.com/%s/%s',
 		rawurlencode( $embed_type ),
@@ -341,9 +335,6 @@ function block_for_strava_build_iframe( string $embed_type, string $activity_id,
 	if ( ! empty( $params ) ) {
 		$src .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
 	}
-
-	$resolved_width  = $width ?? BLOCK_FOR_STRAVA_DEFAULT_WIDTH;
-	$resolved_height = $height ?? BLOCK_FOR_STRAVA_DEFAULT_HEIGHT;
 
 	/*
 	 * When the route opts into `fullWidth`, drop the `max-width` cap so
@@ -354,13 +345,11 @@ function block_for_strava_build_iframe( string $embed_type, string $activity_id,
 	$is_full_width = isset( $params['fullWidth'] ) && 'true' === $params['fullWidth'];
 	$style         = $is_full_width
 		? 'width:100%;display:block;border:0;'
-		: sprintf( 'width:100%%;max-width:%dpx;display:block;border:0;', $resolved_width );
+		: 'width:100%;max-width:600px;display:block;border:0;';
 
 	return sprintf(
-		'<iframe class="strava-embed-iframe" src="%s" width="%d" height="%d" style="%s" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
+		'<iframe class="strava-embed-iframe" src="%s" width="600" height="730" style="%s" frameborder="0" scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="origin" title="%s"></iframe>',
 		esc_url( $src ),
-		$resolved_width,
-		$resolved_height,
 		esc_attr( $style ),
 		esc_attr__( 'Strava embed', 'block-for-strava' )
 	);
