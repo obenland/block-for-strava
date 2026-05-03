@@ -217,6 +217,29 @@ describe( 'embed block transform transform()', () => {
 			url: 'https://www.strava.com/activities/18233733854',
 		} );
 	} );
+
+	it.each( [ [ 'left' ], [ 'center' ], [ 'right' ] ] )(
+		'drops align=%s because the Strava block only supports wide/full',
+		( align ) => {
+			/*
+			 * `core/embed` supports left/center/right/wide/full; carrying
+			 * an unsupported value into the new block would leave it in
+			 * an invalid alignment state.
+			 */
+			getEmbedTransform().transform( {
+				url: 'https://www.strava.com/activities/18233733854',
+				align,
+				className: 'is-style-rounded',
+			} );
+			expect( createBlock ).toHaveBeenCalledWith(
+				'block-for-strava/embed',
+				{
+					url: 'https://www.strava.com/activities/18233733854',
+					className: 'is-style-rounded',
+				}
+			);
+		}
+	);
 } );
 
 describe( 'auto-replace subscriber registration', () => {
@@ -542,6 +565,24 @@ describe( 'auto-replace subscriber', () => {
 			cid,
 			expect.objectContaining( { name: 'block-for-strava/embed' } )
 		);
+	} );
+
+	it( 'drops unsupported align values when auto-replacing', () => {
+		// Same rationale as the transform-path test above.
+		setEditorBlocks( [
+			{
+				clientId: uniqueClientId( 'left-aligned' ),
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/18233733854',
+					align: 'left',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( createBlock ).toHaveBeenCalledWith( 'block-for-strava/embed', {
+			url: 'https://www.strava.com/activities/18233733854',
+		} );
 	} );
 
 	it.each( [
