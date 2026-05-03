@@ -136,18 +136,35 @@ interface BlockEditorActions {
 }
 
 /**
- * Tracks `core/embed` clientIds the watcher has already converted.
+ * Tracks clientIds the watcher should NOT auto-convert.
  *
- * `subscribe` runs on every state tick of the targeted store, including
- * intermediate ticks during a single dispatch. A given paste produces
- * one `core/embed` block but several state ticks — without de-duping by
- * `clientId` we'd schedule N `replaceBlock` calls for the same source
- * block, and only the first would find the original `core/embed` to
- * replace; the rest would be wasted work and (worse) could be mistaken
- * for a state-change loop. The set is bounded by the number of distinct
- * `core/embed` blocks the user has ever pasted in this session.
+ * Two distinct populations end up here:
+ *
+ * 1. Blocks present at the initial editor load. These are "legacy"
+ *    content the user authored (or imported) before the auto-replacer
+ *    was watching, and silently rewriting them on the next unrelated
+ *    edit would dirty the post and surprise the author. The toolbar
+ *    `Transform to → Strava` entry stays available for explicit
+ *    conversion of those blocks.
+ *
+ * 2. `core/embed` blocks the watcher has already auto-converted in
+ *    this session. `subscribe` fires on every state tick during a
+ *    single dispatch, so without dedupe a single paste would queue
+ *    several `replaceBlock` calls — only the first finds its target,
+ *    the rest are wasted work and (worse) could be misread as a
+ *    state-change loop.
+ *
+ * The set is bounded by the number of distinct clientIds that have
+ * existed in this editor session, which is the natural ceiling.
  */
-const replaced = new Set< string >();
+const skipClientIds = new Set< string >();
+
+/*
+ * Whether the watcher has performed its initial walk. Set true after
+ * the first non-skip tick observes the loaded post content. Until
+ * then, we record what's on screen as legacy and don't touch it.
+ */
+let initialized = false;
 
 function* walk(
 	blocks: ReadonlyArray< EditorBlock >
@@ -174,6 +191,13 @@ let lastBlocks: ReadonlyArray< EditorBlock > | null = null;
  * Scans the editor's block list for `core/embed` blocks carrying a
  * Strava URL and replaces each with `block-for-strava/embed`.
  *
+ * The first walk records every existing clientId as "skip" so legacy
+ * content (loaded with the post) isn't silently rewritten on the user's
+ * next unrelated edit. Subsequent walks convert any new `core/embed`
+ * with a Strava URL — those are paste-introduced or pattern-introduced
+ * during the editor session, where conversion is the convenience the
+ * plugin advertises.
+ *
  * Exits early on the boot-race tick where `core/block-editor` hasn't
  * registered yet — `select` returns `null` until the store is available.
  * Once the store is up its selectors and actions are registered together,
@@ -191,16 +215,25 @@ function autoReplaceStravaEmbeds(): void {
 		return;
 	}
 	lastBlocks = blocks;
+
+	if ( ! initialized ) {
+		for ( const block of walk( blocks ) ) {
+			skipClientIds.add( block.clientId );
+		}
+		initialized = true;
+		return;
+	}
+
 	const actions = dispatch( 'core/block-editor' ) as BlockEditorActions;
 	for ( const block of walk( blocks ) ) {
 		if (
 			'core/embed' !== block.name ||
-			replaced.has( block.clientId ) ||
+			skipClientIds.has( block.clientId ) ||
 			! isStravaUrl( block.attributes?.url )
 		) {
 			continue;
 		}
-		replaced.add( block.clientId );
+		skipClientIds.add( block.clientId );
 		actions.__unstableMarkNextChangeAsNotPersistent?.();
 		actions.replaceBlock(
 			block.clientId,

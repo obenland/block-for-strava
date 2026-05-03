@@ -40,6 +40,8 @@ import { __ } from '@wordpress/i18n';
 import { chartBar as stravaIcon, pencil as editIcon } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
+import { SHORT_STRAVA_URL_PATTERN } from './strava-url-patterns';
+
 type RouteMapStyle =
 	| 'standard'
 	| 'satellite'
@@ -126,8 +128,6 @@ const ROUTE_TERRAINS: ReadonlyArray< RouteTerrain > = [ 'auto', '2d', '3d' ];
  */
 const CANONICAL_STRAVA_URL_RE =
 	/^https?:\/\/(?:[a-z0-9-]+\.)*strava\.com\/(activities|routes|segments)\/(\d+)(?=[/?#]|$)/i;
-
-const SHORT_STRAVA_URL_RE = /^https?:\/\/strava\.app\.link\/[^\s]+/i;
 
 const URL_PATH_TO_TYPE: Record< string, 'activity' | 'route' | 'segment' > = {
 	activities: 'activity',
@@ -787,7 +787,7 @@ export function Edit( {
 	};
 
 	const resolved = parseStravaUrl( url );
-	const isShortUrl = ! resolved && SHORT_STRAVA_URL_RE.test( url );
+	const isShortUrl = ! resolved && SHORT_STRAVA_URL_PATTERN.test( url );
 
 	let body;
 	if ( isEditingURL || ! url ) {
@@ -826,7 +826,15 @@ export function Edit( {
 	 * disorienting and easy to author by accident (paragraphs paste
 	 * with trailing whitespace surprisingly often).
 	 */
-	const caption = attributes.caption ?? '';
+	/*
+	 * Clamp to string before reading. `block.json` declares `caption`
+	 * as `type: string`, but older posts and hand-edited block markup
+	 * can store anything — `clampString` matches how
+	 * `stravaEmbedToken` and the route attrs are normalized below, so
+	 * a stray non-string caption can't blow up `.trim()` and break
+	 * the editor for that post.
+	 */
+	const caption = clampString( attributes.caption );
 	const hasVisibleCaption = '' !== caption.trim();
 	const showCaption = !! url && ( hasVisibleCaption || true === isSelected );
 

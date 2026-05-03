@@ -43,7 +43,7 @@ It depends on the resource type. Public ("Everyone") activities, routes, and seg
 
 = Do I need a Strava account? =
 
-No account or API key is required. The block uses Strava's public embed feature.
+Visitors don't need any account or API key — they just see the embedded iframe. The block uses Strava's public embed feature, which doesn't require API access on this side. To embed a followers-only or private activity, the post author needs a logged-in Strava session to open Share → Embed in Strava's UI and copy the snippet (the snippet carries the per-share token Strava requires for those embeds). Authors embedding only public Strava URLs don't need an account either.
 
 = What URL formats are supported? =
 

@@ -231,12 +231,72 @@ describe( 'embed block transform transform()', () => {
 	} );
 } );
 
+describe( 'auto-replace subscriber: first walk treats existing blocks as legacy', () => {
+	/*
+	 * Test ordering matters: this describe block runs before the
+	 * post-init `auto-replace subscriber` describe below, so the
+	 * production module's `initialized` flag is false here. The first
+	 * fireSubscribers() call across the whole suite triggers the
+	 * watcher's "record what's loaded, don't convert" branch — exactly
+	 * the seam this test pins. After this describe runs, the flag
+	 * stays true for the rest of the suite.
+	 */
+	beforeEach( () => {
+		__mockState.selectors = {};
+		__mockState.actions = {};
+		( createBlock as jest.Mock ).mockClear();
+	} );
+
+	it( 'does not convert legacy core/embed Strava blocks present at editor load', () => {
+		// A post containing a Strava URL inside a `core/embed` block
+		// before this plugin started watching should stay as-is until
+		// the user opts in via the toolbar. Silent rewriting on the
+		// first unrelated edit dirties the post and surprises the
+		// author. Pin that the very first walk records the clientId
+		// without dispatching `replaceBlock`.
+		const cid = uniqueClientId( 'legacy' );
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: cid,
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/legacy-1',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( replaceBlock ).not.toHaveBeenCalled();
+	} );
+
+	it( 'still does not convert that legacy block on subsequent ticks', () => {
+		// The legacy clientId from the previous test should now sit
+		// in the watcher's skip set permanently, even when the same
+		// block reappears on later ticks. The toolbar transform
+		// remains the explicit conversion path.
+		const { replaceBlock } = setEditorBlocks( [
+			{
+				clientId: 'legacy-1',
+				name: 'core/embed',
+				attributes: {
+					url: 'https://www.strava.com/activities/legacy-1',
+				},
+			},
+		] );
+		fireSubscribers();
+		expect( replaceBlock ).not.toHaveBeenCalled();
+	} );
+} );
+
 describe( 'auto-replace subscriber', () => {
 	beforeEach( () => {
 		/*
 		 * Clear selectors/actions only — the production subscriber was
 		 * registered at module load and lives in __mockState.subscribers
 		 * for the suite's lifetime. Wiping that array would orphan it.
+		 * The `initialized` flag inside the production module was
+		 * flipped to true by the describe block above; every test in
+		 * this describe runs in the post-init regime where new
+		 * `core/embed` blocks get auto-converted.
 		 */
 		__mockState.selectors = {};
 		__mockState.actions = {};
