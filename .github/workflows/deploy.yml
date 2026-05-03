@@ -29,8 +29,14 @@ jobs:
             - name: Build
               run: npm run build
 
+            - name: Install WP-CLI with dist-archive
+              run: |
+                  curl -sSL -o /tmp/wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+                  sudo install -m 0755 /tmp/wp-cli.phar /usr/local/bin/wp
+                  wp package install wp-cli/dist-archive-command:@stable
+
             - name: Build distribution zip
-              uses: 10up/action-wordpress-plugin-build-zip@stable
+              run: wp dist-archive . "$GITHUB_WORKSPACE/${{ github.event.repository.name }}.zip"
 
             - name: Attach zip to GitHub release
               uses: softprops/action-gh-release@v2
