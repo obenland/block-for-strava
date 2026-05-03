@@ -38,23 +38,14 @@ class Block_For_Strava_Embed {
 	 * Block render callback. Resolves the saved URL to a canonical
 	 * type+id and builds the iframe.
 	 *
-	 * The block has no `save` (it's dynamic) so attributes are the only
-	 * input — `$content` arrives empty. Routes the figure wrapper through
-	 * `get_block_wrapper_attributes()` so `align: ['wide', 'full']`
-	 * declared in `block.json`, custom classNames, and anchor IDs reach
-	 * the rendered HTML.
-	 *
 	 * Returns an empty string when the URL can't be resolved (missing,
 	 * non-Strava, malformed, or short-URL resolution failure) — the
 	 * editor's `Edit` component already surfaces the unrecognized state
 	 * to the author, so emitting nothing on the front end is honest about
 	 * the broken state and avoids leaking a bare URL onto the page.
 	 *
-	 * @param  array $attributes Block attributes (carries `url` and optional
-	 *                           `stravaRoute*` overrides).
-	 * @return string            Iframe HTML wrapped in the standard
-	 *                           `wp-block-embed` figure, or '' if the URL
-	 *                           didn't resolve.
+	 * @param array $attributes Block attributes (carries `url` and optional `stravaRoute*` overrides).
+	 * @return string Iframe HTML wrapped in the standard `wp-block-embed` figure, or '' if the URL didn't resolve.
 	 */
 	public static function render_block( array $attributes ): string {
 		$url      = isset( $attributes['url'] ) ? (string) $attributes['url'] : '';
@@ -137,8 +128,8 @@ class Block_For_Strava_Embed {
 	 * empty array when nothing is customized keeps the iframe URL stable
 	 * (and cache-friendly) for routes that haven't been tweaked.
 	 *
-	 * @param  array $attrs Block attributes.
-	 * @return array        Param map suitable for `http_build_query`.
+	 * @param array $attrs Block attributes.
+	 * @return array Param map suitable for `http_build_query`.
 	 */
 	private static function route_params_from_attrs( array $attrs ): array {
 		$map_style = $attrs['stravaRouteMapStyle'] ?? 'standard';
@@ -172,13 +163,11 @@ class Block_For_Strava_Embed {
 			$params['surfaceType'] = 'true';
 		}
 
-		/*
-		 * Drop the always-on `style` if it's the default and nothing else is
-		 * set — the default URL has no params, so we leave it that way.
-		 */
+		// Drop the always-on `style` if it's the default — the default URL has no params.
 		if ( count( $params ) === 1 && 'standard' === $params['style'] ) {
 			return array();
 		}
+
 		return $params;
 	}
 
@@ -192,8 +181,8 @@ class Block_For_Strava_Embed {
 	 * the cache, a saved short-URL embed would trigger up to five
 	 * `wp_safe_remote_head()` requests per page view.
 	 *
-	 * @param  string $url The URL to resolve.
-	 * @return array|null  ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or null.
+	 * @param string $url The URL to resolve.
+	 * @return array|null ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or null.
 	 */
 	private static function resolve_to_canonical( string $url ): ?array {
 		$parsed = self::parse_strava_url( $url );
@@ -201,11 +190,6 @@ class Block_For_Strava_Embed {
 			return $parsed;
 		}
 
-		/*
-		 * Short-URL fast-fail: anything that isn't a valid strava.app.link
-		 * host won't resolve, so don't pay for the cache lookup or the HTTP
-		 * HEAD chase.
-		 */
 		if ( ! self::is_allowed_strava_url( $url, array( 'strava.app.link' ) ) ) {
 			return null;
 		}
@@ -213,25 +197,25 @@ class Block_For_Strava_Embed {
 		$cache_key = 'block_for_strava_resolved_' . md5( $url );
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/*
-			 * Sentinel `0` records a previously-failed resolution so we
-			 * don't keep re-fetching for the same broken short URL.
-			 */
+			// Sentinel `0` records a previously failed resolution, so we don't keep re-fetching for the same broken short URL.
 			return is_array( $cached ) ? $cached : null;
 		}
 
 		$resolved = self::resolve_strava_url( $url );
 		if ( is_wp_error( $resolved ) ) {
 			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
+
 			return null;
 		}
 		$parsed = self::parse_strava_url( $resolved );
 		if ( false === $parsed ) {
 			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
+
 			return null;
 		}
 
 		set_transient( $cache_key, $parsed, DAY_IN_SECONDS );
+
 		return $parsed;
 	}
 
@@ -243,7 +227,7 @@ class Block_For_Strava_Embed {
 	 * singular type as the leading path segment ("/activity/123"), so the
 	 * returned `type` is normalized to the singular form.
 	 *
-	 * @param  string $url The URL to parse.
+	 * @param string $url The URL to parse.
 	 * @return array|false ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or false.
 	 */
 	public static function parse_strava_url( string $url ) {
@@ -263,11 +247,13 @@ class Block_For_Strava_Embed {
 				'routes'     => 'route',
 				'segments'   => 'segment',
 			);
+
 			return array(
 				'type' => $plural_to_singular[ strtolower( $matches[1] ) ],
 				'id'   => $matches[2],
 			);
 		}
+
 		return false;
 	}
 
@@ -278,10 +264,9 @@ class Block_For_Strava_Embed {
 	 * Host comparison is anchored on a leading dot so that hostnames such as
 	 * `evilstrava.app.link` do not satisfy the allowlist via plain suffix matching.
 	 *
-	 * @param  string   $url           The URL to validate.
-	 * @param  string[] $allowed_hosts Hosts whose domain (and subdomains) are permitted.
-	 *                                 Entries must be lowercase; comparison is case-sensitive.
-	 * @return bool     True if the URL is safe to fetch.
+	 * @param string   $url           The URL to validate.
+	 * @param string[] $allowed_hosts Hosts whose domain (and subdomains) are permitted.
+	 * @return bool True if the URL is safe to fetch.
 	 */
 	public static function is_allowed_strava_url( string $url, array $allowed_hosts ): bool {
 		$parsed = wp_parse_url( $url );
@@ -300,6 +285,7 @@ class Block_For_Strava_Embed {
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -307,12 +293,7 @@ class Block_For_Strava_Embed {
 	 * Resolves a strava.app.link short URL to a canonical strava.com URL
 	 * by following HTTP redirects one hop at a time.
 	 *
-	 * Only http(s) URLs on `strava.app.link` are accepted as input, and redirects
-	 * are only followed when the target host is on `strava.app.link` or
-	 * `strava.com`. Uses `wp_safe_remote_head()` so private/loopback addresses
-	 * are blocked by WordPress's safe-HTTP filters (SSRF defense).
-	 *
-	 * @param  string $url The short URL to resolve.
+	 * @param string $url The short URL to resolve.
 	 * @return string|WP_Error The canonical URL, or a WP_Error on failure.
 	 */
 	public static function resolve_strava_url( string $url ) {
@@ -326,7 +307,8 @@ class Block_For_Strava_Embed {
 
 		$redirect_allowlist = array( 'strava.app.link', 'strava.com' );
 		$current            = $url;
-		for ( $i = 0; $i < 5; $i++ ) {
+
+		for ( $i = 0; $i < 5; $i ++ ) {
 			$response = wp_safe_remote_head( $current, array( 'redirection' => 0 ) );
 
 			if ( is_wp_error( $response ) ) {
@@ -365,14 +347,6 @@ class Block_For_Strava_Embed {
 	/**
 	 * Builds the iframe HTML that points directly at Strava's embed page.
 	 *
-	 * Earlier iterations wrapped a placeholder div + embed.js in a `data:`
-	 * URL iframe, but a sandboxed srcdoc/data-URL frame inherits its null
-	 * origin into the nested strava-embeds.com iframe that embed.js creates.
-	 * The nested frame's CORS fetches (`/map-style/*` for routes) then go out
-	 * as origin `null` and Strava rejects them, so route maps silently never
-	 * render. Pointing the top-level iframe at strava-embeds.com directly
-	 * gives it the real Strava origin and the map loads.
-	 *
 	 * `allow-scripts allow-same-origin` is what lets Strava's embed page
 	 * read its own resources at strava-embeds.com (it does NOT grant the
 	 * iframe access to the host page — the cross-origin boundary handles
@@ -380,11 +354,11 @@ class Block_For_Strava_Embed {
 	 * normal tab. `referrerpolicy=origin` stops the host page URL from
 	 * leaking to Strava.
 	 *
-	 * @param  string   $embed_type  One of 'activity', 'route', 'segment'.
-	 * @param  string   $activity_id Numeric Strava ID.
-	 * @param  int|null $width       Preferred width in pixels (null = default).
-	 * @param  int|null $height      Preferred height in pixels (null = default).
-	 * @param  array    $params      Optional Strava embed-page query params.
+	 * @param string   $embed_type  One of 'activity', 'route', 'segment'.
+	 * @param string   $activity_id Numeric Strava ID.
+	 * @param int|null $width       Preferred width in pixels (null = default).
+	 * @param int|null $height      Preferred height in pixels (null = default).
+	 * @param array    $params      Optional Strava embed-page query params.
 	 * @return string                Iframe HTML.
 	 */
 	private static function build_iframe( string $embed_type, string $activity_id, ?int $width = null, ?int $height = null, array $params = array() ): string {
@@ -401,10 +375,6 @@ class Block_For_Strava_Embed {
 		$resolved_height = $height ?? self::DEFAULT_HEIGHT;
 
 		/*
-		 * The plugin no longer ships a frontend stylesheet, so without an
-		 * inline cap the fixed `width="600"` would overflow narrower
-		 * containers (classic content, widget areas, mobile viewports).
-		 *
 		 * When the route opts into `fullWidth`, drop the `max-width` cap so
 		 * the iframe element matches the responsive Strava embed page inside
 		 * — otherwise the inner page renders responsive but the outer iframe
@@ -438,7 +408,7 @@ class Block_For_Strava_Embed {
 	 * Strava's "Error code: EEE" page (403). The editor uses that signal
 	 * to show a notice with instructions to paste the share-dialog snippet
 	 * instead. Gated by `edit_posts` because the preflight causes outbound
-	 * HTTP and we don't want unauthenticated callers using us as a probe.
+	 * HTTP, and we don't want unauthenticated callers using us as a probe.
 	 */
 	public static function register_rest_routes(): void {
 		register_rest_route(
@@ -451,31 +421,15 @@ class Block_For_Strava_Embed {
 				},
 				'args'                => array(
 					'type' => array(
-						'required'          => true,
-						'validate_callback' => static function ( $value ) {
-							return is_string( $value ) && in_array( $value, array( 'activity', 'route', 'segment' ), true );
-						},
-						'sanitize_callback' => static function ( $value ) {
-							return (string) $value;
-						},
+						'type'     => 'string',
+						'enum'     => array( 'activity', 'route', 'segment' ),
+						'required' => true,
 					),
 					'id'   => array(
+						'type'              => 'string',
 						'required'          => true,
 						'validate_callback' => static function ( $value ) {
-							/*
-							 * `(string)` first so an integer query param
-							 * (which `WP_REST_Request` may keep as a native
-							 * int) round-trips through ctype_digit cleanly;
-							 * `is_numeric` would let through scientific
-							 * notation and signed numbers Strava's path
-							 * doesn't accept.
-							 */
-							return is_string( $value ) || is_int( $value )
-								? ctype_digit( (string) $value )
-								: false;
-						},
-						'sanitize_callback' => static function ( $value ) {
-							return (string) $value;
+							return ( is_string( $value ) || is_int( $value ) ) && ctype_digit( (string) $value );
 						},
 					),
 				),
@@ -490,6 +444,7 @@ class Block_For_Strava_Embed {
 					$type   = (string) $request->get_param( 'type' );
 					$id     = (string) $request->get_param( 'id' );
 					$status = self::probe_embed_status( $type, $id );
+
 					return new WP_REST_Response(
 						array(
 							'embeddable' => 200 === $status,
@@ -507,14 +462,11 @@ class Block_For_Strava_Embed {
 	 *
 	 * Result is memoized in a transient so the editor's polling on every
 	 * URL change (and any front-end render that ever calls in here) doesn't
-	 * fan out into one HTTP request per render. Negative results cache
-	 * short — Strava can flip an activity's visibility back to Everyone at
-	 * any moment, and we'd rather have the next paste re-probe than show a
-	 * stale "not embeddable" warning for a day.
+	 * fan out into one HTTP request per render.
 	 *
-	 * @param  string $embed_type  One of 'activity'|'route'|'segment'.
-	 * @param  string $resource_id Numeric Strava resource ID.
-	 * @return int                 HTTP status code, or 0 on transport failure.
+	 * @param string $embed_type  One of 'activity'|'route'|'segment'.
+	 * @param string $resource_id Numeric Strava resource ID.
+	 * @return int HTTP status code, or 0 on transport failure.
 	 */
 	private static function probe_embed_status( string $embed_type, string $resource_id ): int {
 		$cache_key = 'block_for_strava_embed_status_' . md5( $embed_type . ':' . $resource_id );
@@ -545,6 +497,7 @@ class Block_For_Strava_Embed {
 
 		if ( is_wp_error( $response ) ) {
 			set_transient( $cache_key, 0, 5 * MINUTE_IN_SECONDS );
+
 			return 0;
 		}
 
@@ -559,6 +512,7 @@ class Block_For_Strava_Embed {
 			$status,
 			200 === $status ? DAY_IN_SECONDS : 5 * MINUTE_IN_SECONDS
 		);
+
 		return $status;
 	}
 }
