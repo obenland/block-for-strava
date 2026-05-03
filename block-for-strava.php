@@ -24,6 +24,10 @@ defined( 'ABSPATH' ) || exit;
 define( 'BLOCK_FOR_STRAVA_VERSION', '1.0.0' );
 define( 'BLOCK_FOR_STRAVA_DIR', plugin_dir_path( __FILE__ ) );
 
+// Default iframe dimensions; mirror the editor's preview shell in `src/edit.tsx`.
+define( 'BLOCK_FOR_STRAVA_DEFAULT_WIDTH', 600 );
+define( 'BLOCK_FOR_STRAVA_DEFAULT_HEIGHT', 730 );
+
 /**
  * Registers the block from its build-time block.json.
  *
@@ -196,7 +200,7 @@ function block_for_strava_resolve_to_canonical( string $url ): ?array {
  * @param string $url The URL to parse.
  * @return array|false ['type' => 'activity'|'route'|'segment', 'id' => '<digits>'] or false.
  */
-function block_for_strava_parse_url( string $url ): bool|array {
+function block_for_strava_parse_url( string $url ): array|false {
 	$parsed = wp_parse_url( $url );
 	if ( ! is_array( $parsed ) || empty( $parsed['host'] ) || empty( $parsed['path'] ) ) {
 		return false;
@@ -263,7 +267,7 @@ function block_for_strava_is_allowed_url( string $url, array $allowed_hosts ): b
  * @param string $url The short URL to resolve.
  * @return string|WP_Error The canonical URL, or a WP_Error on failure.
  */
-function block_for_strava_resolve_url( string $url ): WP_Error|string {
+function block_for_strava_resolve_url( string $url ): string|WP_Error {
 	if ( ! block_for_strava_is_allowed_url( $url, array( 'strava.app.link' ) ) ) {
 		return new WP_Error(
 			'unsupported_url',
@@ -338,8 +342,8 @@ function block_for_strava_build_iframe( string $embed_type, string $activity_id,
 		$src .= '?' . http_build_query( $params, '', '&', PHP_QUERY_RFC3986 );
 	}
 
-	$resolved_width  = $width ?? 600;
-	$resolved_height = $height ?? 730;
+	$resolved_width  = $width ?? BLOCK_FOR_STRAVA_DEFAULT_WIDTH;
+	$resolved_height = $height ?? BLOCK_FOR_STRAVA_DEFAULT_HEIGHT;
 
 	/*
 	 * When the route opts into `fullWidth`, drop the `max-width` cap so

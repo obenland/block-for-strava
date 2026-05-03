@@ -112,7 +112,9 @@ describe( 'block.json schema', () => {
 		// render callback is wired in PHP, so block.json carries no
 		// `render` key.
 		expect( metadata.editorScript ).toBe( 'file:./index.js' );
-		expect( metadata.render ).toBeUndefined();
+		expect(
+			( metadata as Record< string, unknown > ).render
+		).toBeUndefined();
 	} );
 
 	it( 'sets the block category to embed for inserter placement', () => {
