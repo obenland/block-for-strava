@@ -39,6 +39,7 @@ if ( ! $single instanceof SebastianBergmann\CodeCoverage\CodeCoverage
 $single->merge( $multi );
 
 $out_dir = dirname( $out_path );
+// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_mkdir -- CLI helper, WP_Filesystem isn't bootstrapped.
 if ( ! is_dir( $out_dir ) && ! mkdir( $out_dir, 0777, true ) && ! is_dir( $out_dir ) ) {
 	fwrite( STDERR, "merge-coverage: could not create output directory: {$out_dir}\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- CLI helper, WP_Filesystem isn't bootstrapped.
 	exit( 1 );

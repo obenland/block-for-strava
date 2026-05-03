@@ -62,7 +62,6 @@ jobs:
               run: npm run wp-env start -- --xdebug=coverage
 
             - name: Run PHPUnit with coverage
-              id: phpunit
               run: |
                   # Run tests and capture the merged coverage text summary
                   # emitted by tests/php/merge-coverage.php on stdout.
