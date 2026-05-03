@@ -1,15 +1,15 @@
 <?php
 /**
  * Plugin Name: Block for Strava
- * Plugin URI:  https://wordpress.org/plugins/block-for-strava/
+ * Plugin URI: https://wordpress.org/plugins/block-for-strava/
  * Description: Embed Strava activities, routes, and segments via a single Gutenberg block. Public resources embed from a URL; followers-only / private activities embed via Strava's share-dialog snippet (which carries a per-share token).
- * Version:     1.0.0
- * Author:      Konstantin Obenland
- * Author URI:  https://obenland.it/
+ * Version: 1.0.0
+ * Author: Konstantin Obenland
+ * Author URI: https://konstantin.obenland.it/
  * Text Domain: block-for-strava
  * Requires at least: 6.6
  * Requires PHP: 8.1
- * License:     GPL-2.0-or-later
+ * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  *
  * Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
