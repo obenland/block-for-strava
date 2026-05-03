@@ -875,25 +875,24 @@ export function Edit( {
 							label: __( 'Edit URL', 'block-for-strava' ),
 							onClick: toggleEditingURL,
 							isActive: isEditingURL,
-						} ),
-						showCaptionToolbarButton
-							? createElement( ToolbarButton, {
-									icon: captionIcon,
-									label: showCaption
-										? __(
-												'Remove caption',
-												'block-for-strava'
-										  )
-										: __(
-												'Add caption',
-												'block-for-strava'
-										  ),
-									onClick: toggleCaption,
-									// `isPressed` emits `aria-pressed`; `isActive` is visual-only.
-									isPressed: showCaption,
-							  } )
-							: null
+						} )
 					)
+			  )
+			: null,
+		// Slot the caption toggle into the "block" group next to alignment, matching `core/embed`.
+		showCaptionToolbarButton
+			? createElement(
+					BlockControls,
+					{ group: 'block' },
+					createElement( ToolbarButton, {
+						icon: captionIcon,
+						label: showCaption
+							? __( 'Remove caption', 'block-for-strava' )
+							: __( 'Add caption', 'block-for-strava' ),
+						onClick: toggleCaption,
+						// `isPressed` emits `aria-pressed`; `isActive` is visual-only.
+						isPressed: showCaption,
+					} )
 			  )
 			: null,
 		createElement(
