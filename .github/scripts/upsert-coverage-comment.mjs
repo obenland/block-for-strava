@@ -54,6 +54,8 @@ const sectionTitle = env( 'SECTION_TITLE' );
 const contentFile = env( 'CONTENT_FILE' );
 const prNumber = env( 'PR_NUMBER' );
 const repo = env( 'GITHUB_REPOSITORY' );
+/* Validate eagerly so a missing token surfaces here rather than as an opaque gh-CLI error mid-run. */
+env( 'GH_TOKEN' );
 
 const newContent = readFileSync( contentFile, 'utf8' ).trim();
 if ( ! newContent ) {
@@ -61,17 +63,23 @@ if ( ! newContent ) {
 }
 const newSection = buildSection( section, sectionTitle, newContent );
 
+/*
+ * `--slurp` collects every paginated page into a single JSON array. Without
+ * it, `gh api --paginate` concatenates one `[...]` per page and the combined
+ * stdout is no longer valid JSON once a PR has more than ~30 comments.
+ */
 const list = JSON.parse(
 	execFileSync(
 		'gh',
 		[
 			'api',
 			'--paginate',
+			'--slurp',
 			`repos/${ repo }/issues/${ prNumber }/comments`,
 		],
 		{ encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
 	)
-);
+).flat();
 const existing = list.find(
 	( c ) =>
 		c.user?.login === 'github-actions[bot]' &&
