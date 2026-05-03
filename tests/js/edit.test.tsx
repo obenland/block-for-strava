@@ -211,12 +211,19 @@ describe( 'Edit', () => {
 	} );
 
 	it( 'hides the caption by default and reveals it when the toolbar Add caption is clicked', async () => {
+		/*
+		 * `isSelected: true` mirrors what real Gutenberg does when the
+		 * user clicks a toolbar button on the block — the render gate
+		 * keeps the empty caption visible only while the block holds
+		 * focus, matching `core/embed`.
+		 */
 		render(
 			createElement( Edit, {
 				attributes: {
 					url: 'https://www.strava.com/activities/123',
 				},
 				setAttributes: jest.fn(),
+				isSelected: true,
 			} )
 		);
 		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
@@ -228,7 +235,12 @@ describe( 'Edit', () => {
 		).toBeInTheDocument();
 	} );
 
-	it( 'clears the caption attribute when the toolbar Remove caption is clicked', async () => {
+	it( 'clears the caption attribute to undefined when the toolbar Remove caption is clicked', async () => {
+		/*
+		 * `undefined` reverts the attribute to its `block.json` default
+		 * rather than serializing an empty string into the post markup —
+		 * matches `core/embed`'s `Caption` component.
+		 */
 		const setAttributes = jest.fn();
 		render(
 			createElement( Edit, {
@@ -242,8 +254,95 @@ describe( 'Edit', () => {
 		await userEvent.click(
 			screen.getByRole( 'button', { name: /remove caption/i } )
 		);
-		expect( setAttributes ).toHaveBeenCalledWith( { caption: '' } );
+		expect( setAttributes ).toHaveBeenCalledWith( { caption: undefined } );
 		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'auto-focuses the caption field when the toolbar Add caption is clicked', async () => {
+		render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toHaveFocus();
+	} );
+
+	it( 'hides an empty toggled-on caption once the block is no longer selected', async () => {
+		/*
+		 * Pin the `(! isCaptionEmpty || isSelected)` half of the render
+		 * gate: a freshly toggled-on empty field stays visible while
+		 * the block has focus, then collapses back when focus moves
+		 * away. Without the gate an empty `<figcaption>` would linger
+		 * in every unselected block on the page.
+		 */
+		const { rerender } = render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		await userEvent.click(
+			screen.getByRole( 'button', { name: /add caption/i } )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
+		rerender(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+				},
+				setAttributes: jest.fn(),
+				isSelected: false,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+	} );
+
+	it( 'reopens the caption field when an undo restores the attribute after a toggle-off', () => {
+		/*
+		 * Simulates: user toggles off (caption goes from text to
+		 * undefined → field hides), then undo restores the text. The
+		 * `usePrevious` effect re-flips `showCaption` on the empty →
+		 * non-empty transition so the editor matches what the front
+		 * end is now rendering.
+		 */
+		const { rerender } = render(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: '',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect( screen.queryByLabelText( /strava embed caption/i ) ).toBeNull();
+		rerender(
+			createElement( Edit, {
+				attributes: {
+					url: 'https://www.strava.com/activities/123',
+					caption: 'Restored after undo',
+				},
+				setAttributes: jest.fn(),
+				isSelected: true,
+			} )
+		);
+		expect(
+			screen.getByLabelText( /strava embed caption/i )
+		).toBeInTheDocument();
 	} );
 
 	it( 'omits the caption toolbar button while the URL is being edited', async () => {
