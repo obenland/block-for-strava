@@ -266,6 +266,7 @@ class Block_For_Strava_Embed {
 	 *
 	 * @param string   $url           The URL to validate.
 	 * @param string[] $allowed_hosts Hosts whose domain (and subdomains) are permitted.
+	 *                                Entries must be lowercase; comparison is case-sensitive.
 	 * @return bool True if the URL is safe to fetch.
 	 */
 	public static function is_allowed_strava_url( string $url, array $allowed_hosts ): bool {
