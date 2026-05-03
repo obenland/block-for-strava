@@ -47,6 +47,22 @@ describe( 'block.json schema', () => {
 		expect( supports.anchor ).toBe( true );
 	} );
 
+	it( 'declares supports.spacing.margin with margin open by default, matching core/embed', () => {
+		/*
+		 * Margin is opt-in per block in the inspector. Without
+		 * `__experimentalDefaultControls.margin`, the control is
+		 * hidden behind the Dimensions panel's "+" menu — core/embed
+		 * surfaces it open by default and we mirror that. A regression
+		 * here wouldn't strip the support, just hide it from users
+		 * unless they go hunting for it.
+		 */
+		const supports = metadata.supports as Record< string, unknown >;
+		expect( supports.spacing ).toEqual( {
+			margin: true,
+			__experimentalDefaultControls: { margin: true },
+		} );
+	} );
+
 	it( 'declares stravaEmbedToken as a string defaulting to empty', () => {
 		// The snippet-paste path writes this attribute; URL-only pastes
 		// leave it empty. The default has to be `''` (not `undefined`)

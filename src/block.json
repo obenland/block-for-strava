@@ -21,7 +21,13 @@
 		"align": [ "wide", "full" ],
 		"anchor": true,
 		"html": false,
-		"interactivity": { "clientNavigation": true }
+		"interactivity": { "clientNavigation": true },
+		"spacing": {
+			"margin": true,
+			"__experimentalDefaultControls": {
+				"margin": true
+			}
+		}
 	},
 	"attributes": {
 		"url": {

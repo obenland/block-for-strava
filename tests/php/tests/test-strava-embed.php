@@ -55,6 +55,34 @@ class Test_Strava_Embed extends WP_UnitTestCase {
 	}
 
 	/**
+	 * `supports.spacing.margin` declared in block.json must reach the
+	 * rendered figure as inline `margin-*` styles. Core's spacing
+	 * machinery applies these via `get_block_wrapper_attributes()`, which
+	 * the render callback already calls; this pins the wiring so a future
+	 * refactor that bypasses the wrapper helper drops the margins
+	 * silently.
+	 */
+	public function test_render_through_do_blocks_preserves_margin_styles(): void {
+		$rendered = $this->renderBlock(
+			array(
+				'url'   => 'https://www.strava.com/activities/123',
+				'style' => array(
+					'spacing' => array(
+						'margin' => array(
+							'top'    => '20px',
+							'bottom' => '40px',
+						),
+					),
+				),
+			)
+		);
+
+		$this->assertStringContainsString( 'margin-top:20px', $rendered );
+		$this->assertStringContainsString( 'margin-bottom:40px', $rendered );
+		$this->assertStringContainsString( '<iframe', $rendered );
+	}
+
+	/**
 	 * Caption text reaches the rendered figure as `<figcaption>`.
 	 */
 	public function test_render_emits_figcaption_when_caption_set(): void {
