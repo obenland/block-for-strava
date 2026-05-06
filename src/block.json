@@ -5,7 +5,7 @@
 	"version": "1.0.0",
 	"title": "Strava",
 	"category": "embed",
-	"description": "Embed a public Strava activity, route, or segment, or a Strava share-dialog snippet.",
+	"description": "Embed Strava activities, routes, and segments with their live interactive map and elevation profile. Paste a URL to start; route options for map style, terrain, and units sit in the inspector.",
 	"keywords": [
 		"strava",
 		"activity",
@@ -74,6 +74,15 @@
 		"caption": {
 			"type": "string",
 			"default": ""
+		}
+	},
+	"example": {
+		"viewportWidth": 600,
+		"attributes": {
+			"url": "https://www.strava.com/routes/3379104463896442748",
+			"stravaRouteMapStyle": "satellite",
+			"stravaRouteTerrain": "3d",
+			"stravaRouteShowElevation": true
 		}
 	},
 	"editorScript": "file:./index.js"
