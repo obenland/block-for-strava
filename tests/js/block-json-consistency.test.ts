@@ -153,8 +153,9 @@ describe( 'block.json schema', () => {
 		 * because Strava ignores out-of-range values and falls back to
 		 * defaults, which would silently neuter the preview.
 		 */
-		const example = ( metadata as Record< string, unknown > )
-			.example as { attributes?: Record< string, unknown > } | undefined;
+		const example = ( metadata as Record< string, unknown > ).example as
+			| { attributes?: Record< string, unknown > }
+			| undefined;
 		expect( example ).toBeDefined();
 		const exampleAttrs = example?.attributes ?? {};
 		expect( typeof exampleAttrs.url ).toBe( 'string' );
