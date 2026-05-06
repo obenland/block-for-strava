@@ -9,6 +9,7 @@ on:
             - 'composer.lock'
             - 'phpunit.xml'
             - '.wp-env.json'
+            - '.wp-env.tests.json'
             - 'package.json'
             - 'package-lock.json'
             - '.nvmrc'
@@ -59,13 +60,13 @@ jobs:
               run: npm run build
 
             - name: Install WordPress with Xdebug enabled
-              run: npm run wp-env start -- --xdebug=coverage
+              run: npm run start:tests -- --xdebug=coverage
 
             - name: Run PHPUnit with coverage
               run: |
                   # Run tests and capture the merged coverage text summary
                   # emitted by tests/php/merge-coverage.php on stdout.
-                  coverage_output=$(npm run --silent test-php-coverage)
+                  coverage_output=$(npm run --silent test:php:coverage)
                   # Keep only the coverage report section (drop wp-env / npm noise).
                   filtered=$(echo "$coverage_output" | sed -n '/^Code Coverage Report:/,$p')
                   if [ -z "$filtered" ]; then
