@@ -78,7 +78,7 @@ This plugin uses Strava's public embed feature to display your content.
 
 **For private activities,** the embed code you paste from Strava includes a share code. That share code is what tells Strava it's allowed to display the activity, and it's sent to Strava every time the embed loads.
 
-**For Strava short links** (the kind that start with `https://strava.app.link/`), your site quickly checks with Strava once to find out the full link, then remembers the answer for a short while so it doesn't have to check again. This check only goes to `strava.app.link` or `strava.com`.
+**For Strava short links** (the kind that start with `https://strava.app.link/`), your site asks Strava what the full link is and remembers the answer for up to a day, so the same link doesn't trigger a fresh lookup on every visit. After that the check happens again. These checks only go to `strava.app.link` or `strava.com`.
 
 This plugin is independently developed and is not affiliated with or endorsed by Strava Inc.
 
