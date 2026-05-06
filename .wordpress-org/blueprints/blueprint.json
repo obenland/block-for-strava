@@ -23,6 +23,17 @@
 	"login": true,
 	"steps": [
 		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "block-for-strava"
+			},
+			"options": {
+				"activate": true
+			},
+			"ifAlreadyInstalled": "skip"
+		},
+		{
 			"step": "setSiteOptions",
 			"options": {
 				"blogname": "Block for Strava demo",
