@@ -22,7 +22,7 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 * Embed any public activity, route, or segment — and your own private activities too (see the FAQ)
 * Customize how routes look: map style, terrain, units, full-width display, dirt-surface highlighting, and an elevation toggle
 * See exactly what your readers will see, right in the editor as you make changes
-* Drop a Strava link into a paragraph and the editor offers to convert it into a Strava block automatically
+* Already typed a Strava link inside a paragraph? Click the paragraph and use the block toolbar's "Transform to" menu to swap it for a Strava block
 
 **A note about private activities:** If your Strava activity is set to "Followers" or "Only You", open it on Strava, click Share → Embed, and copy the embed code Strava gives you. Paste that into your post and the block takes care of the rest.
 
@@ -35,7 +35,7 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 3. Open any post or page in the editor. Click the "+" button to add a block, search for "Strava", and select it.
 4. Paste your Strava link into the block. For routes, use the settings panel on the right side of the editor to fine-tune how it looks.
 
-Tip: You can also paste a Strava link onto its own line in a post — the editor will offer to convert it into a Strava block for you.
+Tip: You can also paste a Strava link onto its own line in a post — the editor will recognize it and turn it into a Strava block for you automatically.
 
 == Frequently Asked Questions ==
 
