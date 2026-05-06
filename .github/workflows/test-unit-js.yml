@@ -49,4 +49,4 @@ jobs:
               run: npm ci
 
             - name: Run JS unit tests
-              run: npm run test-unit-js
+              run: npm run test:unit:js

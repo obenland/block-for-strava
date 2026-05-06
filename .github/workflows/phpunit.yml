@@ -9,6 +9,7 @@ on:
             - 'composer.lock'
             - 'phpunit.xml'
             - '.wp-env.json'
+            - '.wp-env.tests.json'
             - 'package.json'
             - 'package-lock.json'
             - '.nvmrc'
@@ -21,6 +22,7 @@ on:
             - 'composer.lock'
             - 'phpunit.xml'
             - '.wp-env.json'
+            - '.wp-env.tests.json'
             - 'package.json'
             - 'package-lock.json'
             - '.nvmrc'
@@ -78,10 +80,10 @@ jobs:
               run: npm run build
 
             - name: Install WordPress
-              run: npm run wp-env start
+              run: npm run start:tests
 
             - name: Run unit tests
-              run: npm run test-php
+              run: npm run test:php
 
             - name: Run multisite unit tests
-              run: npm run test-php-multisite
+              run: npm run test:php:multisite
