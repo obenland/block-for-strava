@@ -24,7 +24,7 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 * See exactly what your readers will see, right in the editor as you make changes
 * Already typed a Strava link inside a paragraph? Click the paragraph and use the block toolbar's "Transform to" menu to swap it for a Strava block
 
-**A note about private activities:** If your Strava activity is set to "Followers" or "Only You", open it on Strava, click Share → Embed, and copy the embed code Strava gives you. Paste that into your post and the block takes care of the rest.
+**A note about private activities:** If your Strava activity is set to "Followers" or "Only You", open it on Strava, click Share → Embed, and copy the embed code Strava gives you. Paste that on its own line in your post and the block takes care of the rest.
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
 
@@ -80,7 +80,7 @@ This plugin uses Strava's public embed feature to display your content.
 
 **For Strava short links** (the kind that start with `https://strava.app.link/`), your site asks Strava what the full link is and remembers the answer for up to a day, so the same link doesn't trigger a fresh lookup on every visit. After that the check happens again. These checks only go to `strava.app.link` or `strava.com`.
 
-This plugin is independently developed and is not affiliated with or endorsed by Strava Inc.
+**External service:** Strava public embeds (`strava-embeds.com`, `strava.app.link`, `strava.com`), operated by Strava, Inc. This plugin is independently developed and is not affiliated with or endorsed by Strava Inc.
 
 * Terms of Service: [Strava Terms of Service](https://www.strava.com/legal/terms)
 * Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
