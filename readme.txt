@@ -19,7 +19,7 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 **What you can do:**
 
 * Paste a Strava link and turn it into a rich, interactive embed
-* Show off activities, routes, and segments — public or private (see the FAQ)
+* Embed any public activity, route, or segment — and your own private activities too (see the FAQ)
 * Customize how routes look: map style, terrain, units, full-width display, dirt-surface highlighting, and an elevation toggle
 * See exactly what your readers will see, right in the editor as you make changes
 * Drop a Strava link into a paragraph and the editor offers to convert it into a Strava block automatically
@@ -74,7 +74,7 @@ The Strava embed loads directly from Strava when someone views your page — muc
 
 This plugin uses Strava's public embed feature to display your content.
 
-**When someone views a page with a Strava block,** their browser loads the embed directly from `https://strava-embeds.com/`. As part of that, Strava may receive normal request information from the visitor — such as their IP address, browser type, the page they came from, and the ID of the activity, route, or segment being shown.
+**When someone views a page with a Strava block,** their browser loads the embed directly from `https://strava-embeds.com/`. As part of that, Strava may receive normal request information from the visitor — such as their IP address, browser type, your site's domain (not the full page URL), and the ID of the activity, route, or segment being shown.
 
 **For private activities,** the embed code you paste from Strava includes a share code. That share code is what tells Strava it's allowed to display the activity, and it's sent to Strava every time the embed loads.
 
