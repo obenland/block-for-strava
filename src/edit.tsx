@@ -38,13 +38,10 @@ import {
 } from '@wordpress/element';
 import type { ChangeEvent, FormEvent } from 'react';
 import { __ } from '@wordpress/i18n';
-import {
-	caption as captionIcon,
-	chartBar as stravaIcon,
-	pencil as editIcon,
-} from '@wordpress/icons';
+import { caption as captionIcon, pencil as editIcon } from '@wordpress/icons';
 import apiFetch from '@wordpress/api-fetch';
 
+import stravaIcon from './strava-icon';
 import {
 	CANONICAL_STRAVA_URL_PARSE,
 	SHORT_STRAVA_URL_PATTERN,
