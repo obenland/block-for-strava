@@ -144,4 +144,28 @@ describe( 'block.json schema', () => {
 		// runtime checks belong in e2e against `getBlockType().title`.
 		expect( metadata.title ).toBe( 'Strava' );
 	} );
+
+	it( 'declares an example so the inserter renders a hover preview, with route attributes inside the declared enums', () => {
+		/*
+		 * Without `example`, the inserter shows nothing on hover — a
+		 * silent UX regression with no other failure mode. The route
+		 * attributes pinned here have to stay within the declared enums
+		 * because Strava ignores out-of-range values and falls back to
+		 * defaults, which would silently neuter the preview.
+		 */
+		const example = ( metadata as Record< string, unknown > )
+			.example as { attributes?: Record< string, unknown > } | undefined;
+		expect( example ).toBeDefined();
+		const exampleAttrs = example?.attributes ?? {};
+		expect( typeof exampleAttrs.url ).toBe( 'string' );
+		expect( ATTRS.stravaRouteMapStyle.enum ).toContain(
+			exampleAttrs.stravaRouteMapStyle
+		);
+		expect( ATTRS.stravaRouteTerrain.enum ).toContain(
+			exampleAttrs.stravaRouteTerrain
+		);
+		expect( typeof exampleAttrs.stravaRouteShowElevation ).toBe(
+			'boolean'
+		);
+	} );
 } );
