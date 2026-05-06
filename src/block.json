@@ -16,7 +16,7 @@
 		"cycling"
 	],
 	"textdomain": "block-for-strava",
-	"icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M11.25 5h1.5v15h-1.5V5zM6 10h1.5v10H6V10zm12 4h-1.5v6H18v-6z\"/></svg>",
+	"icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M2 20 L8 9 L12 15 L18 5 L22 20 Z\"/></svg>",
 	"supports": {
 		"align": [ "wide", "full" ],
 		"anchor": true,
