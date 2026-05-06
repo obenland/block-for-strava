@@ -1,0 +1,48 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Block for Strava — live preview",
+		"description": "Boots WordPress with Block for Strava active and lands in the block editor on a draft post that already has the Strava block populated with a real route URL, so visitors can flip the inspector controls and see the embed update.",
+		"author": "obenland",
+		"categories": [
+			"Block",
+			"Embed"
+		]
+	},
+	"landingPage": "/wp-admin/post.php?post=100&action=edit",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"phpExtensionBundles": [
+		"kitchen-sink"
+	],
+	"features": {
+		"networking": true
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "block-for-strava"
+			},
+			"options": {
+				"activate": true
+			},
+			"ifAlreadyInstalled": "skip"
+		},
+		{
+			"step": "setSiteOptions",
+			"options": {
+				"blogname": "Block for Strava demo",
+				"blogdescription": "Live preview of the Block for Strava plugin"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\n$route_block = '<!-- wp:block-for-strava/embed {\"url\":\"https://www.strava.com/routes/3379104463896442748\",\"stravaRouteMapStyle\":\"satellite\",\"stravaRouteUnits\":\"metric\",\"stravaRouteFullWidth\":true,\"stravaRouteShowDirt\":true,\"stravaRouteTerrain\":\"3d\",\"stravaRouteShowElevation\":false} /-->';\n\n$intro = '<!-- wp:paragraph --><p>Block for Strava ships a single Gutenberg block that embeds Strava activities, routes, and segments through Strava\\'s official embed service inside a sandboxed iframe. The block below is the same one you would insert from the inserter — try the inspector controls on the right to flip the map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle.</p><!-- /wp:paragraph -->';\n\nwp_insert_post( array(\n    'import_id'    => 100,\n    'post_title'   => 'Try the Strava block',\n    'post_status'  => 'draft',\n    'post_content' => $intro . $route_block,\n) );\n"
+		}
+	]
+}
