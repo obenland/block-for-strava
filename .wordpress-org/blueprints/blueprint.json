@@ -1,0 +1,37 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "Block for Strava — live preview",
+		"description": "Boots WordPress with Block for Strava active and lands on a published demo post that embeds a real Strava activity and a Strava route with the route options applied.",
+		"author": "obenland",
+		"categories": [
+			"Block",
+			"Embed"
+		]
+	},
+	"landingPage": "/?p=100",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"phpExtensionBundles": [
+		"kitchen-sink"
+	],
+	"features": {
+		"networking": true
+	},
+	"login": true,
+	"steps": [
+		{
+			"step": "setSiteOptions",
+			"options": {
+				"blogname": "Block for Strava demo",
+				"blogdescription": "Live preview of the Block for Strava plugin"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php\nrequire_once '/wordpress/wp-load.php';\n\n// Replace the canned \"Hello world!\" so the demo post is the homepage's only entry.\nwp_delete_post( 1, true );\n\n$activity_block = '<!-- wp:block-for-strava/embed {\"url\":\"https://www.strava.com/activities/18233733854\"} /-->';\n\n$route_block = '<!-- wp:block-for-strava/embed {\"url\":\"https://www.strava.com/routes/3379104463896442748\",\"stravaRouteMapStyle\":\"satellite\",\"stravaRouteUnits\":\"metric\",\"stravaRouteFullWidth\":true,\"stravaRouteShowDirt\":true,\"stravaRouteTerrain\":\"3d\",\"stravaRouteShowElevation\":false} /-->';\n\n$intro = '<!-- wp:paragraph --><p>Block for Strava ships a single Gutenberg block that embeds Strava activities, routes, and segments through Strava\\'s official embed service inside a sandboxed iframe. The two embeds below are exactly what visitors see on the front end of your site.</p><!-- /wp:paragraph -->';\n\n$activity_heading = '<!-- wp:heading --><h2 class=\"wp-block-heading\">Activity</h2><!-- /wp:heading -->';\n\n$route_heading = '<!-- wp:heading --><h2 class=\"wp-block-heading\">Route with options applied</h2><!-- /wp:heading -->';\n\n$route_blurb = '<!-- wp:paragraph --><p>Routes expose Strava\\'s embed-page options: map style, terrain, units, full-width, dirt-surface highlight, and an elevation toggle. This one is in satellite mode, metric units, full width, 3D terrain, dirt highlighting on, elevation hidden.</p><!-- /wp:paragraph -->';\n\nwp_insert_post( array(\n    'import_id'    => 100,\n    'post_title'   => 'Block for Strava — demo',\n    'post_status'  => 'publish',\n    'post_content' => $intro . $activity_heading . $activity_block . $route_heading . $route_blurb . $route_block,\n) );\n\n// Editor-side draft so visitors can also click into the block editor and see the inserter, the placeholder, and the inspector controls.\nwp_insert_post( array(\n    'import_id'    => 101,\n    'post_title'   => 'Try the block in the editor',\n    'post_status'  => 'draft',\n    'post_content' => '<!-- wp:paragraph --><p>Insert a Strava block from the inserter, paste a Strava URL, or paste the share-dialog embed snippet on its own line.</p><!-- /wp:paragraph -->' . $activity_block,\n) );\n"
+		}
+	]
+}
