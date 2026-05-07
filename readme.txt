@@ -8,85 +8,88 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-A single Gutenberg block for embedding Strava activities, routes, and segments on your WordPress site.
+Add your Strava activities, routes, and segments to any post or page with a single block.
 
 == Description ==
 
-Block for Strava adds a single block to the editor that embeds Strava activities, routes, and segments inside a sandboxed iframe. Public resources embed from a URL; followers-only and private activities embed via the share-dialog snippet from Strava (which carries a per-share token sent to Strava as part of the iframe URL).
+Block for Strava lets you share your Strava activities, routes, and segments on your WordPress site. Paste a link from Strava and the official Strava embed appears in your post — interactive map, elevation profile, stats, and all.
 
-When a visitor views a post containing the block, their browser loads the embed iframe directly from `strava-embeds.com`; for short share links (`strava.app.link/…`), the site server makes a `HEAD` request to Strava to resolve the canonical URL. See the *External services* section below for full details.
+There's nothing to set up. No accounts to connect, no keys to copy, no extra software. If you can paste a link, you can use this plugin.
 
-**Features:**
+**What you can do:**
 
-* One Gutenberg block — find "Strava" in the inserter, paste a URL, done
-* Pasting a Strava URL on its own line in post content (or the share-dialog snippet) auto-converts to the Strava block — when typed inside paragraph text, the block toolbar's "Transform to → Strava" finishes the conversion
-* Supports full URLs (`strava.com/activities/…`, `strava.com/routes/…`, `strava.com/segments/…`), short share links (`strava.app.link/…`), and the share-dialog embed snippet (with token, for non-public activities)
-* Per-route options for map style, terrain, units, full-width, dirt-surface highlight, and elevation toggle
-* Front-end pages render the official Strava embed (interactive map, elevation profile, etc.) inside a cross-origin sandboxed iframe with `referrerpolicy=origin`
-* Live in-editor preview with route options applied
-* No API key needed; visitors don't need a Strava account either (only authors embedding non-public activities need a logged-in Strava session to copy the share-dialog snippet)
+* Paste a Strava link and turn it into a rich, interactive embed
+* Embed any public activity, route, or segment — and your own private activities too (see the FAQ)
+* Customize how routes look: map style, terrain, units, full-width display, dirt-surface highlighting, and an elevation toggle
+* See exactly what your readers will see, right in the editor as you make changes
+* Already typed a Strava link inside a paragraph? Click the paragraph and use the block toolbar's "Transform to" menu to swap it for a Strava block
+
+**A note about private activities:** If your Strava activity is set to "Followers" or "Only You", open it on Strava, click Share → Embed, and copy the embed code Strava gives you. Paste that on its own line in your post and the block takes care of the rest.
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
 
 == Installation ==
 
-1. Upload the plugin files to `/wp-content/plugins/block-for-strava/`, or install directly from the WordPress Plugins screen.
+1. In your WordPress dashboard, go to **Plugins → Add New**, search for "Block for Strava", and click **Install**.
 2. Activate the plugin.
-3. In the block editor, open the inserter, search for "Strava", and pick the block. Or just paste a Strava URL onto its own line in the post — it auto-converts to a Strava block.
-4. Paste any Strava activity, route, or segment URL into the placeholder. For routes, use the Inspector panel to tweak map style, terrain, units, and so on.
+3. Open any post or page in the editor. Click the "+" button to add a block, search for "Strava", and select it.
+4. Paste your Strava link into the block. For routes, use the settings panel on the right side of the editor to fine-tune how it looks.
 
-For non-public activities (visibility set to "Followers" or "Only You"), copy the embed snippet from Strava's share dialog (Share → Embed) and paste it on its own line — the Strava block picks up both the activity and the per-share token so the iframe loads.
+Tip: You can also paste a Strava link onto its own line in a post — the editor will recognize it and turn it into a Strava block for you automatically.
 
 == Frequently Asked Questions ==
 
-= Does this work with private activities, routes, or segments? =
+= Do my visitors need a Strava account? =
 
-It depends on the resource type. Public ("Everyone") activities, routes, and segments embed from a URL alone. Followers-only and private activities embed via Strava's share-dialog snippet — paste the `<div class="strava-embed-placeholder" …>…</div>` block (with its `data-token` share token) on its own line and the Strava block picks it up. The block round-trips a share token attribute for any resource type, so if Strava ever exposes a share-dialog snippet for a non-public route or segment, the same paste flow will carry that token through; in practice today Strava's share-with-token UI is on activities only, so non-public routes and segments can't be embedded yet.
+No. Visitors just see the embed when they view your post — no login, no account, nothing extra. You also don't need a Strava account to embed public activities. The only time you'll need to be logged in to Strava is if you want to embed one of your own private activities, since you'll need to grab the embed code from Strava's share dialog.
 
-= Do I need a Strava account? =
+= Can I embed private activities? =
 
-Visitors don't need any account or API key — they just see the embedded iframe. The block uses Strava's public embed feature, which doesn't require API access on this side. To embed a followers-only or private activity, the post author needs a logged-in Strava session to open Share → Embed in Strava's UI and copy the snippet (the snippet carries the per-share token Strava requires for those embeds). Authors embedding only public Strava URLs don't need an account either.
+Yes, with one extra step. For activities you've set to "Followers" or "Only You":
 
-= What URL formats are supported? =
+1. Open the activity on Strava (while logged in).
+2. Click **Share → Embed**.
+3. Copy the code Strava shows you.
+4. Paste it on its own line in your post.
 
-Full canonical URLs — `https://www.strava.com/activities/12345678`, `https://www.strava.com/routes/12345`, `https://www.strava.com/segments/67890` — and Strava short share links (`https://strava.app.link/…`). The share-dialog embed snippet (the `<div class="strava-embed-placeholder" …>…</div>` block from Strava's Share → Embed dialog) is also supported and is the path to use for non-public activities, since it carries the per-share token Strava requires for those embeds.
+The block recognizes the code and handles everything from there. (At the moment, Strava only offers this option for activities — not for private routes or segments.)
 
-= Why does this plugin run server-side PHP? =
+= What kinds of Strava links work? =
 
-Strava does not publish a public oEmbed endpoint. The block has a PHP render callback that generates the iframe markup deterministically from the saved URL and route attributes. The plugin runs no admin pages, options screens, or scheduled tasks. It does register a single editor-only REST route (`/wp-json/block-for-strava/v1/embed-status`) that the block's edit component calls to determine whether a saved activity URL needs a share token — the route is gated on `edit_posts` capability and is not used by the front end.
+Any of these:
+
+* The full link to an activity, route, or segment (the URL you see at the top of the page on Strava)
+* Strava short links (the kind that start with strava.app.link)
+* The embed code from Strava's **Share → Embed** dialog (this is what you'll use for private activities)
+
+= How do I change the look of an embedded route? =
+
+Click the Strava block in the editor, and a settings panel appears on the right side of your screen. There you can pick the map style, switch between miles and kilometers, toggle the elevation profile, highlight dirt sections, and more. These options apply to routes; activities and segments use Strava's standard look.
+
+= Will this slow down my site or share visitor data? =
+
+The Strava embed loads directly from Strava when someone views your page — much like a YouTube video does. The full details of what gets sent to Strava are in the **External services** section below.
 
 == External services ==
 
-This plugin embeds Strava content through Strava's public embed service.
-When a visitor views a post containing a Strava embed, their browser requests
-the embed iframe from `https://strava-embeds.com/`. Strava may receive request
-data such as the visitor's IP address, browser user agent, referring site
-origin, and the Strava activity, route, or segment ID in the embed URL.
+This plugin uses Strava's public embed feature to display your content.
 
-For followers-only or private activities, the share-dialog snippet pasted into
-the block carries a per-share token that the plugin saves as part of the block's
-attributes and appends to the iframe URL on the front end (`?token=…`). The
-token is sent to Strava on every request for that embed and is what authorizes
-the iframe to render the non-public activity.
+**When someone views a page with a Strava block,** their browser loads the embed directly from `https://strava-embeds.com/`. As part of that, Strava may receive normal request information from the visitor — such as their IP address, browser type, your site's domain (not the full page URL), and the ID of the activity, route, or segment being shown.
 
-When a Strava short share link (`https://strava.app.link/…`) is embedded, the
-site server makes a `HEAD` request to `strava.app.link` and follows redirects
-only to `strava.app.link` or `strava.com` to resolve the public activity, route,
-or segment URL. Resolved URLs are cached temporarily in WordPress transients.
+**For private activities,** the embed code you paste from Strava includes a share code. That share code is what tells Strava it's allowed to display the activity, and it's sent to Strava every time the embed loads.
 
-External service: Strava public embeds, operated by Strava, Inc. This plugin is
-independently developed and is not affiliated with or endorsed by Strava Inc.
-Terms of Service: [Strava Terms of Service](https://www.strava.com/legal/terms)
-Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
+**For Strava short links** (the kind that start with `https://strava.app.link/`), your site asks Strava what the full link is and remembers the answer for up to a day, so the same link doesn't trigger a fresh lookup on every visit. After that the check happens again. These checks only go to `strava.app.link` or `strava.com`.
+
+**External service:** Strava public embeds (`strava-embeds.com`, `strava.app.link`, `strava.com`), operated by Strava, Inc. This plugin is independently developed and is not affiliated with or endorsed by Strava Inc.
+
+* Terms of Service: [Strava Terms of Service](https://www.strava.com/legal/terms)
+* Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
 
 == Development ==
 
-The human-readable source files and build tooling are maintained in the
-[Block for Strava GitHub repository](https://github.com/obenland/block-for-strava).
+The plugin's source code is maintained on GitHub: [Block for Strava on GitHub](https://github.com/obenland/block-for-strava).
 
-The WordPress.org package includes the compiled `build/` assets
-(`build/index.js`, `build/block.json`, `build/index.asset.php`) that the block
-registers from. To rebuild the assets from source, clone the repository and run:
+The version downloaded from WordPress.org is ready to use as-is. If you'd like to build the plugin from source, clone the repository and run:
 
 1. `npm ci`
 2. `npm run build`

@@ -41,7 +41,7 @@ jobs:
               run: npm ci
 
             - name: Run JS unit tests with coverage
-              run: npm run test-unit-js:coverage
+              run: npm run test:unit:js:coverage
 
             - name: Build coverage summary from json-summary
               run: |
