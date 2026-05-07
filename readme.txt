@@ -94,9 +94,6 @@ The version downloaded from WordPress.org is ready to use as-is. If you'd like t
 1. `npm ci`
 2. `npm run build`
 
-The editor source files are in `src/`. PHP source is included in the plugin
-package.
-
 == Screenshots ==
 
 1. Embed a Strava activity with the full interactive map, stats, and an optional caption — the same view your visitors would get on Strava.
