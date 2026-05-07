@@ -94,6 +94,14 @@ The version downloaded from WordPress.org is ready to use as-is. If you'd like t
 1. `npm ci`
 2. `npm run build`
 
+== Screenshots ==
+
+1. Embed a Strava activity with the full interactive map, stats, and an optional caption — the same view your visitors would get on Strava.
+2. Route embeds include an elevation profile and let you switch between map styles like satellite, hybrid, dark, or winter, plus optional 3D terrain and unpaved-surface highlights.
+3. Search "Strava" in the inserter — hovering the result shows a sample preview so you can see the block before adding it.
+4. Tweak each route from the editor sidebar: map style, terrain, units, embed width, and toggles for the elevation profile and unpaved surfaces.
+5. Add or remove a caption straight from the block toolbar — no extra panels to dig through.
+
 == Changelog ==
 
 = 1.0.0 =
