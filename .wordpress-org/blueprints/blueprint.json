@@ -4,19 +4,14 @@
 		"title": "Block for Strava — live preview",
 		"description": "Boots WordPress with Block for Strava active and lands in the block editor on a draft post that already has the Strava block populated with a real route URL, so visitors can flip the inspector controls and see the embed update.",
 		"author": "obenland",
-		"categories": [
-			"Block",
-			"Embed"
-		]
+		"categories": [ "Block", "Embed" ]
 	},
 	"landingPage": "/wp-admin/post.php?post=100&action=edit",
 	"preferredVersions": {
 		"php": "8.3",
 		"wp": "latest"
 	},
-	"phpExtensionBundles": [
-		"kitchen-sink"
-	],
+	"phpExtensionBundles": [ "kitchen-sink" ],
 	"features": {
 		"networking": true
 	},

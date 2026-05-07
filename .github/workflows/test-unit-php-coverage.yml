@@ -14,7 +14,7 @@ on:
             - 'package-lock.json'
             - '.nvmrc'
             - '.github/workflows/test-unit-php-coverage.yml'
-            - '.github/scripts/upsert-coverage-comment.mjs'
+            - '.github/scripts/upsert-coverage-comment.ts'
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -91,4 +91,4 @@ jobs:
                   SECTION_TITLE: PHP
                   CONTENT_FILE: coverage/php/summary.md
                   PR_NUMBER: ${{ github.event.pull_request.number }}
-              run: node .github/scripts/upsert-coverage-comment.mjs
+              run: node .github/scripts/upsert-coverage-comment.ts

@@ -22,7 +22,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-const env = ( name ) => {
+type Section = 'js' | 'php';
+
+interface IssueComment {
+	id: number;
+	user: { login: string } | null;
+	body?: string;
+}
+
+const env = ( name: string ): string => {
 	const value = process.env[ name ];
 	if ( ! value ) {
 		throw new Error( `Missing required env var: ${ name }` );
@@ -31,27 +39,32 @@ const env = ( name ) => {
 };
 
 const TITLE = '## Test Coverage Report';
-const SECTIONS = [ 'js', 'php' ];
-const TITLES = { js: 'JavaScript', php: 'PHP' };
-const startMarker = ( s ) => `<!-- coverage-${ s }-start -->`;
-const endMarker = ( s ) => `<!-- coverage-${ s }-end -->`;
+const SECTIONS: readonly Section[] = [ 'js', 'php' ] as const;
+const TITLES: Record< Section, string > = { js: 'JavaScript', php: 'PHP' };
+const startMarker = ( s: Section ): string => `<!-- coverage-${ s }-start -->`;
+const endMarker = ( s: Section ): string => `<!-- coverage-${ s }-end -->`;
 
-const buildSection = ( section, title, content ) =>
+const buildSection = (
+	section: Section,
+	title: string,
+	content: string
+): string =>
 	`${ startMarker( section ) }\n### ${ title }\n\n${ content }\n${ endMarker(
 		section
 	) }`;
 
-const placeholder = ( section ) =>
+const placeholder = ( section: Section ): string =>
 	buildSection(
 		section,
 		TITLES[ section ],
 		`_${ TITLES[ section ] } coverage not yet computed for this PR._`
 	);
 
-const section = env( 'SECTION' );
-if ( ! SECTIONS.includes( section ) ) {
+const sectionInput = env( 'SECTION' );
+if ( ! ( SECTIONS as readonly string[] ).includes( sectionInput ) ) {
 	throw new Error( `SECTION must be one of: ${ SECTIONS.join( ', ' ) }` );
 }
+const section = sectionInput as Section;
 const sectionTitle = env( 'SECTION_TITLE' );
 const contentFile = env( 'CONTENT_FILE' );
 const prNumber = env( 'PR_NUMBER' );
@@ -70,26 +83,28 @@ const newSection = buildSection( section, sectionTitle, newContent );
  * it, `gh api --paginate` concatenates one `[...]` per page and the combined
  * stdout is no longer valid JSON once a PR has more than ~30 comments.
  */
-const list = JSON.parse(
-	execFileSync(
-		'gh',
-		[
-			'api',
-			'--paginate',
-			'--slurp',
-			`repos/${ repo }/issues/${ prNumber }/comments`,
-		],
-		{ encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
-	)
-).flat();
+const list: IssueComment[] = (
+	JSON.parse(
+		execFileSync(
+			'gh',
+			[
+				'api',
+				'--paginate',
+				'--slurp',
+				`repos/${ repo }/issues/${ prNumber }/comments`,
+			],
+			{ encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+		)
+	) as IssueComment[][]
+ ).flat();
 const existing = list.find(
-	( c ) =>
+	( c ): c is IssueComment & { body: string } =>
 		c.user?.login === 'github-actions[bot]' &&
 		typeof c.body === 'string' &&
 		c.body.startsWith( TITLE )
 );
 
-let body;
+let body: string;
 if ( existing ) {
 	const re = new RegExp(
 		`${ startMarker( section ) }[\\s\\S]*?${ endMarker( section ) }`
