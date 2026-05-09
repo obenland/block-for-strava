@@ -16,6 +16,8 @@ concurrency:
 jobs:
     validate:
         name: Validate against latest WordPress
+        permissions:
+            contents: read
         if: github.ref == 'refs/heads/trunk'
         runs-on: ubuntu-latest
         timeout-minutes: 30
