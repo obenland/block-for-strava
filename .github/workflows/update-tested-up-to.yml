@@ -115,8 +115,8 @@ jobs:
                           exit 1
                           ;;
                   esac
-                  # Poll until the merge actually completes, so any downstream step (none currently) cannot
-                  # see a half-merged state when --auto was used.
+                  # Poll until the merge actually completes, so the SVN sync below cannot
+                  # publish ahead of trunk when --auto was used.
                   for _ in $(seq 1 60); do
                       merged_at=$(gh pr view "$PR" --json mergedAt --jq '.mergedAt')
                       if [ "$merged_at" != "null" ] && [ -n "$merged_at" ]; then
@@ -127,3 +127,23 @@ jobs:
                   done
                   echo "PR #$PR did not merge within 10 minutes" >&2
                   exit 1
+
+            - name: Refresh workspace from merged trunk
+              if: success() && steps.pr.outputs.pull-request-number
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  # peter-evans/create-pull-request leaves the working tree at the pre-PR
+                  # state, and the merge happens on the remote. Pull the post-merge trunk
+                  # so the SVN sync below copies the actually-bumped readme.txt rather than
+                  # the workspace's stale copy.
+                  git fetch origin trunk
+                  git reset --hard origin/trunk
+
+            - name: Sync readme to WordPress.org SVN
+              if: success() && steps.pr.outputs.pull-request-number
+              uses: 10up/action-wordpress-plugin-asset-update@stable
+              env:
+                  SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+                  SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+                  IGNORE_OTHER_FILES: true
