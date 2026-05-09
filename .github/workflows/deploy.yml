@@ -44,7 +44,7 @@ jobs:
               run: wp dist-archive . "$RUNNER_TEMP/${{ github.event.repository.name }}.zip"
 
             - name: Attach zip to GitHub release
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
                   files: ${{ runner.temp }}/${{ github.event.repository.name }}.zip
 
