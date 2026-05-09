@@ -8,6 +8,9 @@ on:
             - 'readme.txt'
             - '.wordpress-org/**'
 
+permissions:
+    contents: read
+
 jobs:
     trunk:
         name: Push to trunk
