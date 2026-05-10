@@ -1,6 +1,6 @@
 === Block for Strava ===
 Contributors:      obenland
-Tags:              strava, block, embed, activity, fitness
+Tags:              strava, block, embed, activity, route
 Requires at least: 6.6
 Tested up to:      6.9
 Requires PHP:      8.1
@@ -8,11 +8,11 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-Add your Strava activities, routes, and segments to any post or page with a single block.
+Embed Strava activities, routes, and segments on any post or page — interactive map, elevation, and stats included.
 
 == Description ==
 
-Block for Strava lets you share your Strava activities, routes, and segments on your WordPress site. Paste a link from Strava and the official Strava embed appears in your post — interactive map, elevation profile, stats, and all.
+Block for Strava lets you share your Strava activities — rides, runs, hikes, swims, and more — along with routes and segments on your WordPress site. Paste a link from Strava and the official Strava embed appears in your post — interactive map, elevation profile, stats, and all.
 
 There's nothing to set up. No accounts to connect, no keys to copy, no extra software. If you can paste a link, you can use this plugin.
 
