@@ -1,4 +1,4 @@
-=== Block for Strava ===
+# Block for Strava
 Contributors:      obenland
 Tags:              strava, block, embed, activity, fitness
 Requires at least: 6.6
@@ -10,7 +10,7 @@ License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
 Add your Strava activities, routes, and segments to any post or page with a single block.
 
-== Description ==
+## Description
 
 Block for Strava lets you share your Strava activities, routes, and segments on your WordPress site. Paste a link from Strava and the official Strava embed appears in your post — interactive map, elevation profile, stats, and all.
 
@@ -28,7 +28,7 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 
 **Trademark Notice:** Strava is a trademark of Strava Inc. This plugin is not affiliated with or endorsed by Strava Inc.
 
-== Installation ==
+## Installation
 
 1. In your WordPress dashboard, go to **Plugins → Add New**, search for "Block for Strava", and click **Install**.
 2. Activate the plugin.
@@ -37,13 +37,13 @@ There's nothing to set up. No accounts to connect, no keys to copy, no extra sof
 
 Tip: You can also paste a Strava link onto its own line in a post — the editor will recognize it and turn it into a Strava block for you automatically.
 
-== Frequently Asked Questions ==
+## Frequently Asked Questions
 
-= Do my visitors need a Strava account? =
+### Do my visitors need a Strava account?
 
 No. Visitors just see the embed when they view your post — no login, no account, nothing extra. You also don't need a Strava account to embed public activities. The only time you'll need to be logged in to Strava is if you want to embed one of your own private activities, since you'll need to grab the embed code from Strava's share dialog.
 
-= Can I embed private activities? =
+### Can I embed private activities?
 
 Yes, with one extra step. For activities you've set to "Followers" or "Only You":
 
@@ -54,7 +54,7 @@ Yes, with one extra step. For activities you've set to "Followers" or "Only You"
 
 The block recognizes the code and handles everything from there. (At the moment, Strava only offers this option for activities — not for private routes or segments.)
 
-= What kinds of Strava links work? =
+### What kinds of Strava links work?
 
 Any of these:
 
@@ -62,15 +62,15 @@ Any of these:
 * Strava short links (the kind that start with strava.app.link)
 * The embed code from Strava's **Share → Embed** dialog (this is what you'll use for private activities)
 
-= How do I change the look of an embedded route? =
+### How do I change the look of an embedded route?
 
 Click the Strava block in the editor, and a settings panel appears on the right side of your screen. There you can pick the map style, switch between miles and kilometers, toggle the elevation profile, highlight dirt sections, and more. These options apply to routes; activities and segments use Strava's standard look.
 
-= Will this slow down my site or share visitor data? =
+### Will this slow down my site or share visitor data?
 
 The Strava embed loads directly from Strava when someone views your page — much like a YouTube video does. The full details of what gets sent to Strava are in the **External services** section below.
 
-== External services ==
+## External services
 
 This plugin uses Strava's public embed feature to display your content.
 
@@ -85,7 +85,7 @@ This plugin uses Strava's public embed feature to display your content.
 * Terms of Service: [Strava Terms of Service](https://www.strava.com/legal/terms)
 * Privacy Policy: [Strava Privacy Policy](https://www.strava.com/legal/privacy)
 
-== Development ==
+## Development
 
 The plugin's source code is maintained on GitHub: [Block for Strava on GitHub](https://github.com/obenland/block-for-strava).
 
@@ -94,7 +94,7 @@ The version downloaded from WordPress.org is ready to use as-is. If you'd like t
 1. `npm ci`
 2. `npm run build`
 
-== Screenshots ==
+## Screenshots
 
 1. Embed a Strava activity with the full interactive map, stats, and an optional caption — the same view your visitors would get on Strava.
 2. Route embeds include an elevation profile and let you switch between map styles like satellite, hybrid, dark, or winter, plus optional 3D terrain and unpaved-surface highlights.
@@ -102,12 +102,12 @@ The version downloaded from WordPress.org is ready to use as-is. If you'd like t
 4. Tweak each route from the editor sidebar: map style, terrain, units, embed width, and toggles for the elevation profile and unpaved surfaces.
 5. Add or remove a caption straight from the block toolbar — no extra panels to dig through.
 
-== Changelog ==
+## Changelog
 
-= 1.0.0 =
+### 1.0.0
 * Initial release.
 
-== Upgrade Notice ==
+## Upgrade Notice
 
-= 1.0.0 =
+### 1.0.0
 Initial release.
