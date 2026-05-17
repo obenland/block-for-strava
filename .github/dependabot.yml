@@ -23,6 +23,11 @@ updates:
       labels:
           - 'dependencies'
           - 'npm'
+      groups:
+          react-types:
+              patterns:
+                  - '@types/react'
+                  - '@types/react-dom'
 
     # Enable version updates for GitHub Actions
     - package-ecosystem: 'github-actions'
