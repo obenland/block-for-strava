@@ -8,6 +8,7 @@
 .wordpress-org/
 .wp-env.json
 .wp-env.override.json
+.wp-env.tests.json
 composer.json
 composer.lock
 coverage/
