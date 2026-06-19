@@ -37,7 +37,7 @@
 		"@wordpress/escape-html": "^3.47.0",
 		"@wordpress/eslint-plugin": "^25.3.0",
 		"@wordpress/hooks": "^4.46.0",
-		"@wordpress/i18n": "^6.21.0",
+		"@wordpress/i18n": "^6.21.1",
 		"@wordpress/icons": "^14.0.0",
 		"@wordpress/scripts": "^32.4.0",
 		"prettier": "npm:wp-prettier@3.0.3"
