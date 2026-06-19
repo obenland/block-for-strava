@@ -38,7 +38,7 @@
 		"@wordpress/eslint-plugin": "^25.4.1",
 		"@wordpress/hooks": "^4.46.0",
 		"@wordpress/i18n": "^6.21.1",
-		"@wordpress/icons": "^14.0.0",
+		"@wordpress/icons": "^14.0.1",
 		"@wordpress/scripts": "^32.4.0",
 		"prettier": "npm:wp-prettier@3.0.3"
 	},
