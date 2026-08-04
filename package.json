@@ -52,7 +52,7 @@
 		"sockjs": {
 			"uuid": "^14.0.0"
 		},
-		"webpack-dev-server": "^5.2.3"
+		"webpack-dev-server": "^5.2.6"
 	},
 	"scripts": {
 		"build": "wp-scripts build",
