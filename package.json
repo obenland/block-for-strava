@@ -39,7 +39,7 @@
 		"@wordpress/hooks": "^4.50.0",
 		"@wordpress/i18n": "^6.23.0",
 		"@wordpress/icons": "^15.3.0",
-		"@wordpress/scripts": "^34.0.0",
+		"@wordpress/scripts": "^34.1.0",
 		"prettier": "npm:wp-prettier@3.0.3"
 	},
 	"overrides": {
