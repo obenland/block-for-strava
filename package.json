@@ -30,7 +30,7 @@
 		"@testing-library/user-event": "^14.6.5",
 		"@types/jest": "^30.0.0",
 		"@types/react": "^19.2.18",
-		"@types/react-dom": "^19.2.4",
+		"@types/react-dom": "^19.2.5",
 		"@wordpress/api-fetch": "^7.53.0",
 		"@wordpress/element": "^8.2.0",
 		"@wordpress/env": "11.13.0",
